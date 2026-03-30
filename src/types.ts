@@ -8,7 +8,8 @@ export interface Course {
   image: string;
   duration: string;
   level: 'Beginner' | 'Intermediate' | 'Advanced';
-  prerequisites: string[];
+  requirements: string[];
+  learningOutcomes: string[];
   instructor: {
     name: string;
     bio: string;
@@ -27,7 +28,13 @@ export const COURSES: Course[] = [
     image: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=800&auto=format&fit=crop',
     duration: '4 weeks',
     level: 'Beginner',
-    prerequisites: ['A computer with at least 8GB RAM', 'Basic computer literacy'],
+    requirements: ['A computer with at least 8GB RAM', 'Basic computer knowledge', 'Good internet connection'],
+    learningOutcomes: [
+      'Master industry-standard editing software',
+      'Understand narrative storytelling through cuts',
+      'Basic color correction and grading',
+      'Audio mixing and sound design fundamentals'
+    ],
     instructor: {
       name: 'Amine Rouabhia',
       bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',
@@ -44,7 +51,13 @@ export const COURSES: Course[] = [
     image: 'https://images.unsplash.com/photo-1535016120720-40c646bebbfc?q=80&w=800&auto=format&fit=crop',
     duration: '6 weeks',
     level: 'Intermediate',
-    prerequisites: ['Completion of Basic Video Editing or equivalent experience', 'Familiarity with Adobe Premiere Pro or DaVinci Resolve'],
+    requirements: ['Completion of Basic Video Editing or equivalent experience', 'Familiarity with Adobe Premiere Pro or DaVinci Resolve', 'Basic computer knowledge', 'Good internet connection'],
+    learningOutcomes: [
+      'Advanced narrative editing techniques',
+      'Professional color grading workflows',
+      'Multi-camera editing and synchronization',
+      'Complex sound design and foley'
+    ],
     instructor: {
       name: 'Amine Rouabhia',
       bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',
@@ -61,7 +74,13 @@ export const COURSES: Course[] = [
     image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop',
     duration: '8 weeks',
     level: 'Advanced',
-    prerequisites: ['Basic knowledge of Adobe Illustrator or Photoshop', 'Understanding of design principles'],
+    requirements: ['Basic knowledge of Adobe Illustrator or Photoshop', 'Understanding of design principles', 'Basic computer knowledge', 'Good internet connection'],
+    learningOutcomes: [
+      'Master keyframing and animation principles',
+      'Create dynamic motion typography',
+      '2D and 3D animation techniques',
+      'Advanced compositing and visual effects'
+    ],
     instructor: {
       name: 'Amine Rouabhia',
       bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',

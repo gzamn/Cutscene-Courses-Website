@@ -1,199 +1,202 @@
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar } from 'lucide-react';
 import { COURSES } from '../types';
-import { Clock, BarChart, ArrowLeft, CheckCircle2, Star, User, ShieldCheck, BookOpen, Users } from 'lucide-react';
-
-const FEEDBACK = [
-  { id: 1, name: 'Ahmed', rating: 5, comment: 'Best course ever! Learned so much about cutting and transitions.' },
-  { id: 2, name: 'Sara', rating: 4, comment: 'Very clear instructions. The instructor is great.' },
-  { id: 3, name: 'Mohamed', rating: 5, comment: 'Highly recommended for anyone starting with video editing.' },
-  { id: 4, name: 'Layla', rating: 5, comment: 'The hands-on projects were really helpful.' },
-  { id: 5, name: 'Yassine', rating: 4, comment: 'Great value for money. I feel much more confident now.' },
-  { id: 6, name: 'Karim', rating: 5, comment: 'Amazing content, very professional editing tips!' },
-  { id: 7, name: 'Amira', rating: 5, comment: 'I started from zero and now I can edit my own vlogs.' },
-];
 
 export default function CourseDetail() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const course = COURSES.find(c => c.id === id);
 
   if (!course) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">Course Not Found</h1>
-          <Link to="/courses" className="text-purple-500 hover:underline">Back to Courses</Link>
+          <h2 className="text-4xl font-bold mb-4">Course Not Found</h2>
+          <Link to="/courses" className="text-purple-400 hover:text-purple-300">Return to Courses</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pt-40 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Link to="/courses" className="inline-flex items-center gap-2 text-gray-400 hover:text-purple-400 mb-8 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to courses
-        </Link>
+    <div className="min-h-screen bg-black text-white pt-32 pb-20">
+      {/* Hero Section */}
+      <section className="relative py-20 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-900/10 rounded-full blur-[120px]" />
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
             >
-              <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">{course.title}</h1>
-              <div className="flex flex-wrap gap-4 mb-8">
-                <span className="px-4 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
                   {course.level}
                 </span>
-                <span className="px-4 py-1.5 bg-zinc-900 text-gray-300 text-xs font-bold rounded-full flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-purple-400" /> {course.duration}
-                </span>
-                <span className="px-4 py-1.5 bg-zinc-900 text-gray-300 text-xs font-bold rounded-full flex items-center gap-1.5">
-                  <BarChart className="w-3.5 h-3.5 text-purple-400" /> {course.level} Level
-                </span>
+                <div className="flex items-center gap-1 text-yellow-500">
+                  <Star className="w-4 h-4 fill-current" />
+                  <span className="text-sm font-bold">4.9 (120+ reviews)</span>
+                </div>
               </div>
-              <img 
-                src={course.image} 
-                alt={course.title} 
-                className="w-full aspect-video object-cover rounded-[2.5rem] border border-purple-900/20 mb-8"
-                referrerPolicy="no-referrer"
-              />
-              <p className="text-xl text-gray-300 leading-relaxed mb-8">
+              <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+                {course.title}
+              </h1>
+              <p className="text-xl text-gray-400 mb-8 leading-relaxed">
                 {course.detailedDescription}
               </p>
+              
+              <div className="flex flex-wrap gap-6 mb-10">
+                <div className="flex items-center gap-2 text-gray-300">
+                  <Clock className="w-5 h-5 text-purple-500" />
+                  <span>{course.duration}</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-300">
+                  <BarChart className="w-5 h-5 text-purple-500" />
+                  <span>{course.level} Level</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-300">
+                  <Users className="w-5 h-5 text-purple-500" />
+                  <span>330+ Students</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link 
+                  to={`/payment?courseId=${course.id}`}
+                  className="px-10 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                >
+                  Enroll Now
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+                <button className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2">
+                  <Play className="w-5 h-5 text-purple-500 fill-current" />
+                  Watch Trailer
+                </button>
+              </div>
             </motion.div>
 
-            {/* Prerequisites */}
-            <section>
-              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                <CheckCircle2 className="w-6 h-6 text-purple-500" />
-                Prerequisites
-              </h2>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {course.prerequisites.map((pre, idx) => (
-                  <li key={idx} className="bg-zinc-950 border border-purple-900/10 p-4 rounded-2xl text-gray-400 flex items-start gap-3">
-                    <div className="w-2 h-2 rounded-full bg-purple-600 mt-2 shrink-0" />
-                    {pre}
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            {/* Instructor */}
-            <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 md:p-12">
-              <div className="flex flex-col md:flex-row gap-8 items-center md:items-start text-center md:text-left">
-                <img 
-                  src={course.instructor.avatar} 
-                  alt={course.instructor.name} 
-                  className="w-24 h-24 rounded-full object-cover border-4 border-purple-600"
-                  referrerPolicy="no-referrer"
-                />
-                <div>
-                  <h3 className="text-2xl font-bold mb-2">Instructor: {course.instructor.name}</h3>
-                  <p className="text-gray-400 leading-relaxed italic">
-                    "{course.instructor.bio}"
-                  </p>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6 }}
+              className="relative aspect-video rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 group"
+            >
+              <img 
+                src={course.image} 
+                alt={course.title}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
+                <div className="w-20 h-20 bg-purple-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/40 group-hover:scale-110 transition-transform">
+                  <Play className="w-8 h-8 text-white fill-current translate-x-0.5" />
                 </div>
               </div>
-            </section>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
-            {/* Student Feedback Section */}
-            <section className="overflow-hidden py-12">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Users className="w-6 h-6 text-purple-500" />
-                  Student Feedback
+      {/* Course Content */}
+      <section className="py-20 border-t border-purple-900/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
+            <div className="lg:col-span-2 space-y-16">
+              {/* Learning Outcomes */}
+              <div>
+                <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-purple-500" />
+                  </div>
+                  What you'll learn
                 </h2>
-                <div className="flex items-center gap-1 text-yellow-500">
-                  <Star className="w-5 h-5 fill-current" />
-                  <span className="text-white font-bold">4.9/5</span>
-                  <span className="text-gray-500 text-sm ml-1">(120+ reviews)</span>
-                </div>
-              </div>
-
-              {/* Marquee Animation */}
-              <div className="relative flex overflow-x-hidden">
-                <motion.div
-                  className="flex gap-6 py-4"
-                  animate={{
-                    x: [0, -1000],
-                  }}
-                  transition={{
-                    x: {
-                      repeat: Infinity,
-                      repeatType: "loop",
-                      duration: 30,
-                      ease: "linear",
-                    },
-                  }}
-                >
-                  {[...FEEDBACK, ...FEEDBACK].map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      className="flex-shrink-0 w-80 bg-zinc-950 border border-purple-900/20 p-6 rounded-3xl space-y-4"
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-white">{item.name}</span>
-                        <div className="flex gap-0.5">
-                          {[...Array(5)].map((_, i) => (
-                            <Star 
-                              key={i} 
-                              className={`w-3 h-3 ${i < item.rating ? 'text-yellow-500 fill-current' : 'text-gray-700'}`} 
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-gray-400 text-sm italic leading-relaxed">
-                        "{item.comment}"
-                      </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {course.learningOutcomes.map((outcome, i) => (
+                    <div key={i} className="flex items-start gap-3 p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl">
+                      <CheckCircle2 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                      <span className="text-gray-300">{outcome}</span>
                     </div>
                   ))}
-                </motion.div>
+                </div>
               </div>
-            </section>
-          </div>
 
-          {/* Sidebar - Enrollment */}
-          <div className="space-y-6">
-            <div className="bg-zinc-950 border border-purple-900/30 rounded-[2.5rem] p-8 sticky top-40">
-              <div className="text-4xl font-black text-white mb-6">
-                {course.price.toLocaleString()} {course.currency}
-              </div>
-              
-              <Link 
-                to={`/payment?courseId=${course.id}`}
-                className="block w-full py-4 bg-purple-600 hover:bg-purple-500 text-white text-center rounded-2xl font-bold text-lg transition-all shadow-lg shadow-purple-600/20 mb-6"
-              >
-                Enroll Now
-              </Link>
-
-              <div className="space-y-4">
-                <h4 className="text-white font-semibold text-sm">Course includes:</h4>
-                {[
-                  { icon: Clock, text: course.duration + ' of content' },
-                  { icon: BookOpen, text: 'Hands-on projects' },
-                  { icon: ShieldCheck, text: 'Certificate of completion' },
-                  { icon: Users, text: 'Community access' },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-gray-400 text-sm">
-                    <item.icon className="w-4 h-4 text-purple-500" />
-                    {item.text}
+              {/* requirements */}
+              <div>
+                <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
+                    <ShieldCheck className="w-6 h-6 text-purple-500" />
                   </div>
-                ))}
+                  requirements
+                </h2>
+                <div className="space-y-4">
+                  {course.requirements.map((pre, i) => (
+                    <div key={i} className="flex items-center gap-4 text-gray-400">
+                      <div className="w-2 h-2 rounded-full bg-purple-600" />
+                      <span>{pre}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+            </div>
 
-              <div className="mt-8 pt-8 border-t border-purple-900/20">
-                <p className="text-gray-500 text-xs text-center">
-                  Secure payment powered by Stripe. 
-                  30-day money back guarantee.
+            {/* Sidebar */}
+            <div className="space-y-8">
+              {/* Instructor Card */}
+              <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 sticky top-32">
+                <h3 className="text-xl font-bold mb-6">Your Instructor</h3>
+                <div className="flex items-center gap-4 mb-6">
+                  <img 
+                    src={course.instructor.avatar} 
+                    alt={course.instructor.name} 
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-600"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div>
+                    <div className="font-bold text-lg">{course.instructor.name}</div>
+                    <div className="text-purple-400 text-sm">Professional Editor</div>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-sm italic leading-relaxed mb-8">
+                  "{course.instructor.bio}"
                 </p>
+                
+                <div className="space-y-4 pt-8 border-t border-purple-900/20">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" /> Last Updated
+                    </span>
+                    <span className="text-gray-300">March 2024</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 flex items-center gap-2">
+                      <Users className="w-4 h-4" /> Students
+                    </span>
+                    <span className="text-gray-300">330+</span>
+                  </div>
+                </div>
+
+                <div className="mt-10">
+                  <div className="text-3xl font-black text-white mb-6">
+                    {course.price.toLocaleString()} {course.currency}
+                  </div>
+                  <Link 
+                    to={`/payment?courseId=${course.id}`}
+                    className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                  >
+                    Enroll Now
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

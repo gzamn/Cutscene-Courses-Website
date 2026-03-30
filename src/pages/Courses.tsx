@@ -80,14 +80,14 @@ export default function Courses() {
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-                  {/* Prerequisites */}
+                  {/* requirements */}
                   <div>
                     <h4 className="text-white font-bold mb-4 flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-purple-500" />
-                      Prerequisites
+                      requirements
                     </h4>
                     <ul className="space-y-2">
-                      {course.prerequisites.map((pre, idx) => (
+                      {course.requirements.map((pre, idx) => (
                         <li key={idx} className="text-gray-400 text-sm flex items-start gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-purple-900 mt-1.5 shrink-0" />
                           {pre}

@@ -1,33 +1,28 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/Home';
 import Courses from './pages/Courses';
+import CourseDetail from './pages/CourseDetail';
+import Support from './pages/Support';
 import Login from './pages/Login';
 import Payment from './pages/Payment';
-import Support from './pages/Support';
-import CourseDetail from './pages/CourseDetail';
+import ScrollToTop from './components/ScrollToTop';
 
-export default function App() {
+function App() {
   return (
     <Router>
       <ScrollToTop />
-      <div className="min-h-screen bg-black flex flex-col">
+      <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200">
         <Navbar />
-        <main className="flex-grow">
+        <main>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/courses" element={<Courses />} />
+            <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/support" element={<Support />} />
             <Route path="/login" element={<Login />} />
             <Route path="/payment" element={<Payment />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/courses/:id" element={<CourseDetail />} />
           </Routes>
         </main>
         <Footer />
@@ -35,3 +30,5 @@ export default function App() {
     </Router>
   );
 }
+
+export default App;

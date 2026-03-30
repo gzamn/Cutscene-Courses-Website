@@ -1,4 +1,5 @@
-import { GraduationCap, Mail, Instagram, Linkedin, Music, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { GraduationCap, Mail, Instagram, Linkedin, Music, Phone, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -21,9 +22,9 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-gray-400">
-              <li><a href="/" className="hover:text-purple-400 transition-colors">Home</a></li>
-              <li><a href="/courses" className="hover:text-purple-400 transition-colors">Courses</a></li>
-              <li><a href="/support" className="hover:text-purple-400 transition-colors">Support</a></li>
+              <li><Link to="/" className="hover:text-purple-400 transition-colors">Home</Link></li>
+              <li><Link to="/courses" className="hover:text-purple-400 transition-colors">Courses</Link></li>
+              <li><Link to="/support" className="hover:text-purple-400 transition-colors">Support</Link></li>
             </ul>
           </div>
 
@@ -31,8 +32,11 @@ export default function Footer() {
             <h3 className="text-white font-semibold mb-4">Connect</h3>
             <div className="flex flex-col gap-6">
               <div className="flex gap-4">
-                <a href="mailto:contact@cutscene.academy" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Email">
+                <a href="mailto:cutscenedz@gmail.com" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Email">
                   <Mail className="w-5 h-5" />
+                </a>
+                <a href="https://wa.me/213558006704" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
+                  <MessageCircle className="w-5 h-5" />
                 </a>
                 <a href="#" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Instagram">
                   <Instagram className="w-5 h-5" />
@@ -40,18 +44,11 @@ export default function Footer() {
                 <a href="#" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="TikTok">
                   <Music className="w-5 h-5" />
                 </a>
-                <a href="#" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="LinkedIn">
-                  <Linkedin className="w-5 h-5" />
-                </a>
               </div>
               <div className="space-y-2 text-gray-400 text-sm">
                 <div className="flex items-center gap-3">
                   <Phone className="w-4 h-4 text-purple-500" />
-                  <span className="font-mono">05 55 1234</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Phone className="w-4 h-4 text-purple-500" />
-                  <span className="font-mono">05 66 5678</span>
+                  <span className="font-mono">+213 791 575 149</span>
                 </div>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowRight, Star, Users, BookOpen, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock } from 'lucide-react';
 import { COURSES } from '../types';
 
 export default function Home() {
@@ -75,8 +75,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-end mb-12">
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Featured Courses</h2>
-              <p className="text-gray-400">Hand-picked courses to kickstart your journey.</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Courses</h2>
+              <p className="text-gray-400">You portal to make a change.</p>
             </div>
             <Link to="/courses" className="text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1">
               See all courses <ArrowRight className="w-4 h-4" />
@@ -97,8 +97,13 @@ export default function Home() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute top-4 right-4 px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">
-                    {course.level}
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+                      {course.level}
+                    </span>
+                    <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
+                      <Clock className="w-3 h-3 text-purple-400" /> {course.duration}
+                    </span>
                   </div>
                 </Link>
                 <div className="p-6">
