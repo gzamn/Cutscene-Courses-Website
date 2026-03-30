@@ -5,7 +5,6 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/Cutscene-Courses-Website/', // <-- CHANGE THIS to your GitHub repository name
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

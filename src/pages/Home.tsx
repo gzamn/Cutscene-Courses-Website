@@ -24,8 +24,8 @@ export default function Home() {
               Innovate, Create, Elevate
             </span>
             <h1 className="text-5xl md:text-7xl font-extrabold mb-8 leading-tight">
-              حاب تتعلم <span className="text-purple-500">مونتاج</span>؟ <br />
-              حلك عند <span className="text-purple-500">Cutscene</span>
+              حاب تتعلم <span className="text-brand-gradient">مونتاج</span>؟ <br />
+              <span className="text-brand-gradient">Cutscene</span> حلك عند
             </h1>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
               Join our growing community of over 330 students and transform your career with our premium, 
@@ -34,7 +34,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link 
                 to="/courses" 
-                className="w-full sm:w-auto px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-bold text-lg transition-all flex items-center justify-center gap-2 group"
+                className="w-full sm:w-auto px-8 py-4 bg-brand-radial hover:opacity-90 text-white rounded-full font-bold text-lg transition-all flex items-center justify-center gap-2 group shadow-lg shadow-purple-600/20"
               >
                 Explore Courses
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -122,7 +122,7 @@ export default function Home() {
                       </Link>
                       <Link 
                         to={`/payment?courseId=${course.id}`}
-                        className="px-4 py-2 bg-purple-900/30 hover:bg-purple-600 text-purple-400 hover:text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold"
+                        className="px-4 py-2 bg-brand-radial hover:opacity-90 text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold shadow-lg shadow-purple-600/10"
                       >
                         Get Started
                       </Link>

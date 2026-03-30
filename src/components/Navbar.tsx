@@ -13,10 +13,10 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center py-3 gap-2">
           <Link to="/" className="flex items-center gap-2 group shrink-0">
-            <div className="p-1.5 bg-purple-600 rounded-lg group-hover:bg-purple-500 transition-colors">
+            <div className="p-1.5 bg-brand-radial rounded-lg group-hover:opacity-90 transition-opacity">
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold text-brand-gradient">
               Cutscene
             </span>
           </Link>

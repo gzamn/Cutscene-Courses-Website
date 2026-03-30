@@ -115,7 +115,7 @@ export default function Support() {
                     className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none"
                   />
                 </div>
-                <button className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group shadow-lg shadow-purple-600/20">
+                <button className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group shadow-lg shadow-purple-600/20">
                   Send Message
                   <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                 </button>

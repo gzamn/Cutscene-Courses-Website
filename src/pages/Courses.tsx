@@ -28,7 +28,7 @@ export default function Courses() {
                 key={cat}
                 className={`px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all ${
                   cat === 'All' 
-                    ? 'bg-purple-600 text-white' 
+                    ? 'bg-brand-radial text-white' 
                     : 'bg-zinc-900 text-gray-400 hover:bg-zinc-800'
                 }`}
               >
@@ -134,7 +134,7 @@ export default function Courses() {
                     </Link>
                     <Link 
                       to={`/payment?courseId=${course.id}`}
-                      className="w-full sm:w-auto px-10 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
+                      className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
                     >
                       Get Started
                       <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />

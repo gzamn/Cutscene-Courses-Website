@@ -135,7 +135,7 @@ export default function Payment() {
                   />
                 </div>
 
-                <button className="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30 group">
+                <button className="w-full py-5 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30 group">
                   Pay {course.price.toLocaleString()} {course.currency}
                   <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                 </button>

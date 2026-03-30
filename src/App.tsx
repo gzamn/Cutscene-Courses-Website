@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/Home';
@@ -13,19 +13,30 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
-      <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200">
-        <Navbar />
-        <main>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/courses" element={<Courses />} />
-            <Route path="/courses/:id" element={<CourseDetail />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/payment" element={<Payment />} />
-          </Routes>
-        </main>
-        <Footer />
+      <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
+        {/* Global Background Gradients */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px]" />
+          <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] bg-purple-900/5 rounded-full blur-[100px]" />
+          <div className="absolute bottom-[10%] left-[20%] w-[35%] h-[35%] bg-purple-600/5 rounded-full blur-[120px]" />
+        </div>
+
+        <div className="relative z-10">
+          <Navbar />
+          <main>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/courses/:id" element={<CourseDetail />} />
+              <Route path="/support" element={<Support />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/payment" element={<Payment />} />
+              {/* Catch-all route to redirect back to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
       </div>
     </Router>
   );
