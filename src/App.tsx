@@ -7,6 +7,7 @@ import CourseDetail from './pages/CourseDetail';
 import Support from './pages/Support';
 import Login from './pages/Login';
 import Payment from './pages/Payment';
+import VideoPlayer from './pages/VideoPlayer';
 import ScrollToTop from './components/ScrollToTop';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
               <Route path="/support" element={<Support />} />
               <Route path="/login" element={<Login />} />
               <Route path="/payment" element={<Payment />} />
+              <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
               {/* Catch-all route to redirect back to home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

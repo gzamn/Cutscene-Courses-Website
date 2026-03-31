@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText } from 'lucide-react';
 import { COURSES } from '../types';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const course = COURSES.find(c => c.id === id);
+  const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
 
   if (!course) {
     return (
@@ -70,7 +72,7 @@ export default function CourseDetail() {
                   to={`/payment?courseId=${course.id}`}
                   className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                 >
-                  Enroll Now
+                  Get Started
                   <ArrowRight className="w-5 h-5" />
                 </Link>
                 <button className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2">
@@ -142,6 +144,76 @@ export default function CourseDetail() {
                   ))}
                 </div>
               </div>
+
+              {/* Course Curriculum */}
+              <div>
+                <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
+                    <BookOpen className="w-6 h-6 text-purple-500" />
+                  </div>
+                  Course Curriculum
+                </h2>
+                <div className="space-y-4">
+                  {Array.from({ 
+                    length: course.id === '1' ? 12 : course.id === '2' ? 18 : 24 
+                  }, (_, i) => i + 1).map((chapter) => (
+                    <div key={chapter} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
+                      <button 
+                        onClick={() => setExpandedChapter(expandedChapter === chapter ? null : chapter)}
+                        className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
+                            {chapter}
+                          </div>
+                          <span className="text-lg font-bold">Chapter {chapter}: Master the Basics</span>
+                        </div>
+                        {expandedChapter === chapter ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+                      </button>
+                      
+                      <AnimatePresence>
+                        {expandedChapter === chapter && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-6 pt-0 flex flex-col gap-3">
+                              {[
+                                { type: 'session', label: 'Session', icon: Play },
+                                { type: 'exercise', label: 'Exercise', icon: Dumbbell },
+                                { type: 'homework', label: 'Homework', icon: FileText }
+                              ].map((item) => (
+                                <Link 
+                                  key={item.type}
+                                  to={`/courses/${course.id}/video/${chapter}/${item.type}`}
+                                  className="flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl hover:border-purple-500/50 transition-all group"
+                                >
+                                  <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
+                                    <img 
+                                      src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
+                                      alt={item.label}
+                                      className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <item.icon className="w-5 h-5 text-purple-500" />
+                                    </div>
+                                  </div>
+                                  <span className="font-bold text-gray-300 group-hover:text-purple-400 transition-colors">
+                                    {item.label}
+                                  </span>
+                                </Link>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Sidebar */}
@@ -188,7 +260,7 @@ export default function CourseDetail() {
                     to={`/payment?courseId=${course.id}`}
                     className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                   >
-                    Enroll Now
+                    Get Started
                     <ArrowRight className="w-5 h-5" />
                   </Link>
                 </div>

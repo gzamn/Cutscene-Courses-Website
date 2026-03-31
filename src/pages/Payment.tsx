@@ -1,13 +1,19 @@
 import { useLocation, Link } from 'react-router-dom';
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Smartphone } from 'lucide-react';
+import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Building2, Globe, Landmark } from 'lucide-react';
 import { COURSES } from '../types';
+
+type PaymentMethod = 'card' | 'bank' | 'edahabia' | 'cib';
+type BankTransferType = 'local' | 'eu' | 'international';
 
 export default function Payment() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const courseId = searchParams.get('courseId');
   const course = COURSES.find(c => c.id === courseId);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [bankType, setBankType] = useState<BankTransferType>('local');
 
   if (!course) {
     return (
@@ -97,43 +103,187 @@ export default function Payment() {
               </h2>
 
               <div className="grid grid-cols-1 gap-4 mb-8">
-                <button className="flex items-center justify-between p-6 bg-black border-2 border-purple-600 rounded-2xl transition-all group">
+                <button 
+                  onClick={() => setPaymentMethod('card')}
+                  className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
+                    paymentMethod === 'card' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
+                  }`}
+                >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-600/20 rounded-xl flex items-center justify-center">
-                      <Smartphone className="w-6 h-6 text-purple-500" />
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                      paymentMethod === 'card' ? 'bg-purple-600/20' : 'bg-zinc-800'
+                    }`}>
+                      <CreditCard className={`w-6 h-6 ${paymentMethod === 'card' ? 'text-purple-500' : 'text-gray-500'}`} />
                     </div>
                     <div className="text-left">
-                      <div className="font-bold text-white">Mobile Payment</div>
-                      <div className="text-gray-500 text-sm">Dahabshiil, Telesom, Somnet</div>
+                      <div className={`font-bold transition-colors ${paymentMethod === 'card' ? 'text-white' : 'text-gray-400'}`}>Credit Card</div>
+                      <div className="text-gray-500 text-sm">Visa, Mastercard, American Express</div>
                     </div>
                   </div>
-                  <div className="w-6 h-6 rounded-full border-2 border-purple-600 flex items-center justify-center">
-                    <div className="w-3 h-3 bg-purple-600 rounded-full" />
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    paymentMethod === 'card' ? 'border-purple-600' : 'border-gray-700'
+                  }`}>
+                    {paymentMethod === 'card' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
                   </div>
                 </button>
 
-                <button className="flex items-center justify-between p-6 bg-zinc-900/30 border-2 border-transparent hover:border-purple-900/30 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                <button 
+                  onClick={() => setPaymentMethod('edahabia')}
+                  className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
+                    paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
+                  }`}
+                >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center">
-                      <CreditCard className="w-6 h-6 text-gray-500" />
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                      paymentMethod === 'edahabia' ? 'bg-purple-600/20' : 'bg-zinc-800'
+                    }`}>
+                      <CreditCard className={`w-6 h-6 ${paymentMethod === 'edahabia' ? 'text-purple-500' : 'text-gray-500'}`} />
                     </div>
                     <div className="text-left">
-                      <div className="font-bold text-gray-400">Credit Card</div>
-                      <div className="text-gray-600 text-sm">Visa, Mastercard (Coming Soon)</div>
+                      <div className={`font-bold transition-colors ${paymentMethod === 'edahabia' ? 'text-white' : 'text-gray-400'}`}>EDAHABIA</div>
+                      <div className="text-gray-500 text-sm">Algerie Poste Local Card</div>
                     </div>
+                  </div>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-gray-700'
+                  }`}>
+                    {paymentMethod === 'edahabia' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => setPaymentMethod('cib')}
+                  className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
+                    paymentMethod === 'cib' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                      paymentMethod === 'cib' ? 'bg-purple-600/20' : 'bg-zinc-800'
+                    }`}>
+                      <CreditCard className={`w-6 h-6 ${paymentMethod === 'cib' ? 'text-purple-500' : 'text-gray-500'}`} />
+                    </div>
+                    <div className="text-left">
+                      <div className={`font-bold transition-colors ${paymentMethod === 'cib' ? 'text-white' : 'text-gray-400'}`}>CIB</div>
+                      <div className="text-gray-500 text-sm">Interbank Local Card</div>
+                    </div>
+                  </div>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    paymentMethod === 'cib' ? 'border-purple-600' : 'border-gray-700'
+                  }`}>
+                    {paymentMethod === 'cib' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => setPaymentMethod('bank')}
+                  className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
+                    paymentMethod === 'bank' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                      paymentMethod === 'bank' ? 'bg-purple-600/20' : 'bg-zinc-800'
+                    }`}>
+                      <Building2 className={`w-6 h-6 ${paymentMethod === 'bank' ? 'text-purple-500' : 'text-gray-500'}`} />
+                    </div>
+                    <div className="text-left">
+                      <div className={`font-bold transition-colors ${paymentMethod === 'bank' ? 'text-white' : 'text-gray-400'}`}>Bank Transfer</div>
+                      <div className="text-gray-500 text-sm">BaridiMob, SEPA, SWIFT</div>
+                    </div>
+                  </div>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    paymentMethod === 'bank' ? 'border-purple-600' : 'border-gray-700'
+                  }`}>
+                    {paymentMethod === 'bank' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
                   </div>
                 </button>
               </div>
 
               <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-400 mb-2">Phone Number</label>
-                  <input 
-                    type="tel" 
-                    placeholder="Enter your mobile number"
-                    className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                  />
-                </div>
+                {(paymentMethod === 'card' || paymentMethod === 'edahabia' || paymentMethod === 'cib') && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-400 mb-2">Card Number</label>
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          placeholder="0000 0000 0000 0000"
+                          className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                        />
+                        <CreditCard className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-400 mb-2">Expiry Date</label>
+                        <input 
+                          type="text" 
+                          placeholder="MM/YY"
+                          className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-400 mb-2">CVV</label>
+                        <input 
+                          type="text" 
+                          placeholder="123"
+                          className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === 'bank' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'local', label: 'Local', icon: Landmark, sub: 'BaridiMob' },
+                        { id: 'eu', label: 'EU', icon: Globe, sub: 'SEPA' },
+                        { id: 'international', label: 'Global', icon: Globe, sub: 'SWIFT' }
+                      ].map((type) => (
+                        <button
+                          key={type.id}
+                          onClick={() => setBankType(type.id as BankTransferType)}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                            bankType === type.id ? 'border-purple-600 bg-purple-600/10' : 'border-purple-900/20 bg-black'
+                          }`}
+                        >
+                          <type.icon className={`w-5 h-5 ${bankType === type.id ? 'text-purple-500' : 'text-gray-500'}`} />
+                          <div className="text-center">
+                            <div className="text-xs font-bold">{type.label}</div>
+                            <div className="text-[10px] text-gray-500">{type.sub}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="p-6 bg-black border border-purple-900/30 rounded-2xl space-y-4">
+                      <div className="text-sm text-gray-400">
+                        {bankType === 'local' ? (
+                          <div className="space-y-2">
+                            <div className="font-bold text-white mb-2">BaridiMob Details:</div>
+                            <div className="flex justify-between"><span>RIP:</span> <span className="text-white font-mono">00799999000123456789</span></div>
+                            <div className="flex justify-between"><span>Name:</span> <span className="text-white">Cutscene Academy</span></div>
+                          </div>
+                        ) : bankType === 'eu' ? (
+                          <div className="space-y-2">
+                            <div className="font-bold text-white mb-2">SEPA Details:</div>
+                            <div className="flex justify-between"><span>IBAN:</span> <span className="text-white font-mono">FR76 3000 6000 0123 4567 8901 234</span></div>
+                            <div className="flex justify-between"><span>BIC:</span> <span className="text-white font-mono">BNPAFRPP</span></div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="font-bold text-white mb-2">International Details:</div>
+                            <div className="flex justify-between"><span>SWIFT:</span> <span className="text-white font-mono">CUTS DZ AL XXX</span></div>
+                            <div className="flex justify-between"><span>Account:</span> <span className="text-white font-mono">1234567890</span></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <button className="w-full py-5 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30 group">
                   Pay {course.price.toLocaleString()} {course.currency}
