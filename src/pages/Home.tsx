@@ -64,7 +64,7 @@ export default function Home() {
               {language === 'ar' ? (
                 <>
                   حاب تتعلم <span className="text-brand-gradient">مونتاج</span>؟ <br />
-                  <span className="text-brand-gradient">Cutscene</span> حلك عند
+                  <span className="text-brand-gradient">Cutscene</span> {t('hero.title3')}
                 </>
               ) : (
                 <>
