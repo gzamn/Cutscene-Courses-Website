@@ -8,10 +8,12 @@ import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { GoogleGenAI } from "@google/genai";
+import { useLanguage } from '../context/LanguageContext';
 
 export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const course = COURSES.find(c => c.id === id);
   const homework = course?.homeworks?.find(h => h.chapter === parseInt(chapter || '0'));
@@ -25,7 +27,7 @@ export default function VideoPlayer() {
   const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
-    { role: 'ai', text: "Hello! I'm your AI mentor. Upload your homework video, and I'll review it and give you an evaluation!" }
+    { role: 'ai', text: t('ai.welcome') }
   ]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -104,7 +106,7 @@ export default function VideoPlayer() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      alert('Lesson marked as complete!');
+      alert(t('course.markedComplete'));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'progress');
     } finally {
@@ -131,7 +133,7 @@ export default function VideoPlayer() {
         createdAt: new Date().toISOString()
       });
 
-      setMessages(prev => [...prev, { role: 'ai', text: "Great! I've received your video. Give me a moment to review it..." }]);
+      setMessages(prev => [...prev, { role: 'ai', text: t('ai.received') }]);
       
       // Trigger AI review
       await handleSendMessage("I've uploaded my homework video. Please review it and evaluate my work out of 10.");
@@ -207,9 +209,9 @@ export default function VideoPlayer() {
   }
 
   const typeLabels: Record<string, string> = {
-    session: 'Session',
-    exercise: 'Exercise',
-    homework: 'Homework'
+    session: t('course.session'),
+    exercise: t('course.exercise'),
+    homework: t('course.homework')
   };
 
   const typeIcons: Record<string, any> = {
@@ -227,8 +229,8 @@ export default function VideoPlayer() {
           to={`/courses/${id}`}
           className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors group"
         >
-          <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          Back to Course
+          <ArrowLeft className={`w-5 h-5 group-hover:-translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+          {t('course.back')}
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
@@ -244,16 +246,16 @@ export default function VideoPlayer() {
                   <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
                     <Lock className="w-10 h-10 text-purple-500" />
                   </div>
-                  <h2 className="text-2xl font-bold mb-2">This Content is Locked</h2>
+                  <h2 className="text-2xl font-bold mb-2">{t('course.lockedTitle')}</h2>
                   <p className="text-gray-400 max-w-md mb-8">
-                    Enroll in this course to unlock all chapters, exercises, and homework assignments.
+                    {t('course.lockedDesc')}
                   </p>
                   <Link 
                     to={`/payment?courseId=${course.id}`}
                     className="px-8 py-3 bg-brand-radial text-white rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-purple-600/20 flex items-center gap-2"
                   >
-                    Unlock Course Now
-                    <ArrowRight className="w-4 h-4" />
+                    {t('course.unlock')}
+                    <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </Link>
                 </div>
               ) : (
@@ -261,7 +263,7 @@ export default function VideoPlayer() {
                   <div className="w-24 h-24 bg-purple-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-600/40 mb-6">
                     <Play className="w-10 h-10 text-white fill-current translate-x-1" />
                   </div>
-                  <p className="text-xl font-bold text-gray-300">Video content for Chapter {chapter}: {typeLabels[type || 'session']}</p>
+                  <p className="text-xl font-bold text-gray-300">{t('course.videoContent')} {chapter}: {typeLabels[type || 'session']}</p>
                   {isFirstSession && !isEnrolled && (
                     <div className="mt-4 px-4 py-1 bg-purple-600/20 border border-purple-500/30 rounded-full text-xs font-bold text-purple-400 uppercase tracking-widest">
                       Free Trial Session
@@ -294,32 +296,34 @@ export default function VideoPlayer() {
                   ) : isCompleted ? (
                     <CheckCircle2 className="w-4 h-4" />
                   ) : null}
-                  {isCompleted ? 'Completed' : 'Mark as Complete'}
+                  {isCompleted ? t('course.completed') : t('course.markComplete')}
                 </button>
               </div>
             </div>
 
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 mb-8">
-              <h2 className="text-xl font-bold mb-4">About this {typeLabels[type || 'session']}</h2>
-              <p className="text-gray-400 leading-relaxed mb-6">
+              <h2 className="text-xl font-bold mb-4">{t('course.about')} {typeLabels[type || 'session']}</h2>
+              <div className="text-gray-400 leading-relaxed mb-6">
                 {type === 'homework' && homework ? (
                   <>
-                    <span className="block font-bold text-white mb-2">Task:</span>
+                    <span className="block font-bold text-white mb-2">{t('course.task')}:</span>
                     {homework.description}
-                    <span className="block font-bold text-white mt-4 mb-2">Expected Outcome:</span>
+                    <span className="block font-bold text-white mt-4 mb-2">{t('course.expectedOutcome')}:</span>
                     {homework.expectedOutcome}
                   </>
                 ) : (
-                  `In this ${typeLabels[type || 'session'].toLowerCase()}, we will dive deep into the core concepts of Chapter ${chapter}. 
-                  Make sure to follow along and take notes. If you have any questions, feel free to reach out to our support team.`
+                  <p>
+                    {t('course.lessonDesc')} {chapter}. 
+                    Make sure to follow along and take notes. If you have any questions, feel free to reach out to our support team.
+                  </p>
                 )}
-              </p>
+              </div>
 
               {type === 'homework' && (
                 <div className="pt-6 border-t border-purple-900/20">
                   <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                     <Upload className="w-5 h-5 text-purple-500" />
-                    Submit Your Work
+                    {t('course.submitWork')}
                   </h3>
                   
                   {homeworkVideo ? (
@@ -352,7 +356,7 @@ export default function VideoPlayer() {
                       <div className={`w-full py-8 bg-purple-600/5 border-2 border-dashed border-purple-600/20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-colors ${uploading ? 'opacity-50' : 'hover:bg-purple-600/10'}`}>
                         {uploading ? <Loader2 className="w-8 h-8 text-purple-500 animate-spin" /> : <Upload className="w-8 h-8 text-purple-500" />}
                         <div className="text-center">
-                          <div className="font-bold">{uploading ? 'Uploading...' : 'Click or Drag to Upload Video'}</div>
+                          <div className="font-bold">{uploading ? 'Uploading...' : t('course.upload')}</div>
                           <div className="text-xs text-gray-500 mt-1">MP4, MOV or AVI (Max 50MB)</div>
                         </div>
                       </div>
@@ -374,10 +378,10 @@ export default function VideoPlayer() {
                     <Bot className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <div className="font-bold text-sm">AI Mentor</div>
+                    <div className="font-bold text-sm">{t('ai.mentor')}</div>
                     <div className="text-[10px] text-green-500 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                      Online & Ready to Review
+                      {t('ai.online')}
                     </div>
                   </div>
                 </div>
@@ -415,7 +419,7 @@ export default function VideoPlayer() {
                       type="text" 
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask your mentor..."
+                      placeholder={t('ai.ask')}
                       className="flex-grow bg-zinc-900 border border-purple-900/30 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <button 
@@ -423,7 +427,7 @@ export default function VideoPlayer() {
                       disabled={!input.trim() || isThinking}
                       className="p-2 bg-purple-600 text-white rounded-xl hover:bg-purple-500 disabled:opacity-50 transition-colors"
                     >
-                      <Send className="w-5 h-5" />
+                      <Send className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </button>
                   </form>
                 </div>
@@ -433,7 +437,7 @@ export default function VideoPlayer() {
 
           <div className="space-y-8">
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
-              <h3 className="text-xl font-bold mb-6">Resources</h3>
+              <h3 className="text-xl font-bold mb-6">{t('course.resources')}</h3>
               <div className="space-y-4">
                 <a href="#" className="flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group">
                   <div className="flex items-center gap-3">
@@ -453,15 +457,15 @@ export default function VideoPlayer() {
             </div>
 
             <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
-              <h3 className="text-xl font-bold mb-4">Need Help?</h3>
+              <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
               <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
-                Stuck on an exercise or have a question about the homework? Our mentors are here to help.
+                {t('course.helpDesc')}
               </p>
               <Link 
                 to="/support"
                 className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
               >
-                Contact Support
+                {t('course.contactSupport')}
               </Link>
             </div>
           </div>

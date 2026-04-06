@@ -6,6 +6,7 @@ import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { useLanguage } from '../context/LanguageContext';
 
 type PaymentMethod = 'card' | 'bank' | 'edahabia' | 'cib';
 type BankTransferType = 'local' | 'eu' | 'international';
@@ -14,6 +15,7 @@ export default function Payment() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const searchParams = new URLSearchParams(location.search);
   const courseId = searchParams.get('courseId');
   const course = COURSES.find(c => c.id === courseId);
@@ -23,7 +25,7 @@ export default function Payment() {
 
   const handlePayment = async () => {
     if (!user || !courseId) {
-      alert('Please login to complete your purchase.');
+      alert(t('payment.loginRequired'));
       navigate('/login');
       return;
     }
@@ -43,7 +45,7 @@ export default function Payment() {
         });
       }
 
-      alert('Payment successful! You are now enrolled.');
+      alert(t('payment.success'));
       navigate('/dashboard');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'enrollments');
@@ -56,8 +58,8 @@ export default function Payment() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         <div className="text-center">
-          <h2 className="text-4xl font-bold mb-4">Course Not Selected</h2>
-          <Link to="/courses" className="text-purple-400 hover:text-purple-300">Browse Courses</Link>
+          <h2 className="text-4xl font-bold mb-4">{t('payment.noCourse')}</h2>
+          <Link to="/courses" className="text-purple-400 hover:text-purple-300">{t('nav.courses')}</Link>
         </div>
       </div>
     );
@@ -74,14 +76,14 @@ export default function Payment() {
             className="space-y-8"
           >
             <div>
-              <h1 className="text-4xl font-bold mb-4">Complete your order</h1>
-              <p className="text-gray-400">Join 330+ students already learning with us.</p>
+              <h1 className="text-4xl font-bold mb-4">{t('payment.completeOrder')}</h1>
+              <p className="text-gray-400">{t('payment.joinStudents')}</p>
             </div>
 
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-purple-500" />
-                Order Summary
+                {t('payment.orderSummary')}
               </h2>
               <div className="flex items-center gap-6 mb-8 p-4 bg-black rounded-2xl border border-purple-900/20">
                 <img 
@@ -98,25 +100,25 @@ export default function Payment() {
 
               <div className="space-y-4 mb-8">
                 <div className="flex justify-between text-gray-400">
-                  <span>Course Price</span>
+                  <span>{t('payment.coursePrice')}</span>
                   <span className="text-white font-medium">{course.price.toLocaleString()} {course.currency}</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
-                  <span>Platform Fee</span>
+                  <span>{t('payment.platformFee')}</span>
                   <span className="text-white font-medium">0 {course.currency}</span>
                 </div>
                 <div className="pt-4 border-t border-purple-900/20 flex justify-between items-center">
-                  <span className="text-xl font-bold">Total Amount</span>
+                  <span className="text-xl font-bold">{t('payment.totalAmount')}</span>
                   <span className="text-3xl font-black text-purple-500">{course.price.toLocaleString()} {course.currency}</span>
                 </div>
               </div>
 
               <div className="space-y-3">
                 {[
-                  'Lifetime access to course materials',
-                  'Certificate of completion',
-                  'Access to private student community',
-                  'Direct support from instructor'
+                  t('payment.benefit1'),
+                  t('payment.benefit2'),
+                  t('payment.benefit3'),
+                  t('payment.benefit4')
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm text-gray-400">
                     <CheckCircle2 className="w-4 h-4 text-purple-500 shrink-0" />
@@ -136,7 +138,7 @@ export default function Payment() {
             <div className="bg-zinc-950 border border-purple-900/30 rounded-[2.5rem] p-10">
               <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
                 <CreditCard className="w-7 h-7 text-purple-500" />
-                Payment Method
+                {t('payment.method')}
               </h2>
 
               <div className="grid grid-cols-1 gap-4 mb-8">
@@ -225,7 +227,7 @@ export default function Payment() {
                       <Building2 className={`w-6 h-6 ${paymentMethod === 'bank' ? 'text-purple-500' : 'text-gray-500'}`} />
                     </div>
                     <div className="text-left">
-                      <div className={`font-bold transition-colors ${paymentMethod === 'bank' ? 'text-white' : 'text-gray-400'}`}>Bank Transfer</div>
+                      <div className={`font-bold transition-colors ${paymentMethod === 'bank' ? 'text-white' : 'text-gray-400'}`}>{t('payment.bankTransfer')}</div>
                       <div className="text-gray-500 text-sm">BaridiMob, SEPA, SWIFT</div>
                     </div>
                   </div>
@@ -241,7 +243,7 @@ export default function Payment() {
                 {(paymentMethod === 'card' || paymentMethod === 'edahabia' || paymentMethod === 'cib') && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-400 mb-2">Card Number</label>
+                      <label className="block text-sm font-semibold text-gray-400 mb-2">{t('payment.cardNumber')}</label>
                       <div className="relative">
                         <input 
                           type="text" 
@@ -253,7 +255,7 @@ export default function Payment() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-400 mb-2">Expiry Date</label>
+                        <label className="block text-sm font-semibold text-gray-400 mb-2">{t('payment.expiryDate')}</label>
                         <input 
                           type="text" 
                           placeholder="MM/YY"
@@ -331,15 +333,15 @@ export default function Payment() {
                     <Loader2 className="w-6 h-6 animate-spin" />
                   ) : (
                     <>
-                      Pay {course.price.toLocaleString()} {course.currency}
-                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                      {t('payment.pay')} {course.price.toLocaleString()} {course.currency}
+                      <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </>
                   )}
                 </button>
 
                 <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
                   <Lock className="w-4 h-4" />
-                  <span>Secure encrypted transaction</span>
+                  <span>{t('payment.secure')}</span>
                 </div>
               </div>
             </div>

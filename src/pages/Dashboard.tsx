@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { COURSES } from '../types';
-import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle } from 'lucide-react';
+import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
+  const { t } = useLanguage();
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [progress, setProgress] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
@@ -51,6 +53,41 @@ export default function Dashboard() {
       unsubVideos();
     };
   }, [user]);
+
+  // Auto-generate certificates logic
+  useEffect(() => {
+    if (!user || enrollments.length === 0 || progress.length === 0) return;
+
+    const checkAndGenerateCertificates = async () => {
+      for (const enrollment of enrollments) {
+        const courseId = enrollment.courseId;
+        const prog = getCourseProgress(courseId);
+        
+        if (prog === 100) {
+          // Check if certificate already exists
+          const certExists = certificates.some(c => c.courseId === courseId);
+          if (!certExists) {
+            try {
+              const course = COURSES.find(c => c.id === courseId);
+              await addDoc(collection(db, 'certificates'), {
+                uid: user.uid,
+                courseId: courseId,
+                courseTitle: course?.title || 'Unknown Course',
+                userName: userProfile?.displayName || 'Student',
+                issuedAt: new Date().toISOString(),
+                certificateUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${courseId}-${user.uid}&backgroundColor=9333ea&fontFamily=Arial&fontWeight=700` // Mock certificate URL
+              });
+              console.log(`Certificate generated for course ${courseId}`);
+            } catch (error) {
+              console.error('Failed to generate certificate:', error);
+            }
+          }
+        }
+      }
+    };
+
+    checkAndGenerateCertificates();
+  }, [user, enrollments, progress, certificates]);
 
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -105,22 +142,22 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Welcome back, {userProfile?.displayName || 'Student'}!</h1>
-            <p className="text-gray-400">Track your learning journey and manage your content.</p>
+            <h1 className="text-4xl font-bold mb-2">{t('dashboard.welcome')}, {userProfile?.displayName || 'Student'}!</h1>
+            <p className="text-gray-400">{t('dashboard.subtitle')}</p>
           </div>
           <div className="flex gap-4">
             <div className="bg-zinc-900/50 border border-purple-900/30 p-4 rounded-2xl flex items-center gap-3">
               <BookOpen className="w-6 h-6 text-purple-500" />
               <div>
                 <div className="text-2xl font-bold">{enrollments.length}</div>
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Enrolled</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard.enrolled')}</div>
               </div>
             </div>
             <div className="bg-zinc-900/50 border border-purple-900/30 p-4 rounded-2xl flex items-center gap-3">
               <Trophy className="w-6 h-6 text-yellow-500" />
               <div>
                 <div className="text-2xl font-bold">{certificates.length}</div>
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Certificates</div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard.certificates')}</div>
               </div>
             </div>
           </div>
@@ -133,7 +170,7 @@ export default function Dashboard() {
             <section>
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <PlayCircle className="w-6 h-6 text-purple-500" />
-                Your Courses
+                {t('dashboard.yourCourses')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {enrollments.length > 0 ? enrollments.map((enrollment) => {
@@ -155,12 +192,17 @@ export default function Dashboard() {
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Link to={`/courses/${course.id}`} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2">
                             <PlayCircle className="w-5 h-5" />
-                            Continue
+                            {t('dashboard.continue')}
                           </Link>
                         </div>
                         <div className="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest">
                           {course.level}
                         </div>
+                        {prog === 100 && (
+                          <div className="absolute top-4 left-4 px-3 py-1 bg-yellow-500 text-black rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                            <Trophy className="w-3 h-3" /> Completed
+                          </div>
+                        )}
                       </div>
                       <div className="p-6 flex-grow flex flex-col">
                         <h3 className="font-bold text-lg mb-4 group-hover:text-purple-400 transition-colors">{course.title}</h3>
@@ -168,22 +210,22 @@ export default function Dashboard() {
                         <div className="space-y-4 mt-auto">
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-400 font-medium">Course Progress</span>
+                              <span className="text-gray-400 font-medium">{t('dashboard.progress')}</span>
                               <span className="text-purple-400 font-bold">{prog}%</span>
                             </div>
-                            <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden">
+                            <div className="w-full bg-zinc-900 h-3 rounded-full overflow-hidden border border-purple-900/10 p-0.5">
                               <motion.div 
                                 initial={{ width: 0 }}
                                 animate={{ width: `${prog}%` }}
                                 transition={{ duration: 1, ease: "easeOut" }}
-                                className="bg-brand-radial h-full" 
+                                className="bg-brand-radial h-full rounded-full shadow-[0_0_10px_rgba(147,51,234,0.5)]" 
                               />
                             </div>
                           </div>
 
                           {/* Lesson Indicators */}
                           <div className="pt-4 border-t border-purple-900/10">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">Completed Lessons</div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">{t('dashboard.completedLessons')}</div>
                             <div className="flex flex-wrap gap-1.5">
                               {Array.from({ length: course.id === '1' ? 12 : course.id === '2' ? 18 : 24 }).map((_, i) => {
                                 const chapter = i + 1;
@@ -209,8 +251,8 @@ export default function Dashboard() {
                   );
                 }) : (
                   <div className="col-span-2 bg-zinc-950 border border-dashed border-purple-900/30 p-12 rounded-3xl text-center">
-                    <p className="text-gray-500 mb-4">You haven't enrolled in any courses yet.</p>
-                    <Link to="/courses" className="text-purple-400 font-bold hover:underline">Browse Courses</Link>
+                    <p className="text-gray-500 mb-4">{t('dashboard.noEnrollments')}</p>
+                    <Link to="/courses" className="text-purple-400 font-bold hover:underline">{t('dashboard.browse')}</Link>
                   </div>
                 )}
               </div>
@@ -220,13 +262,13 @@ export default function Dashboard() {
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <Upload className="w-6 h-6 text-purple-500" />
-                Upload Project Video
+                {t('dashboard.uploadTitle')}
               </h2>
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input 
                     type="text" 
-                    placeholder="Video Title (e.g. Chapter 1 Homework)"
+                    placeholder={t('dashboard.uploadPlaceholder')}
                     value={uploadTitle}
                     onChange={(e) => setUploadTitle(e.target.value)}
                     className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -241,7 +283,7 @@ export default function Dashboard() {
                     />
                     <div className={`w-full h-full bg-purple-600/10 border-2 border-dashed border-purple-600/30 rounded-2xl flex items-center justify-center gap-3 px-6 py-4 transition-colors ${uploading ? 'opacity-50' : 'hover:bg-purple-600/20'}`}>
                       {uploading ? <Clock className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                      <span className="font-bold">{uploading ? 'Uploading...' : 'Select Video File'}</span>
+                      <span className="font-bold">{uploading ? t('dashboard.uploading') : t('dashboard.uploadBtn')}</span>
                     </div>
                   </div>
                 </div>
@@ -277,28 +319,49 @@ export default function Dashboard() {
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                 <Trophy className="w-6 h-6 text-yellow-500" />
-                Certificates
+                {t('dashboard.certTitle')}
               </h2>
               <div className="space-y-4">
                 {certificates.length > 0 ? certificates.map((cert) => (
-                  <div key={cert.id} className="bg-black border border-purple-900/20 p-4 rounded-2xl flex items-center gap-4">
-                    <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center">
-                      <CheckCircle2 className="w-6 h-6 text-yellow-500" />
+                  <div key={cert.id} className="bg-black border border-purple-900/20 p-5 rounded-2xl space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center">
+                        <CheckCircle2 className="w-6 h-6 text-yellow-500" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm">{cert.courseTitle}</div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">{t('dashboard.certEarned')}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-bold text-sm">Course Completed</div>
-                      <a href={cert.certificateUrl} target="_blank" rel="noreferrer" className="text-xs text-purple-400 hover:underline">View Certificate</a>
+                    <div className="flex gap-2">
+                      <a 
+                        href={cert.certificateUrl} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="flex-1 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-purple-900/30 transition-all"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        {t('dashboard.viewCert')}
+                      </a>
+                      <a 
+                        href={cert.certificateUrl} 
+                        download={`Certificate-${cert.courseTitle}.svg`}
+                        className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all"
+                        title="Download Certificate"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
                     </div>
                   </div>
                 )) : (
-                  <p className="text-gray-500 text-sm text-center py-4">Complete a course to earn your first certificate!</p>
+                  <p className="text-gray-500 text-sm text-center py-4">{t('dashboard.noCert')}</p>
                 )}
               </div>
             </section>
 
             {/* Quick Stats */}
             <section className="bg-brand-radial p-8 rounded-[2.5rem] text-white">
-              <h2 className="text-xl font-bold mb-4">Learning Streak</h2>
+              <h2 className="text-xl font-bold mb-4">{t('dashboard.streak')}</h2>
               <div className="flex items-center gap-4 mb-6">
                 <motion.div 
                   initial={{ scale: 0.5, opacity: 0 }}
@@ -308,11 +371,11 @@ export default function Dashboard() {
                 >
                   7
                 </motion.div>
-                <div className="text-sm font-medium opacity-80 uppercase tracking-wider">Days in a row</div>
+                <div className="text-sm font-medium opacity-80 uppercase tracking-wider">{t('dashboard.days')}</div>
               </div>
               <div className="space-y-4">
                 <div className="flex justify-between text-sm">
-                  <span>Weekly Goal</span>
+                  <span>{t('dashboard.weeklyGoal')}</span>
                   <span>80%</span>
                 </div>
                 <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
@@ -330,7 +393,7 @@ export default function Dashboard() {
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                 <Clock className="w-6 h-6 text-purple-500" />
-                Latest Activity
+                {t('dashboard.latestActivity')}
               </h2>
               <div className="space-y-4">
                 {latestActivity.length > 0 ? latestActivity.map((activity, i) => {
@@ -360,7 +423,7 @@ export default function Dashboard() {
                     </motion.div>
                   );
                 }) : (
-                  <p className="text-gray-500 text-xs text-center py-4 italic">No recent activity found.</p>
+                  <p className="text-gray-500 text-xs text-center py-4 italic">{t('dashboard.noActivity')}</p>
                 )}
               </div>
             </section>

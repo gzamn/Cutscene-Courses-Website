@@ -11,6 +11,7 @@ import VideoPlayer from './pages/VideoPlayer';
 import Dashboard from './pages/Dashboard';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -21,8 +22,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <LanguageProvider>
+      <AuthProvider>
+        <Router>
         <ScrollToTop />
         <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
           {/* Global Background Gradients */}
@@ -53,6 +55,7 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+  </LanguageProvider>
   );
 }
 

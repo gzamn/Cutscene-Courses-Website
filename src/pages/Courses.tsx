@@ -2,40 +2,17 @@ import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Clock, BarChart, ArrowRight, Search, CheckCircle2, User } from 'lucide-react';
 import { COURSES } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Courses() {
+  const { t, language } = useLanguage();
+  
   return (
     <div className="min-h-screen bg-black pt-40 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Our Courses</h1>
-          <p className="text-gray-400 text-lg">Choose from our selection of premium video editing and design courses.</p>
-        </div>
-
-        {/* Search/Filter Bar (Visual only) */}
-        <div className="mb-12 flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-            <input 
-              type="text" 
-              placeholder="Search for courses..." 
-              className="w-full bg-zinc-900 border border-purple-900/30 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-purple-500 transition-colors"
-            />
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-            {['All', 'Video Editing', 'Motion Design'].map((cat) => (
-              <button 
-                key={cat}
-                className={`px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all ${
-                  cat === 'All' 
-                    ? 'bg-brand-radial text-white' 
-                    : 'bg-zinc-900 text-gray-400 hover:bg-zinc-800'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">{t('courses.title')}</h1>
+          <p className="text-gray-400 text-lg">{t('courses.subtitle')}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-12">
@@ -84,7 +61,7 @@ export default function Courses() {
                   <div>
                     <h4 className="text-white font-bold mb-4 flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-purple-500" />
-                      requirements
+                      {t('course.requirements')}
                     </h4>
                     <ul className="space-y-2">
                       {course.requirements.map((pre, idx) => (
@@ -100,7 +77,7 @@ export default function Courses() {
                   <div className="bg-purple-900/10 border border-purple-500/10 rounded-2xl p-6">
                     <h4 className="text-white font-bold mb-4 flex items-center gap-2">
                       <User className="w-5 h-5 text-purple-500" />
-                      Instructor
+                      {t('course.instructor')}
                     </h4>
                     <div className="flex items-center gap-4 mb-3">
                       <img 
@@ -121,7 +98,7 @@ export default function Courses() {
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2 text-gray-400">
                       <BarChart className="w-5 h-5 text-purple-500" />
-                      <span className="font-medium">{course.level} Level</span>
+                      <span className="font-medium">{course.level} {t('course.level')}</span>
                     </div>
                   </div>
                   
@@ -130,14 +107,14 @@ export default function Courses() {
                       to={`/courses/${course.id}`}
                       className="w-full sm:w-auto px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border border-purple-900/30"
                     >
-                      View Details
+                      {t('courses.details')}
                     </Link>
                     <Link 
                       to={`/payment?courseId=${course.id}`}
                       className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
                     >
-                      Get Started
-                      <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                      {t('courses.getStarted')}
+                      <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </Link>
                   </div>
                 </div>

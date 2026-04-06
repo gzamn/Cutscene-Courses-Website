@@ -41,6 +41,32 @@
     background-attachment: fixed;
   }
 
+  /* Global interactive cursor */
+  button, 
+  a, 
+  label,
+  summary,
+  select,
+  option,
+  input[type="button"], 
+  input[type="submit"], 
+  input[type="reset"],
+  input[type="checkbox"],
+  input[type="radio"],
+  [role="button"],
+  [onclick],
+  [tabindex="0"],
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* Ensure disabled elements or explicit cursor-not-allowed are respected */
+  button:disabled,
+  input:disabled,
+  .cursor-not-allowed {
+    cursor: not-allowed !important;
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;

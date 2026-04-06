@@ -6,10 +6,12 @@ import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const course = COURSES.find(c => c.id === id);
   const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
@@ -94,7 +96,7 @@ export default function CourseDetail() {
                 </span>
                 <div className="flex items-center gap-1 text-yellow-500">
                   <Star className="w-4 h-4 fill-current" />
-                  <span className="text-sm font-bold">4.9 (120+ reviews)</span>
+                  <span className="text-sm font-bold">4.9 (120+ {t('course.reviews')})</span>
                 </div>
               </div>
               <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
@@ -111,11 +113,11 @@ export default function CourseDetail() {
                 </div>
                 <div className="flex items-center gap-2 text-gray-300">
                   <BarChart className="w-5 h-5 text-purple-500" />
-                  <span>{course.level} Level</span>
+                  <span>{course.level} {t('course.level')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-300">
                   <Users className="w-5 h-5 text-purple-500" />
-                  <span>330+ Students</span>
+                  <span>330+ {t('stats.students')}</span>
                 </div>
               </div>
 
@@ -125,16 +127,16 @@ export default function CourseDetail() {
                     to="/dashboard"
                     className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                   >
-                    Continue Learning
-                    <ArrowRight className="w-5 h-5" />
+                    {t('dashboard.continue')}
+                    <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </Link>
                 ) : (
                   <Link 
                     to={`/payment?courseId=${course.id}`}
                     className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                   >
-                    Get Started
-                    <ArrowRight className="w-5 h-5" />
+                    {t('courses.getStarted')}
+                    <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </Link>
                 )}
                 <button className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2">
@@ -177,7 +179,7 @@ export default function CourseDetail() {
                   <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
                     <CheckCircle2 className="w-6 h-6 text-purple-500" />
                   </div>
-                  What you'll learn
+                  {t('course.learn')}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {course.learningOutcomes.map((outcome, i) => (
@@ -195,7 +197,7 @@ export default function CourseDetail() {
                   <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
                     <ShieldCheck className="w-6 h-6 text-purple-500" />
                   </div>
-                  requirements
+                  {t('course.requirements')}
                 </h2>
                 <div className="space-y-4">
                   {course.requirements.map((pre, i) => (
@@ -213,7 +215,7 @@ export default function CourseDetail() {
                   <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
                     <BookOpen className="w-6 h-6 text-purple-500" />
                   </div>
-                  Course Curriculum
+                  {t('course.curriculum')}
                 </h2>
                 <div className="space-y-4">
                   {Array.from({ 
@@ -257,7 +259,7 @@ export default function CourseDetail() {
                                     onClick={(e) => {
                                       if (isLocked) {
                                         e.preventDefault();
-                                        alert('This content is locked. Please enroll in the course to access it.');
+                                        alert(t('course.locked'));
                                         navigate(`/payment?courseId=${course.id}`);
                                       }
                                     }}
@@ -306,7 +308,7 @@ export default function CourseDetail() {
                   <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
                     <MessageSquare className="w-6 h-6 text-purple-500" />
                   </div>
-                  Student Reviews
+                  {t('course.reviews')}
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
@@ -332,7 +334,7 @@ export default function CourseDetail() {
                     </div>
                   )) : (
                     <div className="col-span-2 text-center py-12 bg-zinc-950/30 rounded-3xl border border-dashed border-purple-900/20">
-                      <p className="text-gray-500">No reviews yet. Be the first to share your experience!</p>
+                      <p className="text-gray-500">{t('course.noReviews')}</p>
                     </div>
                   )}
                 </div>
@@ -340,10 +342,10 @@ export default function CourseDetail() {
                 {/* Review Form */}
                 {isEnrolled && (
                   <div className="bg-zinc-950 border border-purple-900/30 p-8 rounded-[2.5rem]">
-                    <h3 className="text-xl font-bold mb-6">Write a Review</h3>
+                    <h3 className="text-xl font-bold mb-6">{t('course.writeReview')}</h3>
                     <form onSubmit={handleReviewSubmit} className="space-y-6">
                       <div className="flex items-center gap-4">
-                        <span className="text-sm font-semibold text-gray-400">Rating:</span>
+                        <span className="text-sm font-semibold text-gray-400">{t('course.rating')}:</span>
                         <div className="flex gap-2">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button
@@ -371,8 +373,8 @@ export default function CourseDetail() {
                         disabled={submittingReview}
                         className="px-8 py-3 bg-brand-radial hover:opacity-90 text-white rounded-xl font-bold transition-all flex items-center gap-2 disabled:opacity-50"
                       >
-                        {submittingReview ? 'Submitting...' : 'Submit Review'}
-                        <Send className="w-4 h-4" />
+                        {submittingReview ? 'Submitting...' : t('course.submitReview')}
+                        <Send className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                       </button>
                     </form>
                   </div>
@@ -384,7 +386,7 @@ export default function CourseDetail() {
             <div className="space-y-8">
               {/* Instructor Card */}
               <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 sticky top-32">
-                <h3 className="text-xl font-bold mb-6">Your Instructor</h3>
+                <h3 className="text-xl font-bold mb-6">{t('course.instructor')}</h3>
                 <div className="flex items-center gap-4 mb-6">
                   <img 
                     src={course.instructor.avatar} 
@@ -404,13 +406,13 @@ export default function CourseDetail() {
                 <div className="space-y-4 pt-8 border-t border-purple-900/20">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500 flex items-center gap-2">
-                      <Calendar className="w-4 h-4" /> Last Updated
+                      <Calendar className="w-4 h-4" /> {t('course.lastUpdated')}
                     </span>
                     <span className="text-gray-300">March 2024</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500 flex items-center gap-2">
-                      <Users className="w-4 h-4" /> Students
+                      <Users className="w-4 h-4" /> {t('stats.students')}
                     </span>
                     <span className="text-gray-300">330+</span>
                   </div>
@@ -425,16 +427,16 @@ export default function CourseDetail() {
                       to="/dashboard"
                       className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                     >
-                      Continue Learning
-                      <ArrowRight className="w-5 h-5" />
+                      {t('dashboard.continue')}
+                      <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </Link>
                   ) : (
                     <Link 
                       to={`/payment?courseId=${course.id}`}
                       className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                     >
-                      Get Started
-                      <ArrowRight className="w-5 h-5" />
+                      {t('courses.getStarted')}
+                      <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </Link>
                   )}
                 </div>

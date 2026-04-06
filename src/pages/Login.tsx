@@ -2,9 +2,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { GraduationCap, Mail, Lock, ArrowRight, Github } from 'lucide-react';
 import { loginWithGoogle } from '../firebase';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
 
   const handleGoogleLogin = async () => {
     try {
@@ -34,34 +36,34 @@ export default function Login() {
             </div>
             <span className="text-2xl font-bold text-white tracking-tight">Cutscene</span>
           </Link>
-          <h2 className="text-3xl font-extrabold text-white mb-2">Welcome back</h2>
-          <p className="text-gray-400">Please enter your details to sign in</p>
+          <h2 className="text-3xl font-extrabold text-white mb-2">{t('auth.welcomeBack')}</h2>
+          <p className="text-gray-400">{t('auth.enterDetails')}</p>
         </div>
 
         <form className="mt-8 space-y-6">
           <div className="space-y-4">
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <Mail className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500`} />
               <input
                 id="email-address"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none relative block w-full px-12 py-4 border border-purple-900/30 placeholder-gray-500 text-white rounded-2xl bg-black focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all sm:text-sm"
-                placeholder="Email address"
+                className={`appearance-none relative block w-full ${language === 'ar' ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-4 border border-purple-900/30 placeholder-gray-500 text-white rounded-2xl bg-black focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all sm:text-sm`}
+                placeholder={t('auth.email')}
               />
             </div>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <Lock className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500`} />
               <input
                 id="password"
                 name="password"
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none relative block w-full px-12 py-4 border border-purple-900/30 placeholder-gray-500 text-white rounded-2xl bg-black focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all sm:text-sm"
-                placeholder="Password"
+                className={`appearance-none relative block w-full ${language === 'ar' ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-4 border border-purple-900/30 placeholder-gray-500 text-white rounded-2xl bg-black focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all sm:text-sm`}
+                placeholder={t('auth.password')}
               />
             </div>
           </div>
@@ -74,14 +76,14 @@ export default function Login() {
                 type="checkbox"
                 className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-purple-900 rounded bg-black"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-gray-400">
-                Remember me
+              <label htmlFor="remember-me" className={`${language === 'ar' ? 'mr-2' : 'ml-2'} block text-gray-400`}>
+                {t('auth.rememberMe')}
               </label>
             </div>
 
             <div className="text-sm">
               <a href="#" className="font-medium text-purple-400 hover:text-purple-300 transition-colors">
-                Forgot your password?
+                {t('auth.forgotPassword')}
               </a>
             </div>
           </div>
@@ -91,8 +93,8 @@ export default function Login() {
               type="submit"
               className="group relative w-full flex justify-center py-4 px-4 border border-transparent text-sm font-bold rounded-2xl text-white bg-brand-radial hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all shadow-lg shadow-purple-600/20"
             >
-              Sign in
-              <ArrowRight className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              {t('auth.signIn')}
+              <ArrowRight className={`absolute ${language === 'ar' ? 'left-4 rotate-180' : 'right-4'} top-1/2 -translate-y-1/2 w-5 h-5 group-hover:translate-x-1 transition-transform`} />
             </button>
           </div>
         </form>
@@ -102,7 +104,7 @@ export default function Login() {
             <div className="w-full border-t border-purple-900/30"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-zinc-950 text-gray-500">Or continue with</span>
+            <span className="px-4 bg-zinc-950 text-gray-500">{t('auth.orContinueWith')}</span>
           </div>
         </div>
 
@@ -126,9 +128,9 @@ export default function Login() {
         </div>
 
         <p className="mt-8 text-center text-sm text-gray-500">
-          Don't have an account?{' '}
+          {t('auth.noAccount')}{' '}
           <a href="#" className="font-bold text-purple-400 hover:text-purple-300 transition-colors">
-            Sign up for free
+            {t('auth.signUpFree')}
           </a>
         </p>
       </motion.div>
