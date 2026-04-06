@@ -1,19 +1,56 @@
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Building2, Globe, Landmark } from 'lucide-react';
+import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Building2, Globe, Landmark, Loader2 } from 'lucide-react';
 import { COURSES } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 
 type PaymentMethod = 'card' | 'bank' | 'edahabia' | 'cib';
 type BankTransferType = 'local' | 'eu' | 'international';
 
 export default function Payment() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const searchParams = new URLSearchParams(location.search);
   const courseId = searchParams.get('courseId');
   const course = COURSES.find(c => c.id === courseId);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [bankType, setBankType] = useState<BankTransferType>('local');
+  const [processing, setProcessing] = useState(false);
+
+  const handlePayment = async () => {
+    if (!user || !courseId) {
+      alert('Please login to complete your purchase.');
+      navigate('/login');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      // Check if already enrolled
+      const q = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', courseId));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        await addDoc(collection(db, 'enrollments'), {
+          uid: user.uid,
+          courseId: courseId,
+          enrolledAt: new Date().toISOString(),
+          status: 'active'
+        });
+      }
+
+      alert('Payment successful! You are now enrolled.');
+      navigate('/dashboard');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'enrollments');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   if (!course) {
     return (
@@ -285,9 +322,19 @@ export default function Payment() {
                   </div>
                 )}
 
-                <button className="w-full py-5 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30 group">
-                  Pay {course.price.toLocaleString()} {course.currency}
-                  <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                <button 
+                  onClick={handlePayment}
+                  disabled={processing}
+                  className="w-full py-5 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30 group disabled:opacity-50"
+                >
+                  {processing ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <>
+                      Pay {course.price.toLocaleString()} {course.currency}
+                      <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </button>
 
                 <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">

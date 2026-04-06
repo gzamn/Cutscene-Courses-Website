@@ -1,13 +1,65 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText } from 'lucide-react';
+import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText, MessageSquare, Send } from 'lucide-react';
 import { COURSES } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const course = COURSES.find(c => c.id === id);
   const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+
+    // Listen to reviews
+    const qReviews = query(collection(db, 'reviews'), where('courseId', '==', id));
+    const unsubReviews = onSnapshot(qReviews, (snapshot) => {
+      setReviews(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'reviews'));
+
+    // Check enrollment
+    if (user) {
+      const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
+      getDocs(qEnrollment).then(snap => {
+        setIsEnrolled(!snap.empty);
+      });
+    }
+
+    return () => unsubReviews();
+  }, [id, user]);
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !id || !newReview.comment) return;
+
+    setSubmittingReview(true);
+    try {
+      await addDoc(collection(db, 'reviews'), {
+        uid: user.uid,
+        courseId: id,
+        rating: newReview.rating,
+        comment: newReview.comment,
+        userName: user.displayName || 'Anonymous Student',
+        createdAt: new Date().toISOString()
+      });
+      setNewReview({ rating: 5, comment: '' });
+      alert('Review submitted successfully!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'reviews');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   if (!course) {
     return (
@@ -68,13 +120,23 @@ export default function CourseDetail() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link 
-                  to={`/payment?courseId=${course.id}`}
-                  className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
-                >
-                  Get Started
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
+                {isEnrolled ? (
+                  <Link 
+                    to="/dashboard"
+                    className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                  >
+                    Continue Learning
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                ) : (
+                  <Link 
+                    to={`/payment?courseId=${course.id}`}
+                    className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                  >
+                    Get Started
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                )}
                 <button className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2">
                   <Play className="w-5 h-5 text-purple-500 fill-current" />
                   Watch Trailer
@@ -214,6 +276,84 @@ export default function CourseDetail() {
                   ))}
                 </div>
               </div>
+              {/* Reviews Section */}
+              <div className="pt-20 border-t border-purple-900/20">
+                <h2 className="text-3xl font-bold mb-12 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
+                    <MessageSquare className="w-6 h-6 text-purple-500" />
+                  </div>
+                  Student Reviews
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+                  {reviews.length > 0 ? reviews.map((review) => (
+                    <div key={review.id} className="bg-zinc-950 border border-purple-900/20 p-6 rounded-3xl space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center font-bold">
+                            {review.userName[0]}
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm">{review.userName}</div>
+                            <div className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-yellow-500">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'fill-current' : 'opacity-30'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-gray-400 text-sm leading-relaxed italic">"{review.comment}"</p>
+                    </div>
+                  )) : (
+                    <div className="col-span-2 text-center py-12 bg-zinc-950/30 rounded-3xl border border-dashed border-purple-900/20">
+                      <p className="text-gray-500">No reviews yet. Be the first to share your experience!</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Review Form */}
+                {isEnrolled && (
+                  <div className="bg-zinc-950 border border-purple-900/30 p-8 rounded-[2.5rem]">
+                    <h3 className="text-xl font-bold mb-6">Write a Review</h3>
+                    <form onSubmit={handleReviewSubmit} className="space-y-6">
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-semibold text-gray-400">Rating:</span>
+                        <div className="flex gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setNewReview({ ...newReview, rating: star })}
+                              className={`p-1 transition-colors ${newReview.rating >= star ? 'text-yellow-500' : 'text-gray-600'}`}
+                            >
+                              <Star className={`w-6 h-6 ${newReview.rating >= star ? 'fill-current' : ''}`} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <textarea
+                          placeholder="Share your thoughts about this course..."
+                          value={newReview.comment}
+                          onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-2xl p-6 text-white min-h-[150px] focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                          required
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={submittingReview}
+                        className="px-8 py-3 bg-brand-radial hover:opacity-90 text-white rounded-xl font-bold transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {submittingReview ? 'Submitting...' : 'Submit Review'}
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Sidebar */}
@@ -256,13 +396,23 @@ export default function CourseDetail() {
                   <div className="text-3xl font-black text-white mb-6">
                     {course.price.toLocaleString()} {course.currency}
                   </div>
-                  <Link 
-                    to={`/payment?courseId=${course.id}`}
-                    className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
-                  >
-                    Get Started
-                    <ArrowRight className="w-5 h-5" />
-                  </Link>
+                  {isEnrolled ? (
+                    <Link 
+                      to="/dashboard"
+                      className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                    >
+                      Continue Learning
+                      <ArrowRight className="w-5 h-5" />
+                    </Link>
+                  ) : (
+                    <Link 
+                      to={`/payment?courseId=${course.id}`}
+                      className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                    >
+                      Get Started
+                      <ArrowRight className="w-5 h-5" />
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>

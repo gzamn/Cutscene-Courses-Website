@@ -1,11 +1,70 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Play, FileText, Dumbbell, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Play, FileText, Dumbbell, CheckCircle2, Loader2 } from 'lucide-react';
 import { COURSES } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
 
 export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
+  const { user } = useAuth();
   const course = COURSES.find(c => c.id === id);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!user || !id || !chapter || !type) {
+      setLoading(false);
+      return;
+    }
+
+    const lessonId = `${id}-${chapter}-${type}`;
+    const qProgress = query(
+      collection(db, 'progress'), 
+      where('uid', '==', user.uid), 
+      where('courseId', '==', id),
+      where('chapter', '==', parseInt(chapter)),
+      where('type', '==', type)
+    );
+
+    const unsub = onSnapshot(qProgress, (snap) => {
+      if (!snap.empty) {
+        setIsCompleted(snap.docs[0].data().completed);
+      } else {
+        setIsCompleted(false);
+      }
+      setLoading(false);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'progress'));
+
+    return () => unsub();
+  }, [user, id, chapter, type]);
+
+  const handleMarkComplete = async () => {
+    if (!user || !id || !chapter || !type) return;
+    setSubmitting(true);
+    try {
+      const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
+      const progressRef = doc(db, 'progress', lessonId);
+      
+      await setDoc(progressRef, {
+        uid: user.uid,
+        courseId: id,
+        chapter: parseInt(chapter),
+        type: type,
+        completed: true,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      alert('Lesson marked as complete!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'progress');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (!course) {
     return (
@@ -68,8 +127,21 @@ export default function VideoPlayer() {
                 <p className="text-gray-400">{course.title}</p>
               </div>
               <div className="flex items-center gap-4">
-                <button className="px-6 py-2 bg-zinc-900 hover:bg-zinc-800 border border-purple-900/30 rounded-xl transition-all text-sm font-bold">
-                  Mark as Complete
+                <button 
+                  onClick={handleMarkComplete}
+                  disabled={isCompleted || submitting || loading}
+                  className={`px-6 py-2 border border-purple-900/30 rounded-xl transition-all text-sm font-bold flex items-center gap-2 ${
+                    isCompleted 
+                      ? 'bg-green-600/20 text-green-500 border-green-500/30' 
+                      : 'bg-zinc-900 hover:bg-zinc-800'
+                  } disabled:opacity-50`}
+                >
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isCompleted ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : null}
+                  {isCompleted ? 'Completed' : 'Mark as Complete'}
                 </button>
               </div>
             </div>

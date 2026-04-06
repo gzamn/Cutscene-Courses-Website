@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID." },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "enum": ["student", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Enrollment": {
+      "title": "Enrollment",
+      "description": "User enrollment in a course.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID." },
+        "courseId": { "type": "string" },
+        "enrolledAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "completed"] }
+      },
+      "required": ["uid", "courseId", "enrolledAt"]
+    },
+    "Progress": {
+      "title": "Progress",
+      "description": "Tracking user progress in a course chapter.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "integer" },
+        "type": { "type": "string", "enum": ["session", "exercise", "homework"] },
+        "completed": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "courseId", "chapter", "type", "completed"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User review for a course.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userName": { "type": "string" }
+      },
+      "required": ["uid", "courseId", "rating", "comment", "createdAt"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Earned course certificate.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "certificateUrl": { "type": "string", "format": "uri" }
+      },
+      "required": ["uid", "courseId", "issuedAt"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Metadata for uploaded videos.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Uploader UID." },
+        "title": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "title", "url", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles." },
+    "/enrollments/{enrollmentId}": { "schema": "Enrollment", "description": "Course enrollments." },
+    "/progress/{progressId}": { "schema": "Progress", "description": "User course progress." },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Course reviews." },
+    "/certificates/{certificateId}": { "schema": "Certificate", "description": "User certificates." },
+    "/videos/{videoId}": { "schema": "Video", "description": "Uploaded video metadata." }
+  }
+}

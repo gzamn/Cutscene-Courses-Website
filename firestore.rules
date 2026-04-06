@@ -1,0 +1,193 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - User UID
+    //   - email: string (required) - User email
+    //   - displayName: string (optional) - User display name
+    //   - photoURL: string (optional) - User photo URL
+    //   - role: string (required, ['student', 'admin']) - User role
+    //   - createdAt: string (required) - ISO 8601 creation date
+    //
+    // Collection: enrollments
+    // Document ID: {enrollmentId}
+    // Fields:
+    //   - uid: string (required) - User UID
+    //   - courseId: string (required) - Course ID
+    //   - enrolledAt: string (required) - ISO 8601 enrollment date
+    //   - status: string (required, ['active', 'completed']) - Enrollment status
+    //
+    // Collection: progress
+    // Document ID: {progressId}
+    // Fields:
+    //   - uid: string (required) - User UID
+    //   - courseId: string (required) - Course ID
+    //   - chapter: number (required) - Chapter number
+    //   - type: string (required, ['session', 'exercise', 'homework']) - Content type
+    //   - completed: bool (required) - Completion status
+    //   - updatedAt: string (required) - ISO 8601 update date
+    //
+    // Collection: reviews
+    // Document ID: {reviewId}
+    // Fields:
+    //   - uid: string (required) - User UID
+    //   - courseId: string (required) - Course ID
+    //   - rating: number (required, 1-5) - Rating
+    //   - comment: string (required) - Review comment
+    //   - createdAt: string (required) - ISO 8601 creation date
+    //   - userName: string (optional) - User display name
+    //
+    // Collection: certificates
+    // Document ID: {certificateId}
+    // Fields:
+    //   - uid: string (required) - User UID
+    //   - courseId: string (required) - Course ID
+    //   - issuedAt: string (required) - ISO 8601 issuance date
+    //   - certificateUrl: string (required) - URL to certificate
+    //
+    // Collection: videos
+    // Document ID: {videoId}
+    // Fields:
+    //   - uid: string (required) - Uploader UID
+    //   - title: string (required) - Video title
+    //   - url: string (required) - Video URL
+    //   - courseId: string (optional) - Associated course
+    //   - chapter: number (optional) - Associated chapter
+    //   - createdAt: string (required) - ISO 8601 creation date
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "aminerouabhia14@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['student', 'admin'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidEnrollment(data) {
+      return hasOnlyAllowedFields(['uid', 'courseId', 'enrolledAt', 'status']) &&
+             data.uid == request.auth.uid &&
+             data.courseId is string &&
+             isValidDateString(data.enrolledAt) &&
+             data.status in ['active', 'completed'];
+    }
+
+    function isValidProgress(data) {
+      return hasOnlyAllowedFields(['uid', 'courseId', 'chapter', 'type', 'completed', 'updatedAt']) &&
+             data.uid == request.auth.uid &&
+             data.courseId is string &&
+             data.chapter is int &&
+             data.type in ['session', 'exercise', 'homework'] &&
+             data.completed is bool &&
+             isValidDateString(data.updatedAt);
+    }
+
+    function isValidReview(data) {
+      return hasOnlyAllowedFields(['uid', 'courseId', 'rating', 'comment', 'createdAt', 'userName']) &&
+             data.uid == request.auth.uid &&
+             data.courseId is string &&
+             data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() < 1000 &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidCertificate(data) {
+      return hasOnlyAllowedFields(['uid', 'courseId', 'issuedAt', 'certificateUrl']) &&
+             data.uid is string &&
+             data.courseId is string &&
+             isValidDateString(data.issuedAt) &&
+             data.certificateUrl is string;
+    }
+
+    function isValidVideo(data) {
+      return hasOnlyAllowedFields(['uid', 'title', 'url', 'courseId', 'chapter', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.title is string && data.title.size() < 200 &&
+             data.url is string &&
+             isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'student' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(uid) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+      allow create: if isAuthenticated() && isValidEnrollment(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin()) && isValidEnrollment(request.resource.data);
+    }
+
+    match /progress/{progressId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.uid);
+      allow create: if isAuthenticated() && isValidProgress(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidProgress(request.resource.data);
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidReview(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidReview(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+    }
+
+    match /certificates/{certificateId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.uid);
+      allow create, update: if isAdmin() && isValidCertificate(request.resource.data);
+    }
+
+    match /videos/{videoId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidVideo(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidVideo(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+    }
+  }
+}
