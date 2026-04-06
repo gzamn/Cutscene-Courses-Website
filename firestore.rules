@@ -62,6 +62,16 @@ service cloud.firestore {
     //   - chapter: number (optional) - Associated chapter
     //   - createdAt: string (required) - ISO 8601 creation date
     //
+    // Collection: homework_submissions
+    // Document ID: {submissionId}
+    // Fields:
+    //   - uid: string (required) - User UID
+    //   - courseId: string (required) - Course ID
+    //   - chapter: number (required) - Chapter number
+    //   - url: string (required) - Video URL
+    //   - fileName: string (required) - Original file name
+    //   - createdAt: string (required) - ISO 8601 creation date
+    //
     // ===============================================================
 
     // ===============================================================
@@ -149,6 +159,16 @@ service cloud.firestore {
              isValidDateString(data.createdAt);
     }
 
+    function isValidHomeworkSubmission(data) {
+      return hasOnlyAllowedFields(['uid', 'courseId', 'chapter', 'url', 'fileName', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.courseId is string &&
+             data.chapter is int &&
+             data.url is string &&
+             data.fileName is string &&
+             isValidDateString(data.createdAt);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -187,6 +207,13 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidVideo(request.resource.data);
       allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidVideo(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+    }
+
+    match /homework_submissions/{submissionId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+      allow create: if isAuthenticated() && isValidHomeworkSubmission(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidHomeworkSubmission(request.resource.data);
       allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
     }
   }

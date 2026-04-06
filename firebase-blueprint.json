@@ -79,6 +79,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "title", "url", "createdAt"]
+    },
+    "HomeworkSubmission": {
+      "title": "HomeworkSubmission",
+      "description": "Student homework video submission.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "integer" },
+        "url": { "type": "string", "format": "uri" },
+        "fileName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "courseId", "chapter", "url", "fileName", "createdAt"]
     }
   },
   "firestore": {
@@ -87,6 +101,7 @@
     "/progress/{progressId}": { "schema": "Progress", "description": "User course progress." },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Course reviews." },
     "/certificates/{certificateId}": { "schema": "Certificate", "description": "User certificates." },
-    "/videos/{videoId}": { "schema": "Video", "description": "Uploaded video metadata." }
+    "/videos/{videoId}": { "schema": "Video", "description": "Uploaded video metadata." },
+    "/homework_submissions/{submissionId}": { "schema": "HomeworkSubmission", "description": "Student homework submissions." }
   }
 }

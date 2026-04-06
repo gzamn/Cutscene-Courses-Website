@@ -1,3 +1,9 @@
+export interface Homework {
+  chapter: number;
+  description: string;
+  expectedOutcome: string;
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -15,6 +21,7 @@ export interface Course {
     bio: string;
     avatar: string;
   };
+  homeworks?: Homework[];
 }
 
 export const COURSES: Course[] = [
@@ -40,6 +47,10 @@ export const COURSES: Course[] = [
       bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',
       avatar: 'https://picsum.photos/seed/amine/100/100',
     },
+    homeworks: [
+      { chapter: 1, description: 'Create a 30-second sequence from raw footage.', expectedOutcome: 'Clean cuts and logical flow.' },
+      { chapter: 2, description: 'Apply basic color correction.', expectedOutcome: 'Natural skin tones and consistent exposure.' }
+    ]
   },
   {
     id: '2',
@@ -63,6 +74,10 @@ export const COURSES: Course[] = [
       bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',
       avatar: 'https://picsum.photos/seed/amine/100/100',
     },
+    homeworks: [
+      { chapter: 1, description: 'Edit a multi-cam interview with at least 3 angles.', expectedOutcome: 'Seamless transitions and perfectly synced audio.' },
+      { chapter: 2, description: 'Create a cinematic color grade for a short film scene.', expectedOutcome: 'Consistent mood and professional look.' }
+    ]
   },
   {
     id: '3',
@@ -86,5 +101,9 @@ export const COURSES: Course[] = [
       bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',
       avatar: 'https://picsum.photos/seed/amine/100/100',
     },
+    homeworks: [
+      { chapter: 1, description: 'Animate a logo using at least 3 different animation principles.', expectedOutcome: 'Fluid motion and professional timing.' },
+      { chapter: 2, description: 'Create a 10-second kinetic typography sequence.', expectedOutcome: 'Clear legibility and dynamic movement.' }
+    ]
   },
 ];

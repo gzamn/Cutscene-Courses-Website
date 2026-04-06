@@ -1,19 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { ArrowLeft, Play, FileText, Dumbbell, CheckCircle2, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2 } from 'lucide-react';
 import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
+import { db, storage, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { GoogleGenAI } from "@google/genai";
 
 export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
   const { user } = useAuth();
   const course = COURSES.find(c => c.id === id);
+  const homework = course?.homeworks?.find(h => h.chapter === parseInt(chapter || '0'));
+  
   const [isCompleted, setIsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Homework & AI Chat State
+  const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
+    { role: 'ai', text: "Hello! I'm your AI mentor. Upload your homework video, and I'll review it and give you an evaluation!" }
+  ]);
+  const [input, setInput] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   useEffect(() => {
     if (!user || !id || !chapter || !type) {
@@ -21,25 +39,40 @@ export default function VideoPlayer() {
       return;
     }
 
-    const lessonId = `${id}-${chapter}-${type}`;
-    const qProgress = query(
-      collection(db, 'progress'), 
-      where('uid', '==', user.uid), 
-      where('courseId', '==', id),
-      where('chapter', '==', parseInt(chapter)),
-      where('type', '==', type)
-    );
-
-    const unsub = onSnapshot(qProgress, (snap) => {
-      if (!snap.empty) {
-        setIsCompleted(snap.docs[0].data().completed);
+    // Listen to lesson progress
+    const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
+    const progressRef = doc(db, 'progress', lessonId);
+    const unsubProgress = onSnapshot(progressRef, (doc) => {
+      if (doc.exists()) {
+        setIsCompleted(doc.data().completed);
       } else {
         setIsCompleted(false);
       }
       setLoading(false);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'progress'));
 
-    return () => unsub();
+    // Listen to homework video
+    if (type === 'homework') {
+      const qVideos = query(
+        collection(db, 'homework_submissions'),
+        where('uid', '==', user.uid),
+        where('courseId', '==', id),
+        where('chapter', '==', parseInt(chapter))
+      );
+      const unsubVideos = onSnapshot(qVideos, (snap) => {
+        if (!snap.empty) {
+          setHomeworkVideo({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        } else {
+          setHomeworkVideo(null);
+        }
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'homework_submissions'));
+      return () => {
+        unsubProgress();
+        unsubVideos();
+      };
+    }
+
+    return () => unsubProgress();
   }, [user, id, chapter, type]);
 
   const handleMarkComplete = async () => {
@@ -63,6 +96,89 @@ export default function VideoPlayer() {
       handleFirestoreError(error, OperationType.WRITE, 'progress');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleHomeworkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !id || !chapter) return;
+
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `homework/${user.uid}/${id}_ch${chapter}_${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, 'homework_submissions'), {
+        uid: user.uid,
+        courseId: id,
+        chapter: parseInt(chapter),
+        url,
+        fileName: file.name,
+        createdAt: new Date().toISOString()
+      });
+
+      setMessages(prev => [...prev, { role: 'ai', text: "Great! I've received your video. Give me a moment to review it..." }]);
+      
+      // Trigger AI review
+      await handleSendMessage("I've uploaded my homework video. Please review it and evaluate my work out of 10.");
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteHomework = async () => {
+    if (!homeworkVideo || !window.confirm('Delete this submission?')) return;
+    try {
+      await deleteDoc(doc(db, 'homework_submissions', homeworkVideo.id));
+      setHomeworkVideo(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'homework_submissions');
+    }
+  };
+
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || isThinking) return;
+    
+    const userMessage = text;
+    if (text !== "I've uploaded my homework video. Please review it and evaluate my work out of 10.") {
+      setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    }
+    setInput('');
+    setIsThinking(true);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const model = "gemini-3-flash-preview";
+      
+      const systemPrompt = `You are an expert video editing mentor. 
+      The student is working on Chapter ${chapter} of the course "${course?.title}".
+      Homework Task: ${homework?.description}
+      Expected Outcome: ${homework?.expectedOutcome}
+      
+      If the student has uploaded a video (homeworkVideo is ${homeworkVideo ? 'present' : 'not present'}), provide a constructive review.
+      Since you are a text-based AI in this chat, simulate a review based on the context of the course and common mistakes students make at this level.
+      Always evaluate the student out of 10 if they ask for a review.
+      Be encouraging but professional. Use emojis to make the chat friendly.`;
+
+      const response = await ai.models.generateContent({
+        model,
+        contents: [...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })), { role: 'user', parts: [{ text: userMessage }] }],
+        config: {
+          systemInstruction: systemPrompt
+        }
+      });
+
+      const aiResponse = response.text || "I'm sorry, I couldn't process that. Could you try again?";
+      setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
+    } catch (error) {
+      console.error('AI Error:', error);
+      setMessages(prev => [...prev, { role: 'ai', text: "I'm having trouble connecting right now. Please try again in a moment." }]);
+    } finally {
+      setIsThinking(false);
     }
   };
 
@@ -146,13 +262,136 @@ export default function VideoPlayer() {
               </div>
             </div>
 
-            <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
+            <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 mb-8">
               <h2 className="text-xl font-bold mb-4">About this {typeLabels[type || 'session']}</h2>
-              <p className="text-gray-400 leading-relaxed">
-                In this {typeLabels[type || 'session'].toLowerCase()}, we will dive deep into the core concepts of Chapter {chapter}. 
-                Make sure to follow along and take notes. If you have any questions, feel free to reach out to our support team.
+              <p className="text-gray-400 leading-relaxed mb-6">
+                {type === 'homework' && homework ? (
+                  <>
+                    <span className="block font-bold text-white mb-2">Task:</span>
+                    {homework.description}
+                    <span className="block font-bold text-white mt-4 mb-2">Expected Outcome:</span>
+                    {homework.expectedOutcome}
+                  </>
+                ) : (
+                  `In this ${typeLabels[type || 'session'].toLowerCase()}, we will dive deep into the core concepts of Chapter ${chapter}. 
+                  Make sure to follow along and take notes. If you have any questions, feel free to reach out to our support team.`
+                )}
               </p>
+
+              {type === 'homework' && (
+                <div className="pt-6 border-t border-purple-900/20">
+                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-purple-500" />
+                    Submit Your Work
+                  </h3>
+                  
+                  {homeworkVideo ? (
+                    <div className="bg-black/40 border border-purple-900/20 p-6 rounded-2xl flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-purple-600/20 rounded-xl flex items-center justify-center">
+                          <Play className="w-6 h-6 text-purple-500" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm">{homeworkVideo.fileName}</div>
+                          <div className="text-xs text-gray-500">Submitted on {new Date(homeworkVideo.createdAt).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={deleteHomework}
+                        className="p-2 text-gray-500 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="video/*"
+                        onChange={handleHomeworkUpload}
+                        disabled={uploading}
+                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <div className={`w-full py-8 bg-purple-600/5 border-2 border-dashed border-purple-600/20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-colors ${uploading ? 'opacity-50' : 'hover:bg-purple-600/10'}`}>
+                        {uploading ? <Loader2 className="w-8 h-8 text-purple-500 animate-spin" /> : <Upload className="w-8 h-8 text-purple-500" />}
+                        <div className="text-center">
+                          <div className="font-bold">{uploading ? 'Uploading...' : 'Click or Drag to Upload Video'}</div>
+                          <div className="text-xs text-gray-500 mt-1">MP4, MOV or AVI (Max 50MB)</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* AI Chat Section for Homework */}
+            {type === 'homework' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-zinc-950 border border-purple-900/30 rounded-3xl overflow-hidden flex flex-col h-[500px]"
+              >
+                <div className="p-4 bg-purple-900/10 border-b border-purple-900/20 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm">AI Mentor</div>
+                    <div className="text-[10px] text-green-500 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                      Online & Ready to Review
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-grow overflow-y-auto p-6 space-y-4">
+                  {messages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${
+                        msg.role === 'user' 
+                          ? 'bg-purple-600 text-white rounded-tr-none' 
+                          : 'bg-zinc-900 text-gray-300 rounded-tl-none border border-purple-900/10'
+                      }`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                  {isThinking && (
+                    <div className="flex justify-start">
+                      <div className="bg-zinc-900 text-gray-300 p-4 rounded-2xl rounded-tl-none border border-purple-900/10 flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" />
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <div className="p-4 bg-black/40 border-t border-purple-900/20">
+                  <form 
+                    onSubmit={(e) => { e.preventDefault(); handleSendMessage(input); }}
+                    className="flex gap-2"
+                  >
+                    <input 
+                      type="text" 
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Ask your mentor..."
+                      className="flex-grow bg-zinc-900 border border-purple-900/30 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <button 
+                      type="submit"
+                      disabled={!input.trim() || isThinking}
+                      className="p-2 bg-purple-600 text-white rounded-xl hover:bg-purple-500 disabled:opacity-50 transition-colors"
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </form>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           <div className="space-y-8">
