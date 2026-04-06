@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert } from 'lucide-react';
 import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
@@ -12,10 +12,12 @@ import { GoogleGenAI } from "@google/genai";
 export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const course = COURSES.find(c => c.id === id);
   const homework = course?.homeworks?.find(h => h.chapter === parseInt(chapter || '0'));
   
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
@@ -29,6 +31,8 @@ export default function VideoPlayer() {
   const [isThinking, setIsThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const isFirstSession = parseInt(chapter || '0') === 1 && type === 'session';
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -38,6 +42,12 @@ export default function VideoPlayer() {
       setLoading(false);
       return;
     }
+
+    // Check enrollment
+    const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
+    const unsubEnrollment = onSnapshot(qEnrollment, (snap) => {
+      setIsEnrolled(!snap.empty);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'enrollments'));
 
     // Listen to lesson progress
     const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
@@ -52,6 +62,7 @@ export default function VideoPlayer() {
     }, (error) => handleFirestoreError(error, OperationType.GET, 'progress'));
 
     // Listen to homework video
+    let unsubVideos = () => {};
     if (type === 'homework') {
       const qVideos = query(
         collection(db, 'homework_submissions'),
@@ -59,24 +70,26 @@ export default function VideoPlayer() {
         where('courseId', '==', id),
         where('chapter', '==', parseInt(chapter))
       );
-      const unsubVideos = onSnapshot(qVideos, (snap) => {
+      unsubVideos = onSnapshot(qVideos, (snap) => {
         if (!snap.empty) {
           setHomeworkVideo({ id: snap.docs[0].id, ...snap.docs[0].data() });
         } else {
           setHomeworkVideo(null);
         }
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'homework_submissions'));
-      return () => {
-        unsubProgress();
-        unsubVideos();
-      };
     }
 
-    return () => unsubProgress();
+    return () => {
+      unsubEnrollment();
+      unsubProgress();
+      unsubVideos();
+    };
   }, [user, id, chapter, type]);
 
   const handleMarkComplete = async () => {
     if (!user || !id || !chapter || !type) return;
+    if (!isEnrolled && !isFirstSession) return;
+    
     setSubmitting(true);
     try {
       const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
@@ -226,12 +239,36 @@ export default function VideoPlayer() {
               className="relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8"
             >
               {/* Mock Video Player */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/50">
-                <div className="w-24 h-24 bg-purple-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-600/40 mb-6">
-                  <Play className="w-10 h-10 text-white fill-current translate-x-1" />
+              {(!isEnrolled && !isFirstSession) ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-sm z-20 p-8 text-center">
+                  <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
+                    <Lock className="w-10 h-10 text-purple-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2">This Content is Locked</h2>
+                  <p className="text-gray-400 max-w-md mb-8">
+                    Enroll in this course to unlock all chapters, exercises, and homework assignments.
+                  </p>
+                  <Link 
+                    to={`/payment?courseId=${course.id}`}
+                    className="px-8 py-3 bg-brand-radial text-white rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-purple-600/20 flex items-center gap-2"
+                  >
+                    Unlock Course Now
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
                 </div>
-                <p className="text-xl font-bold text-gray-300">Video content for Chapter {chapter}: {typeLabels[type || 'session']}</p>
-              </div>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/50">
+                  <div className="w-24 h-24 bg-purple-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-600/40 mb-6">
+                    <Play className="w-10 h-10 text-white fill-current translate-x-1" />
+                  </div>
+                  <p className="text-xl font-bold text-gray-300">Video content for Chapter {chapter}: {typeLabels[type || 'session']}</p>
+                  {isFirstSession && !isEnrolled && (
+                    <div className="mt-4 px-4 py-1 bg-purple-600/20 border border-purple-500/30 rounded-full text-xs font-bold text-purple-400 uppercase tracking-widest">
+                      Free Trial Session
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
 
             <div className="flex items-center justify-between mb-8">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText, MessageSquare, Send } from 'lucide-react';
+import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText, MessageSquare, Send, Lock } from 'lucide-react';
 import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -246,28 +246,52 @@ export default function CourseDetail() {
                                 { type: 'session', label: 'Session', icon: Play },
                                 { type: 'exercise', label: 'Exercise', icon: Dumbbell },
                                 { type: 'homework', label: 'Homework', icon: FileText }
-                              ].map((item) => (
-                                <Link 
-                                  key={item.type}
-                                  to={`/courses/${course.id}/video/${chapter}/${item.type}`}
-                                  className="flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl hover:border-purple-500/50 transition-all group"
-                                >
-                                  <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
-                                    <img 
-                                      src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
-                                      alt={item.label}
-                                      className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
-                                      referrerPolicy="no-referrer"
-                                    />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <item.icon className="w-5 h-5 text-purple-500" />
+                              ].map((item) => {
+                                const isFirstSession = chapter === 1 && item.type === 'session';
+                                const isLocked = !isEnrolled && !isFirstSession;
+                                
+                                return (
+                                  <Link 
+                                    key={item.type}
+                                    to={isLocked ? '#' : `/courses/${course.id}/video/${chapter}/${item.type}`}
+                                    onClick={(e) => {
+                                      if (isLocked) {
+                                        e.preventDefault();
+                                        alert('This content is locked. Please enroll in the course to access it.');
+                                        navigate(`/payment?courseId=${course.id}`);
+                                      }
+                                    }}
+                                    className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
+                                  >
+                                    <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
+                                      <img 
+                                        src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
+                                        alt={item.label}
+                                        className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        {isLocked ? (
+                                          <Lock className="w-5 h-5 text-gray-600" />
+                                        ) : (
+                                          <item.icon className="w-5 h-5 text-purple-500" />
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                  <span className="font-bold text-gray-300 group-hover:text-purple-400 transition-colors">
-                                    {item.label}
-                                  </span>
-                                </Link>
-                              ))}
+                                    <div className="flex flex-col">
+                                      <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
+                                        {item.label}
+                                      </span>
+                                      {isFirstSession && !isEnrolled && (
+                                        <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
+                                      )}
+                                    </div>
+                                    {isLocked && (
+                                      <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                    )}
+                                  </Link>
+                                );
+                              })}
                             </div>
                           </motion.div>
                         )}
