@@ -30,6 +30,12 @@ export default function Payment() {
       return;
     }
 
+    if (paymentMethod === 'edahabia') {
+      // Redirect to external payment page (placeholder for now)
+      window.location.href = '/payment-gateway'; 
+      return;
+    }
+
     setProcessing(true);
     try {
       // Check if already enrolled
@@ -179,38 +185,14 @@ export default function Payment() {
                       <CreditCard className={`w-6 h-6 ${paymentMethod === 'edahabia' ? 'text-purple-500' : 'text-gray-500'}`} />
                     </div>
                     <div className="text-left">
-                      <div className={`font-bold transition-colors ${paymentMethod === 'edahabia' ? 'text-white' : 'text-gray-400'}`}>EDAHABIA</div>
-                      <div className="text-gray-500 text-sm">Algerie Poste Local Card</div>
+                      <div className={`font-bold transition-colors ${paymentMethod === 'edahabia' ? 'text-white' : 'text-gray-400'}`}>EDAHABIA / CIB</div>
+                      <div className="text-gray-500 text-sm">Algerie Poste & Interbank Cards</div>
                     </div>
                   </div>
                   <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                     paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-gray-700'
                   }`}>
                     {paymentMethod === 'edahabia' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
-                  </div>
-                </button>
-
-                <button 
-                  onClick={() => setPaymentMethod('cib')}
-                  className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
-                    paymentMethod === 'cib' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                      paymentMethod === 'cib' ? 'bg-purple-600/20' : 'bg-zinc-800'
-                    }`}>
-                      <CreditCard className={`w-6 h-6 ${paymentMethod === 'cib' ? 'text-purple-500' : 'text-gray-500'}`} />
-                    </div>
-                    <div className="text-left">
-                      <div className={`font-bold transition-colors ${paymentMethod === 'cib' ? 'text-white' : 'text-gray-400'}`}>CIB</div>
-                      <div className="text-gray-500 text-sm">Interbank Local Card</div>
-                    </div>
-                  </div>
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                    paymentMethod === 'cib' ? 'border-purple-600' : 'border-gray-700'
-                  }`}>
-                    {paymentMethod === 'cib' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
                   </div>
                 </button>
 
@@ -240,7 +222,7 @@ export default function Payment() {
               </div>
 
               <div className="space-y-6">
-                {(paymentMethod === 'card' || paymentMethod === 'edahabia' || paymentMethod === 'cib') && (
+                {paymentMethod === 'card' && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-400 mb-2">{t('payment.cardNumber')}</label>
@@ -270,6 +252,18 @@ export default function Payment() {
                           className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                         />
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === 'edahabia' && (
+                  <div className="p-8 bg-purple-600/10 border border-purple-600/30 rounded-2xl text-center space-y-4">
+                    <CreditCard className="w-12 h-12 text-purple-500 mx-auto" />
+                    <div className="space-y-2">
+                      <h3 className="font-bold text-lg">External Payment Gateway</h3>
+                      <p className="text-sm text-gray-400">
+                        You will be redirected to the secure SATIM/Algerie Poste payment portal to complete your transaction.
+                      </p>
                     </div>
                   </div>
                 )}
