@@ -26,17 +26,20 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-purple-900/30">
+    <nav className="fixed top-0 left-0 right-0 z-50 glass-surface-dark border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center py-3 gap-4 md:justify-between">
-          <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2 group shrink-0">
-              <div className="p-1.5 bg-brand-radial rounded-lg group-hover:opacity-90 transition-opacity">
+        <div className="flex flex-col md:flex-row items-center py-4 gap-4 md:justify-between">
+          <div className="flex items-center gap-10">
+            <Link to="/" className="flex items-center gap-3 group shrink-0">
+              <div className="p-2 bg-brand-radial rounded-xl group-hover:scale-105 transition-transform shadow-lg shadow-purple-600/20">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-brand-gradient">
-                Cutscene
-              </span>
+              <div className="flex flex-col">
+                <span className="text-xl font-black tracking-tighter text-white leading-none">
+                  CUTSCENE
+                </span>
+                <span className="text-micro text-purple-400">Academy</span>
+              </div>
             </Link>
 
             {/* Navigation Links */}

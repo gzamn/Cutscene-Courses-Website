@@ -407,26 +407,42 @@ export default function CutsceneAI() {
   };
 
   return (
-    <div className="h-screen bg-black pt-20 overflow-hidden">
-      <div className="w-full h-full flex flex-col bg-zinc-950 border-t border-purple-900/20 shadow-2xl">
-        {/* Header */}
-        <div className="p-4 border-b border-purple-900/20 bg-black/40 backdrop-blur-md flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-brand-radial rounded-2xl flex items-center justify-center shadow-lg shadow-purple-600/20">
-              <Bot className="w-6 h-6 text-white" />
+    <div className="h-screen bg-black pt-20 overflow-hidden relative">
+      {/* Background Effects */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-purple-900/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
+      </div>
+
+      <div className="relative z-10 flex flex-col h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8">
+        <div className="w-full h-full flex flex-col glass-surface-dark border border-white/5 rounded-[2.5rem] shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="p-6 border-b border-white/5 bg-white/5 backdrop-blur-xl flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 bg-brand-radial rounded-2xl flex items-center justify-center shadow-2xl shadow-purple-600/30 group">
+                <Bot className="w-7 h-7 text-white group-hover:scale-110 transition-transform" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black uppercase tracking-tighter text-white leading-none mb-1">{t('ai.title')}</h1>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-micro font-mono text-green-500/80">System Online // v2.4.0</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">{t('ai.title')}</h1>
-              <p className="text-sm text-gray-400">{t('ai.subtitle')}</p>
+            <div className="hidden md:flex items-center gap-8">
+              <div className="text-right">
+                <div className="text-micro text-gray-500 mb-1">Processing Mode</div>
+                <div className="text-xs font-mono text-purple-400">NEURAL_STAGGER_V4</div>
+              </div>
+              <div className="w-px h-10 bg-white/10" />
+              <div className="text-right">
+                <div className="text-micro text-gray-500 mb-1">Latency</div>
+                <div className="text-xs font-mono text-purple-400">24ms</div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-400 text-xs font-bold rounded-full border border-green-500/20">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-              {t('ai.online')}
-            </div>
-          </div>
-        </div>
 
         {/* Messages Area */}
         <div 
@@ -447,7 +463,11 @@ export default function CutsceneAI() {
                     {msg.role === 'user' ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-purple-400" />}
                   </div>
                   <div className={`space-y-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`} dir={isArabic(msg.content) ? 'rtl' : 'ltr'}>
-                    <div className={`p-4 rounded-2xl ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-zinc-900 text-gray-200 rounded-tl-none border border-purple-900/10'}`}>
+                    <div className={`p-5 rounded-3xl shadow-2xl ${
+                      msg.role === 'user' 
+                        ? 'bg-brand-radial text-white rounded-tr-none' 
+                        : 'glass-surface-dark text-gray-200 rounded-tl-none border-white/5'
+                    }`}>
                       {msg.type === 'text' && (
                         msg.role === 'assistant' ? (
                           <TypewriterMessage 
@@ -627,6 +647,7 @@ export default function CutsceneAI() {
               <Send className={`w-5 h-5 ${isRTL ? 'rotate-180' : ''}`} />
             </button>
           </form>
+        </div>
         </div>
       </div>
     </div>

@@ -44,61 +44,96 @@ export default function Home() {
   return (
     <div className="bg-black text-white">
       {/* Hero Section */}
-      <section className="relative pt-40 pb-20 overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-900/20 rounded-full blur-[120px]" />
+      <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] animate-pulse" />
+          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center"
-          >
-            <span className="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wider text-purple-400 uppercase bg-purple-900/30 rounded-full border border-purple-500/30">
-              {t('hero.badge')}
-            </span>
-            <h1 className="text-5xl md:text-7xl font-extrabold mb-8 leading-tight">
-              {language === 'ar' ? (
-                <>
-                  حاب تتعلم <span className="text-brand-gradient">مونتاج</span>؟ <br />
-                  <span className="text-brand-gradient">Cutscene</span> {t('hero.title3')}
-                </>
-              ) : (
-                <>
-                  {t('hero.title1')} <span className="text-brand-gradient">{t('hero.title2')}</span>? <br />
-                  <span className="text-brand-gradient">Cutscene</span> {t('hero.title3')}
-                </>
-              )}
-            </h1>
-            <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              {t('hero.subtitle')}
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link 
-                to="/courses" 
-                className="w-full sm:w-auto px-8 py-4 bg-brand-radial hover:opacity-90 text-white rounded-full font-bold text-lg transition-all flex items-center justify-center gap-2 group shadow-lg shadow-purple-600/20"
-              >
-                {t('hero.explore')}
-                <ArrowRight className={`w-5 h-5 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </Link>
-              <button 
-                onClick={scrollToStudentsWork}
-                className="w-full sm:w-auto px-8 py-4 bg-gray-900 hover:bg-gray-800 text-white rounded-full font-bold text-lg border border-purple-900/30 transition-all"
-              >
-                {t('hero.studentsWork')}
-              </button>
-            </div>
-          </motion.div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <motion.div 
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="lg:col-span-7 text-left"
+            >
+              <div className="flex items-center gap-3 mb-8">
+                <span className="h-px w-12 bg-purple-500/50" />
+                <span className="text-micro text-purple-400">
+                  {t('hero.badge')}
+                </span>
+              </div>
+              
+              <h1 className="text-6xl md:text-8xl font-black mb-8 leading-[0.9] tracking-tighter uppercase">
+                {language === 'ar' ? (
+                  <>
+                    حاب تتعلم <br />
+                    <span className="text-brand-gradient">مونتاج</span>؟ <br />
+                    <span className="opacity-40">Cutscene</span>
+                  </>
+                ) : (
+                  <>
+                    {t('hero.title1')} <br />
+                    <span className="text-brand-gradient">{t('hero.title2')}</span>? <br />
+                    <span className="opacity-40">Cutscene</span>
+                  </>
+                )}
+              </h1>
+              
+              <p className="text-xl text-gray-400 mb-12 max-w-xl leading-relaxed font-light">
+                {t('hero.subtitle')}
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <Link 
+                  to="/courses" 
+                  className="w-full sm:w-auto px-10 py-5 bg-brand-radial hover:scale-105 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group shadow-2xl shadow-purple-600/40"
+                >
+                  {t('hero.explore')}
+                  <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+                </Link>
+                <button 
+                  onClick={scrollToStudentsWork}
+                  className="w-full sm:w-auto px-10 py-5 glass-surface hover:bg-white/10 text-white rounded-2xl font-bold text-lg transition-all"
+                >
+                  {t('hero.studentsWork')}
+                </button>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, rotate: 5 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              transition={{ duration: 1, delay: 0.2 }}
+              className="lg:col-span-5 hidden lg:block relative"
+            >
+              <div className="relative z-10 rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-700">
+                <img 
+                  src="https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=800&auto=format&fit=crop" 
+                  alt="Hero"
+                  className="w-full aspect-[4/5] object-cover grayscale hover:grayscale-0 transition-all duration-700"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                <div className="absolute bottom-10 left-10">
+                  <div className="text-micro text-purple-400 mb-2">Featured Work</div>
+                  <div className="text-2xl font-black uppercase tracking-tighter">Cinematic Masterclass</div>
+                </div>
+              </div>
+              {/* Decorative elements */}
+              <div className="absolute -top-10 -right-10 w-40 h-40 border border-purple-500/20 rounded-full animate-spin-slow" />
+              <div className="absolute -bottom-10 -left-10 w-60 h-60 border border-purple-900/20 rounded-full" />
+            </motion.div>
+          </div>
 
           {/* Stats */}
           <motion.div 
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-24 py-12 border-y border-purple-900/20"
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-0 mt-32 border border-white/5 rounded-[2rem] overflow-hidden glass-surface-dark"
           >
             {[
               { label: t('stats.students'), value: '330+', icon: Users },
@@ -106,12 +141,12 @@ export default function Home() {
               { label: t('stats.workshops'), value: '40+', icon: Star },
               { label: t('stats.certified'), value: '100%', icon: ShieldCheck },
             ].map((stat, i) => (
-              <div key={i} className="text-center">
-                <div className="flex justify-center mb-3">
-                  <stat.icon className="w-6 h-6 text-purple-500" />
+              <div key={i} className={`p-10 text-center border-white/5 ${i !== 3 ? 'md:border-r' : ''} ${i % 2 === 0 ? 'border-r md:border-r-0' : ''} ${i < 2 ? 'border-b md:border-b-0' : ''} hover:bg-white/5 transition-colors group`}>
+                <div className="flex justify-center mb-4">
+                  <stat.icon className="w-6 h-6 text-purple-500 group-hover:scale-110 transition-transform" />
                 </div>
-                <div className="text-3xl font-bold mb-1">{stat.value}</div>
-                <div className="text-gray-500 text-sm uppercase tracking-widest">{stat.label}</div>
+                <div className="text-4xl font-black mb-2 tracking-tighter">{stat.value}</div>
+                <div className="text-micro text-gray-500">{stat.label}</div>
               </div>
             ))}
           </motion.div>
