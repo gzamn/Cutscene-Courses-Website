@@ -10,6 +10,8 @@ import Payment from './pages/Payment';
 import VideoPlayer from './pages/VideoPlayer';
 import Dashboard from './pages/Dashboard';
 import CutsceneAI from './pages/CutsceneAI';
+import Profile from './pages/Profile';
+import StudioPage from './pages/Studio';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -48,6 +50,8 @@ function App() {
                 <Route path="/ai" element={<ProtectedRoute><CutsceneAI /></ProtectedRoute>} />
                 <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/studio/*" element={<StudioPage />} />
                 {/* Catch-all route to redirect back to home */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

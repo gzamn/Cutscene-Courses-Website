@@ -109,19 +109,25 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt']) &&
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
              data.uid == request.auth.uid &&
              data.email is string && isValidEmail(data.email) &&
              data.role in ['student', 'admin'] &&
-             isValidDateString(data.createdAt);
+             isValidDateString(data.createdAt) &&
+             (!('updatedAt' in data) || isValidDateString(data.updatedAt));
     }
 
     function isValidEnrollment(data) {
-      return hasOnlyAllowedFields(['uid', 'courseId', 'enrolledAt', 'status']) &&
+      return hasOnlyAllowedFields(['uid', 'courseId', 'enrolledAt', 'status', 'fullName', 'email', 'phone', 'format', 'startDate']) &&
              data.uid == request.auth.uid &&
              data.courseId is string &&
              isValidDateString(data.enrolledAt) &&
-             data.status in ['active', 'completed'];
+             data.status in ['active', 'completed'] &&
+             data.fullName is string && data.fullName.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.phone is string && data.phone.size() > 0 &&
+             data.format in ['recorded', 'online'] &&
+             (!('startDate' in data) || data.startDate is string);
     }
 
     function isValidProgress(data) {

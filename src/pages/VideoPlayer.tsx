@@ -32,8 +32,63 @@ export default function VideoPlayer() {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
 
   const isFirstSession = parseInt(chapter || '0') === 1 && type === 'session';
+
+  // Watermark movement
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWatermarkPos({
+        top: `${Math.floor(Math.random() * 80) + 5}%`,
+        left: `${Math.floor(Math.random() * 80) + 5}%`
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Window focus detection
+  useEffect(() => {
+    const handleFocus = () => setIsWindowFocused(true);
+    const handleBlur = () => setIsWindowFocused(false);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Screenshot deterrents
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Block PrintScreen
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        alert('Screenshots are disabled for security reasons.');
+      }
+      // Block Cmd+Shift+3/4 (Mac) - limited but deterrent
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === '3' || e.key === '4')) {
+        // We can't actually block OS level shortcuts, but we can try to detect and alert
+        console.warn('Screenshot shortcut detected');
+      }
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      if (videoContainerRef.current?.contains(e.target as Node)) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -236,10 +291,35 @@ export default function VideoPlayer() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2">
             <motion.div 
+              ref={videoContainerRef}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8"
+              className={`relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8 select-none transition-all duration-500 ${!isWindowFocused ? 'blur-2xl scale-105' : ''}`}
             >
+              {/* Security Watermark */}
+              <AnimatePresence>
+                {isEnrolled || isFirstSession ? (
+                  <motion.div
+                    animate={{ top: watermarkPos.top, left: watermarkPos.left }}
+                    transition={{ duration: 2, ease: "easeInOut" }}
+                    className="absolute z-30 pointer-events-none select-none opacity-20 text-[10px] font-mono text-white whitespace-nowrap bg-black/20 px-2 py-1 rounded-md border border-white/5"
+                  >
+                    {user?.email} • {user?.uid.slice(0, 8)} • PROTECTED CONTENT
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              {/* Security Warning Overlay on Blur */}
+              {!isWindowFocused && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
+                  <div className="text-center p-6">
+                    <ShieldAlert className="w-12 h-12 text-purple-500 mx-auto mb-4 animate-pulse" />
+                    <h3 className="text-xl font-bold text-white mb-2">Content Protected</h3>
+                    <p className="text-sm text-gray-400">Please return to the window to continue watching.</p>
+                  </div>
+                </div>
+              )}
+
               {/* Mock Video Player */}
               {(!isEnrolled && !isFirstSession) ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-sm z-20 p-8 text-center">

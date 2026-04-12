@@ -10,7 +10,8 @@
         "displayName": { "type": "string" },
         "photoURL": { "type": "string", "format": "uri" },
         "role": { "type": "string", "enum": ["student", "admin"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role"]
     },
@@ -22,9 +23,14 @@
         "uid": { "type": "string", "description": "User UID." },
         "courseId": { "type": "string" },
         "enrolledAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["active", "completed"] }
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "format": { "type": "string", "enum": ["recorded", "online"] },
+        "startDate": { "type": "string", "format": "date" }
       },
-      "required": ["uid", "courseId", "enrolledAt"]
+      "required": ["uid", "courseId", "enrolledAt", "fullName", "email", "phone", "format"]
     },
     "Progress": {
       "title": "Progress",

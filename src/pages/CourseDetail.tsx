@@ -7,13 +7,15 @@ import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
 import { useLanguage } from '../context/LanguageContext';
+import { client, urlFor } from '../lib/sanity';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
-  const course = COURSES.find(c => c.id === id);
+  const [course, setCourse] = useState<any>(COURSES.find(c => c.id === id));
+  const [loading, setLoading] = useState(false);
   const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -22,6 +24,48 @@ export default function CourseDetail() {
 
   useEffect(() => {
     if (!id) return;
+
+    const fetchCourse = async () => {
+      if (!import.meta.env.VITE_SANITY_PROJECT_ID) return;
+      
+      setLoading(true);
+      try {
+        const query = `*[_type == "course" && slug.current == $id][0] {
+          ...,
+          "id": slug.current,
+          "chapters": chapters[]-> {
+            ...,
+            "lessons": lessons[]->
+          },
+          "instructor": {
+            "name": "Cutscene Academy",
+            "avatar": "https://picsum.photos/seed/instructor/200/200",
+            "bio": "Expert instructors from Cutscene Academy."
+          }
+        }`;
+        const sanityCourse = await client.fetch(query, { id });
+        if (sanityCourse) {
+          setCourse({
+            ...sanityCourse,
+            image: sanityCourse.image ? urlFor(sanityCourse.image).url() : 'https://picsum.photos/seed/course/800/600',
+            requirements: sanityCourse.requirements || [],
+            detailedDescription: sanityCourse.description || '',
+            learningOutcomes: sanityCourse.learningOutcomes || [
+              "Master professional video editing techniques",
+              "Learn advanced color grading and sound design",
+              "Understand industry-standard workflows",
+              "Create high-quality cinematic content"
+            ],
+          });
+        }
+      } catch (error) {
+        console.error('Sanity Fetch Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCourse();
 
     // Listen to reviews
     const qReviews = query(collection(db, 'reviews'), where('courseId', '==', id));
@@ -218,88 +262,167 @@ export default function CourseDetail() {
                   {t('course.curriculum')}
                 </h2>
                 <div className="space-y-4">
-                  {Array.from({ 
-                    length: course.id === '1' ? 12 : course.id === '2' ? 18 : 24 
-                  }, (_, i) => i + 1).map((chapter) => (
-                    <div key={chapter} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
-                      <button 
-                        onClick={() => setExpandedChapter(expandedChapter === chapter ? null : chapter)}
-                        className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
-                            {chapter}
+                  {course.chapters && course.chapters.length > 0 ? (
+                    course.chapters.map((chapter: any, index: number) => (
+                      <div key={chapter._id || index} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
+                        <button 
+                          onClick={() => setExpandedChapter(expandedChapter === index + 1 ? null : index + 1)}
+                          className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
+                              {index + 1}
+                            </div>
+                            <span className="text-lg font-bold">{chapter.title}</span>
                           </div>
-                          <span className="text-lg font-bold">Chapter {chapter}: Master the Basics</span>
-                        </div>
-                        {expandedChapter === chapter ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
-                      </button>
-                      
-                      <AnimatePresence>
-                        {expandedChapter === chapter && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="p-6 pt-0 flex flex-col gap-3">
-                              {[
-                                { type: 'session', label: 'Session', icon: Play },
-                                { type: 'exercise', label: 'Exercise', icon: Dumbbell },
-                                { type: 'homework', label: 'Homework', icon: FileText }
-                              ].map((item) => {
-                                const isFirstSession = chapter === 1 && item.type === 'session';
-                                const isLocked = !isEnrolled && !isFirstSession;
-                                
-                                return (
-                                  <Link 
-                                    key={item.type}
-                                    to={isLocked ? '#' : `/courses/${course.id}/video/${chapter}/${item.type}`}
-                                    onClick={(e) => {
-                                      if (isLocked) {
-                                        e.preventDefault();
-                                        alert(t('course.locked'));
-                                        navigate(`/payment?courseId=${course.id}`);
-                                      }
-                                    }}
-                                    className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
-                                  >
-                                    <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
-                                      <img 
-                                        src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
-                                        alt={item.label}
-                                        className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
-                                        referrerPolicy="no-referrer"
-                                      />
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        {isLocked ? (
-                                          <Lock className="w-5 h-5 text-gray-600" />
-                                        ) : (
-                                          <item.icon className="w-5 h-5 text-purple-500" />
+                          {expandedChapter === index + 1 ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+                        </button>
+                        
+                        <AnimatePresence>
+                          {expandedChapter === index + 1 && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="p-6 pt-0 flex flex-col gap-3">
+                                {chapter.lessons && chapter.lessons.map((lesson: any, lIdx: number) => {
+                                  const isFirstSession = index === 0 && lIdx === 0;
+                                  const isLocked = !isEnrolled && !isFirstSession;
+                                  
+                                  return (
+                                    <Link 
+                                      key={lesson._id || lIdx}
+                                      to={isLocked ? '#' : `/courses/${course.id}/video/${index + 1}/${lesson.type || 'session'}`}
+                                      onClick={(e) => {
+                                        if (isLocked) {
+                                          e.preventDefault();
+                                          alert(t('course.locked'));
+                                          navigate(`/payment?courseId=${course.id}`);
+                                        }
+                                      }}
+                                      className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
+                                    >
+                                      <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
+                                        <img 
+                                          src={`https://picsum.photos/seed/${course.id}-${index}-${lIdx}/200/120`}
+                                          alt={lesson.title}
+                                          className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          {isLocked ? (
+                                            <Lock className="w-5 h-5 text-gray-600" />
+                                          ) : (
+                                            <Play className="w-5 h-5 text-purple-500" />
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
+                                          {lesson.title}
+                                        </span>
+                                        {isFirstSession && !isEnrolled && (
+                                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
                                         )}
                                       </div>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
-                                        {item.label}
-                                      </span>
-                                      {isFirstSession && !isEnrolled && (
-                                        <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
+                                      {isLocked && (
+                                        <Lock className="w-4 h-4 text-gray-700 ml-auto" />
                                       )}
-                                    </div>
-                                    {isLocked && (
-                                      <Lock className="w-4 h-4 text-gray-700 ml-auto" />
-                                    )}
-                                  </Link>
-                                );
-                              })}
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ))
+                  ) : (
+                    Array.from({ 
+                      length: course.id === '1' ? 12 : course.id === '2' ? 18 : 24 
+                    }, (_, i) => i + 1).map((chapter) => (
+                      <div key={chapter} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
+                        <button 
+                          onClick={() => setExpandedChapter(expandedChapter === chapter ? null : chapter)}
+                          className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
+                              {chapter}
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
+                            <span className="text-lg font-bold">Chapter {chapter}: Master the Basics</span>
+                          </div>
+                          {expandedChapter === chapter ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+                        </button>
+                        
+                        <AnimatePresence>
+                          {expandedChapter === chapter && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="p-6 pt-0 flex flex-col gap-3">
+                                {[
+                                  { type: 'session', label: 'Session', icon: Play },
+                                  { type: 'exercise', label: 'Exercise', icon: Dumbbell },
+                                  { type: 'homework', label: 'Homework', icon: FileText }
+                                ].map((item) => {
+                                  const isFirstSession = chapter === 1 && item.type === 'session';
+                                  const isLocked = !isEnrolled && !isFirstSession;
+                                  
+                                  return (
+                                    <Link 
+                                      key={item.type}
+                                      to={isLocked ? '#' : `/courses/${course.id}/video/${chapter}/${item.type}`}
+                                      onClick={(e) => {
+                                        if (isLocked) {
+                                          e.preventDefault();
+                                          alert(t('course.locked'));
+                                          navigate(`/payment?courseId=${course.id}`);
+                                        }
+                                      }}
+                                      className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
+                                    >
+                                      <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
+                                        <img 
+                                          src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
+                                          alt={item.label}
+                                          className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          {isLocked ? (
+                                            <Lock className="w-5 h-5 text-gray-600" />
+                                          ) : (
+                                            <item.icon className="w-5 h-5 text-purple-500" />
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
+                                          {item.label}
+                                        </span>
+                                        {isFirstSession && !isEnrolled && (
+                                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
+                                        )}
+                                      </div>
+                                      {isLocked && (
+                                        <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                      )}
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               {/* Reviews Section */}

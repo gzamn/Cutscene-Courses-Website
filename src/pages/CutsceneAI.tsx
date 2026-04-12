@@ -18,7 +18,10 @@ import {
   Sparkles,
   X,
   FileText,
-  Plus
+  Plus,
+  Copy,
+  Check,
+  ChevronDown
 } from 'lucide-react';
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { useLanguage } from '../context/LanguageContext';
@@ -61,6 +64,14 @@ const AnimatedText = ({ children, delayOffset = 0 }: { children: React.ReactNode
 };
 
 const TypewriterMessage = React.memo(({ content, isArabic }: { content: string, isArabic: boolean }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const renderContent = (text: string) => {
     const buttonRegex = /\[BUTTON:\s*([^|]+)\s*\|\s*([^\]]+)\]/g;
     const parts = [];
@@ -117,7 +128,18 @@ const TypewriterMessage = React.memo(({ content, isArabic }: { content: string, 
     });
   };
 
-  return <div className="space-y-2">{renderContent(content)}</div>;
+  return (
+    <div className="relative group/msg">
+      <div className="space-y-2">{renderContent(content)}</div>
+      <button
+        onClick={handleCopy}
+        className="absolute -top-2 -right-2 p-1.5 bg-zinc-800 border border-white/10 rounded-lg opacity-0 group-hover/msg:opacity-100 transition-all hover:bg-zinc-700 text-gray-400 hover:text-white"
+        title="Copy message"
+      >
+        {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+      </button>
+    </div>
+  );
 });
 
 export default function CutsceneAI() {
@@ -135,6 +157,7 @@ export default function CutsceneAI() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [attachedFile, setAttachedFile] = useState<{ data: string, mimeType: string, name: string } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -143,6 +166,22 @@ export default function CutsceneAI() {
   const recognitionRef = useRef<any>(null);
 
   const isFirstRender = useRef(true);
+
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setShowScrollButton(!isAtBottom);
+  };
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const scrollToNewMessage = (id: string) => {
     const element = document.getElementById(`msg-${id}`);
@@ -447,7 +486,8 @@ export default function CutsceneAI() {
         {/* Messages Area */}
         <div 
           ref={messagesContainerRef}
-          className="flex-grow overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-purple-900/50 scrollbar-track-transparent"
+          onScroll={handleScroll}
+          className="flex-grow overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-purple-900/50 scrollbar-track-transparent relative"
         >
           <AnimatePresence initial={false}>
             {messages.map((msg) => (
@@ -526,13 +566,58 @@ export default function CutsceneAI() {
             ))}
           </AnimatePresence>
           {isLoading && (
-            <div className={`flex ${isRTL ? 'justify-end' : 'justify-start'}`}>
-              <div className="bg-zinc-900 p-4 rounded-2xl rounded-tl-none flex items-center gap-3">
-                <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />
-                <span className="text-sm text-gray-400 italic">Cutscene AI is thinking...</span>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`flex ${isRTL ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className="glass-surface-dark border border-white/5 p-5 rounded-3xl rounded-tl-none flex items-center gap-4 shadow-2xl">
+                <div className="relative">
+                  <div className="w-10 h-10 bg-purple-600/20 rounded-xl flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-purple-500 animate-pulse" />
+                  </div>
+                  <div className="absolute -top-1 -right-1">
+                    <span className="flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-purple-400 uppercase tracking-widest animate-pulse">Neural Processing</span>
+                    <div className="flex gap-1">
+                      <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-1 h-1 bg-purple-500 rounded-full" />
+                      <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.2 }} className="w-1 h-1 bg-purple-500 rounded-full" />
+                      <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.4 }} className="w-1 h-1 bg-purple-500 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="h-2 w-32 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-brand-radial"
+                      animate={{ x: ['-100%', '100%'] }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            </motion.div>
           )}
+
+          {/* Scroll to Bottom Button */}
+          <AnimatePresence>
+            {showScrollButton && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                onClick={scrollToBottom}
+                className="absolute bottom-10 right-10 p-3 bg-purple-600 text-white rounded-full shadow-2xl shadow-purple-600/40 hover:bg-purple-500 transition-all z-50"
+              >
+                <ChevronDown className="w-6 h-6" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Input Area */}

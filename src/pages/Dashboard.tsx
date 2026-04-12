@@ -8,6 +8,7 @@ import { COURSES } from '../types';
 import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { client, urlFor } from '../lib/sanity';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const [userVideos, setUserVideos] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
+  const [sanityCourses, setSanityCourses] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -25,7 +27,27 @@ export default function Dashboard() {
     // Listen to enrollments
     const qEnrollments = query(collection(db, 'enrollments'), where('uid', '==', user.uid));
     const unsubEnrollments = onSnapshot(qEnrollments, (snapshot) => {
-      setEnrollments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const enrollmentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEnrollments(enrollmentData);
+      
+      // Fetch course details from Sanity for these enrollments
+      if (import.meta.env.VITE_SANITY_PROJECT_ID && enrollmentData.length > 0) {
+        const courseIds = enrollmentData.map((e: any) => e.courseId);
+        const querySanity = `*[_type == "course" && slug.current in $courseIds] {
+          ...,
+          "id": slug.current,
+          "chapters": chapters[]-> {
+            ...,
+            "lessons": lessons[]->
+          }
+        }`;
+        client.fetch(querySanity, { courseIds }).then(courses => {
+          setSanityCourses(courses.map((c: any) => ({
+            ...c,
+            image: c.image ? urlFor(c.image).url() : 'https://picsum.photos/seed/course/800/600',
+          })));
+        });
+      }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'enrollments'));
 
     // Listen to progress
@@ -127,8 +149,17 @@ export default function Dashboard() {
 
   const getCourseProgress = (courseId: string) => {
     const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
-    const chapters = courseId === '1' ? 12 : courseId === '2' ? 18 : 24;
-    const totalLessons = chapters * 3; 
+    const sanityCourse = sanityCourses.find(c => c.id === courseId);
+    let totalLessons = 0;
+    
+    if (sanityCourse && sanityCourse.chapters) {
+      totalLessons = sanityCourse.chapters.reduce((acc: number, ch: any) => acc + (ch.lessons?.length || 0), 0);
+    } else {
+      const chapters = courseId === '1' ? 12 : courseId === '2' ? 18 : 24;
+      totalLessons = chapters * 3; 
+    }
+    
+    if (totalLessons === 0) return 0;
     return Math.round((courseProgress.length / totalLessons) * 100);
   };
 
@@ -174,10 +205,12 @@ export default function Dashboard() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {enrollments.length > 0 ? enrollments.map((enrollment) => {
-                  const course = COURSES.find(c => c.id === enrollment.courseId);
+                  const course = sanityCourses.find(c => c.id === enrollment.courseId) || COURSES.find(c => c.id === enrollment.courseId);
                   if (!course) return null;
                   const prog = getCourseProgress(course.id);
                   const courseLessons = progress.filter(p => p.courseId === course.id && p.completed);
+                  
+                  const totalChapters = course.chapters?.length || (course.id === '1' ? 12 : course.id === '2' ? 18 : 24);
                   
                   return (
                     <motion.div 
@@ -227,7 +260,7 @@ export default function Dashboard() {
                           <div className="pt-4 border-t border-purple-900/10">
                             <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">{t('dashboard.completedLessons')}</div>
                             <div className="flex flex-wrap gap-1.5">
-                              {Array.from({ length: course.id === '1' ? 12 : course.id === '2' ? 18 : 24 }).map((_, i) => {
+                              {Array.from({ length: totalChapters }).map((_, i) => {
                                 const chapter = i + 1;
                                 const isChapterDone = courseLessons.some(p => p.chapter === chapter);
                                 return (

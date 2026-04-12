@@ -92,6 +92,17 @@ export default function Navbar() {
                   <LayoutDashboard className="w-4 h-4" />
                   <span className="hidden sm:inline">{t('nav.dashboard')}</span>
                 </NavLink>
+                <NavLink
+                  to="/profile"
+                  className={({ isActive }) => 
+                    `flex items-center gap-2 transition-colors font-medium text-sm sm:text-base ${
+                      isActive ? 'text-purple-500' : 'text-gray-300 hover:text-purple-400'
+                    }`
+                  }
+                >
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t('nav.profile')}</span>
+                </NavLink>
                 <button 
                   onClick={handleLogout}
                   className="flex items-center gap-2 text-gray-300 hover:text-red-400 transition-colors font-medium text-sm sm:text-base"
