@@ -175,6 +175,17 @@ service cloud.firestore {
              isValidDateString(data.createdAt);
     }
 
+    function isValidChatMessage(data) {
+      return hasOnlyAllowedFields(['uid', 'role', 'content', 'type', 'url', 'fileName', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.role in ['user', 'assistant'] &&
+             data.content is string && data.content.size() < 10000 &&
+             data.type in ['text', 'image', 'video', 'music', 'document'] &&
+             (!('url' in data) || data.url is string) &&
+             (!('fileName' in data) || data.fileName is string) &&
+             isValidDateString(data.createdAt);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -221,6 +232,13 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidHomeworkSubmission(request.resource.data);
       allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidHomeworkSubmission(request.resource.data);
       allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+    }
+
+    match /chat_history/{messageId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.uid);
+      allow create: if isAuthenticated() && isValidChatMessage(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidChatMessage(request.resource.data);
+      allow delete: if isAuthenticated() && isOwner(resource.data.uid);
     }
   }
 }

@@ -37,6 +37,24 @@ export default function VideoPlayer() {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
 
   const isFirstSession = parseInt(chapter || '0') === 1 && type === 'session';
+  const totalChapters = course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '4' ? 12 : 24;
+  const types = ['session', 'exercise', 'homework'];
+  
+  const getNextLessonLink = () => {
+    const currentChapter = parseInt(chapter || '1');
+    const currentTypeIndex = types.indexOf(type || 'session');
+    
+    if (currentTypeIndex < types.length - 1) {
+      return `/courses/${id}/video/${currentChapter}/${types[currentTypeIndex + 1]}`;
+    } else if (currentChapter < totalChapters) {
+      return `/courses/${id}/video/${currentChapter + 1}/session`;
+    } else {
+      return '/dashboard';
+    }
+  };
+  
+  const nextLink = getNextLessonLink();
+  const isLastLesson = nextLink === '/dashboard';
 
   // Watermark movement
   useEffect(() => {
@@ -378,6 +396,16 @@ export default function VideoPlayer() {
                   ) : null}
                   {isCompleted ? t('course.completed') : t('course.markComplete')}
                 </button>
+
+                {isCompleted && (
+                  <Link
+                    to={nextLink}
+                    className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all text-sm font-bold flex items-center gap-2 shadow-lg shadow-purple-600/20"
+                  >
+                    {isLastLesson ? t('dashboard.return') || 'Return to Dashboard' : t('course.nextLesson') || 'Next Lesson'}
+                    <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  </Link>
+                )}
               </div>
             </div>
 

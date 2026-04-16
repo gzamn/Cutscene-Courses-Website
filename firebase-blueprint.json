@@ -99,6 +99,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "courseId", "chapter", "url", "fileName", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Messages in the AI chat history.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "video", "music", "document"] },
+        "url": { "type": "string", "format": "uri" },
+        "fileName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role", "content", "type", "createdAt"]
     }
   },
   "firestore": {
@@ -108,6 +123,7 @@
     "/reviews/{reviewId}": { "schema": "Review", "description": "Course reviews." },
     "/certificates/{certificateId}": { "schema": "Certificate", "description": "User certificates." },
     "/videos/{videoId}": { "schema": "Video", "description": "Uploaded video metadata." },
-    "/homework_submissions/{submissionId}": { "schema": "HomeworkSubmission", "description": "Student homework submissions." }
+    "/homework_submissions/{submissionId}": { "schema": "HomeworkSubmission", "description": "Student homework submissions." },
+    "/chat_history/{messageId}": { "schema": "ChatMessage", "description": "AI chat messages." }
   }
 }

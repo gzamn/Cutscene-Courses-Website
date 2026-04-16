@@ -18,6 +18,7 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(false);
   const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   const [reviews, setReviews] = useState<any[]>([]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -79,6 +80,21 @@ export default function CourseDetail() {
       getDocs(qEnrollment).then(snap => {
         setIsEnrolled(!snap.empty);
       });
+
+      // Listen to progress
+      const qProgress = query(collection(db, 'progress'), where('uid', '==', user.uid), where('courseId', '==', id), where('completed', '==', true));
+      const unsubProgress = onSnapshot(qProgress, (snap) => {
+        const completed = new Set(snap.docs.map(doc => {
+          const data = doc.data();
+          return `${data.chapter}-${data.type}`;
+        }));
+        setCompletedLessons(completed);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'progress'));
+
+      return () => {
+        unsubReviews();
+        unsubProgress();
+      };
     }
 
     return () => unsubReviews();
@@ -296,6 +312,7 @@ export default function CourseDetail() {
                                     const isFirstSession = index === 0 && lIdx === 0;
                                     const isGraphicDesignRecorded = course.id === '4' && lesson.type !== 'session' && lesson.type !== 'live';
                                     const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
+                                    const isLessonCompleted = completedLessons.has(`${index + 1}-${lesson.type || 'session'}`);
                                     
                                     return (
                                     <Link 
@@ -320,6 +337,8 @@ export default function CourseDetail() {
                                         <div className="absolute inset-0 flex items-center justify-center">
                                           {isLocked ? (
                                             <Lock className="w-5 h-5 text-gray-600" />
+                                          ) : isLessonCompleted ? (
+                                            <CheckCircle2 className="w-6 h-6 text-green-500" />
                                           ) : (
                                             <Play className="w-5 h-5 text-purple-500" />
                                           )}
@@ -333,8 +352,10 @@ export default function CourseDetail() {
                                           <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
                                         )}
                                       </div>
-                                      {isLocked && (
+                                      {isLocked ? (
                                         <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                      ) : isLessonCompleted && (
+                                        <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
                                       )}
                                     </Link>
                                   );
@@ -380,6 +401,7 @@ export default function CourseDetail() {
                                   const isFirstSession = chapter === 1 && item.type === 'session';
                                   const isGraphicDesignRecorded = course.id === '4' && item.type !== 'session' && item.type !== 'live';
                                   const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
+                                  const isLessonCompleted = completedLessons.has(`${chapter}-${item.type}`);
                                   
                                   return (
                                     <Link 
@@ -404,6 +426,8 @@ export default function CourseDetail() {
                                         <div className="absolute inset-0 flex items-center justify-center">
                                           {isLocked ? (
                                             <Lock className="w-5 h-5 text-gray-600" />
+                                          ) : isLessonCompleted ? (
+                                            <CheckCircle2 className="w-6 h-6 text-green-500" />
                                           ) : (
                                             <item.icon className="w-5 h-5 text-purple-500" />
                                           )}
@@ -417,8 +441,10 @@ export default function CourseDetail() {
                                           <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
                                         )}
                                       </div>
-                                      {isLocked && (
+                                      {isLocked ? (
                                         <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                      ) : isLessonCompleted && (
+                                        <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
                                       )}
                                     </Link>
                                   );

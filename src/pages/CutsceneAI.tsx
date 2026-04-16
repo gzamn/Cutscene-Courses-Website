@@ -26,6 +26,8 @@ import {
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -145,14 +147,7 @@ const TypewriterMessage = React.memo(({ content, isArabic }: { content: string, 
 export default function CutsceneAI() {
   const { t, language, isRTL } = useLanguage();
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: t('ai.welcome'),
-      type: 'text'
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -243,6 +238,43 @@ export default function CutsceneAI() {
     }
   }, [language]);
 
+  useEffect(() => {
+    if (!user) {
+      setMessages([{
+        id: 'welcome',
+        role: 'assistant',
+        content: t('ai.welcome'),
+        type: 'text'
+      }]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'chat_history'),
+      where('uid', '==', user.uid),
+      orderBy('createdAt', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          content: t('ai.welcome'),
+          type: 'text'
+        }]);
+      } else {
+        const history = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as unknown as Message[];
+        setMessages(history);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'chat_history'));
+
+    return () => unsubscribe();
+  }, [user, t]);
+
   const toggleRecording = () => {
     if (isRecording) {
       recognitionRef.current?.stop();
@@ -294,7 +326,23 @@ export default function CutsceneAI() {
       fileName: attachedFile?.name
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    if (user) {
+      try {
+        await addDoc(collection(db, 'chat_history'), {
+          uid: user.uid,
+          role: userMessage.role,
+          content: userMessage.content,
+          type: userMessage.type,
+          fileName: userMessage.fileName || null,
+          createdAt: new Date().toISOString()
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'chat_history');
+      }
+    } else {
+      setMessages(prev => [...prev, userMessage]);
+    }
+
     setInput('');
     const currentAttachedFile = attachedFile;
     setAttachedFile(null);
@@ -394,13 +442,30 @@ export default function CutsceneAI() {
         responseText = response.text || "I'm sorry, I couldn't process that request.";
       }
 
-      setMessages(prev => [...prev, {
+      const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: responseText,
         type: responseType,
         url: mediaUrl
-      }]);
+      };
+
+      if (user) {
+        try {
+          await addDoc(collection(db, 'chat_history'), {
+            uid: user.uid,
+            role: assistantMessage.role,
+            content: assistantMessage.content,
+            type: assistantMessage.type,
+            url: assistantMessage.url || null,
+            createdAt: new Date().toISOString()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'chat_history');
+        }
+      } else {
+        setMessages(prev => [...prev, assistantMessage]);
+      }
 
     } catch (error) {
       console.error('AI Error:', error);
