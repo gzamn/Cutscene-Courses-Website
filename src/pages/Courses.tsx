@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { Clock, BarChart, ArrowRight, Search, CheckCircle2, User } from 'lucide-react';
+import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-react';
 import { COURSES } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { useEffect, useState } from 'react';
@@ -75,12 +75,16 @@ export default function Courses() {
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent lg:bg-gradient-to-r" />
+                  {course.isComingSoon && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                      <div className="w-16 h-16 bg-black/60 border border-purple-500/30 rounded-full flex items-center justify-center shadow-2xl">
+                        <Lock className="w-8 h-8 text-purple-500" />
+                      </div>
+                    </div>
+                  )}
                   <div className="absolute top-6 left-6 flex flex-col gap-2">
                     <span className="px-4 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
                       {course.level}
-                    </span>
-                    <span className="px-4 py-1.5 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-purple-400" /> {course.duration}
                     </span>
                   </div>
                 </Link>

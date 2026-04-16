@@ -35,7 +35,7 @@ export const COURSES: Course[] = [
     price: 7400,
     currency: 'DA',
     image: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=800&auto=format&fit=crop',
-    duration: '4 weeks',
+    duration: '',
     level: 'Beginner',
     requirements: ['A computer with at least 8GB RAM', 'Basic computer knowledge', 'Good internet connection'],
     learningOutcomes: [
@@ -63,8 +63,8 @@ export const COURSES: Course[] = [
     price: 9800,
     currency: 'DA',
     image: 'https://images.unsplash.com/photo-1535016120720-40c646bebbfc?q=80&w=800&auto=format&fit=crop',
-    duration: '6 weeks',
-    level: 'Intermediate',
+    duration: '',
+    level: 'Beginner',
     requirements: ['Completion of Basic Video Editing or equivalent experience', 'Familiarity with Adobe Premiere Pro or DaVinci Resolve', 'Basic computer knowledge', 'Good internet connection'],
     learningOutcomes: [
       'Advanced narrative editing techniques',
@@ -91,7 +91,7 @@ export const COURSES: Course[] = [
     price: 12000,
     currency: 'DA',
     image: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=800&auto=format&fit=crop',
-    duration: '6 weeks',
+    duration: '',
     level: 'Beginner',
     requirements: ['Computer with at least 8GB RAM', 'Design software installed', 'Basic creativity', 'Good internet connection'],
     learningOutcomes: [
@@ -119,8 +119,8 @@ export const COURSES: Course[] = [
     price: 17500,
     currency: 'DA',
     image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop',
-    duration: '8 weeks',
-    level: 'Advanced',
+    duration: '',
+    level: 'Beginner',
     requirements: ['Basic knowledge of Adobe Illustrator or Photoshop', 'Understanding of design principles', 'Basic computer knowledge', 'Good internet connection'],
     learningOutcomes: [
       'Master keyframing and animation principles',

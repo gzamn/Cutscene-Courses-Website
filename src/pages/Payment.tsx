@@ -21,7 +21,7 @@ export default function Payment() {
   const course = COURSES.find(c => c.id === courseId);
   
   const [step, setStep] = useState<'info' | 'payment'>('info');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('edahabia');
   const [bankType, setBankType] = useState<BankTransferType>('local');
   const [processing, setProcessing] = useState(false);
 
@@ -36,6 +36,8 @@ export default function Payment() {
 
   const calculateTotal = () => {
     if (!course) return 0;
+    // Don't add extra price for Graphic Design course (id: '4')
+    if (course.id === '4') return course.price;
     return formData.format === 'online' ? course.price + 2000 : course.price;
   };
 
@@ -327,30 +329,6 @@ export default function Payment() {
 
                   <div className="grid grid-cols-1 gap-4 mb-8">
                     <button 
-                      onClick={() => setPaymentMethod('card')}
-                      className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
-                        paymentMethod === 'card' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                          paymentMethod === 'card' ? 'bg-purple-600/20' : 'bg-zinc-800'
-                        }`}>
-                          <CreditCard className={`w-6 h-6 ${paymentMethod === 'card' ? 'text-purple-500' : 'text-gray-500'}`} />
-                        </div>
-                        <div className="text-left">
-                          <div className={`font-bold transition-colors ${paymentMethod === 'card' ? 'text-white' : 'text-gray-400'}`}>Credit Card</div>
-                          <div className="text-gray-500 text-sm">Visa, Mastercard, American Express</div>
-                        </div>
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        paymentMethod === 'card' ? 'border-purple-600' : 'border-gray-700'
-                      }`}>
-                        {paymentMethod === 'card' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
-                      </div>
-                    </button>
-
-                    <button 
                       onClick={() => setPaymentMethod('edahabia')}
                       className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
                         paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
@@ -371,6 +349,30 @@ export default function Payment() {
                         paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-gray-700'
                       }`}>
                         {paymentMethod === 'edahabia' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => setPaymentMethod('card')}
+                      className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
+                        paymentMethod === 'card' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                          paymentMethod === 'card' ? 'bg-purple-600/20' : 'bg-zinc-800'
+                        }`}>
+                          <CreditCard className={`w-6 h-6 ${paymentMethod === 'card' ? 'text-purple-500' : 'text-gray-500'}`} />
+                        </div>
+                        <div className="text-left">
+                          <div className={`font-bold transition-colors ${paymentMethod === 'card' ? 'text-white' : 'text-gray-400'}`}>Credit Card</div>
+                          <div className="text-gray-500 text-sm">Visa, Mastercard, American Express</div>
+                        </div>
+                      </div>
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                        paymentMethod === 'card' ? 'border-purple-600' : 'border-gray-700'
+                      }`}>
+                        {paymentMethod === 'card' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
                       </div>
                     </button>
 

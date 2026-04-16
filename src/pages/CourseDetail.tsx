@@ -157,10 +157,6 @@ export default function CourseDetail() {
               
               <div className="flex flex-wrap gap-6 mb-10">
                 <div className="flex items-center gap-2 text-gray-300">
-                  <Clock className="w-5 h-5 text-purple-500" />
-                  <span>{course.duration}</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-300">
                   <BarChart className="w-5 h-5 text-purple-500" />
                   <span>{course.level} {t('course.level')}</span>
                 </div>
@@ -209,7 +205,11 @@ export default function CourseDetail() {
               />
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-colors">
                 <div className="w-20 h-20 bg-purple-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/40 group-hover:scale-110 transition-transform">
-                  <Play className="w-8 h-8 text-white fill-current translate-x-0.5" />
+                  {course.isComingSoon ? (
+                    <Lock className="w-8 h-8 text-white" />
+                  ) : (
+                    <Play className="w-8 h-8 text-white fill-current translate-x-0.5" />
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -347,7 +347,7 @@ export default function CourseDetail() {
                     ))
                   ) : (
                     Array.from({ 
-                      length: course.id === '1' ? 12 : course.id === '2' ? 18 : 24 
+                      length: course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '4' ? 12 : 24 
                     }, (_, i) => i + 1).map((chapter) => (
                       <div key={chapter} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
                         <button 
