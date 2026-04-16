@@ -30,7 +30,7 @@ export default function Payment() {
     fullName: '',
     email: user?.email || '',
     phone: '',
-    format: 'recorded' as 'recorded' | 'online',
+    format: (course.formatAvailability && !course.formatAvailability.includes('recorded')) ? 'online' : 'recorded',
     startDate: '2026-05-01' // Example starting date
   });
 
@@ -258,36 +258,40 @@ export default function Payment() {
                     <div className="space-y-4">
                       <label className="block text-sm font-semibold text-gray-400">{t('payment.format')}</label>
                       <div className="grid grid-cols-1 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setFormData({...formData, format: 'recorded'})}
-                          className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
-                            formData.format === 'recorded' ? 'border-purple-600 bg-purple-600/10' : 'border-purple-900/20 bg-black'
-                          }`}
-                        >
-                          <div className="text-left">
-                            <div className="font-bold text-sm">{t('payment.recorded')}</div>
-                            <div className="text-xs text-gray-500">Learn at your own pace</div>
-                          </div>
-                          {formData.format === 'recorded' && <CheckCircle2 className="w-5 h-5 text-purple-500" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData({...formData, format: 'online'})}
-                          className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
-                            formData.format === 'online' ? 'border-purple-600 bg-purple-600/10' : 'border-purple-900/20 bg-black'
-                          }`}
-                        >
-                          <div className="text-left">
-                            <div className="font-bold text-sm">{t('payment.online')}</div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-purple-400 font-medium">{t('payment.onlineExtra')}</span>
-                              <span className="text-[10px] text-gray-500">•</span>
-                              <span className="text-[10px] text-gray-400">{t('payment.startDate')}: {formData.startDate}</span>
+                        {(!course.formatAvailability || course.formatAvailability.includes('recorded')) && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({...formData, format: 'recorded'})}
+                            className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
+                              formData.format === 'recorded' ? 'border-purple-600 bg-purple-600/10' : 'border-purple-900/20 bg-black'
+                            }`}
+                          >
+                            <div className="text-left">
+                              <div className="font-bold text-sm">{t('payment.recorded')}</div>
+                              <div className="text-xs text-gray-500">Learn at your own pace</div>
                             </div>
-                          </div>
-                          {formData.format === 'online' && <CheckCircle2 className="w-5 h-5 text-purple-500" />}
-                        </button>
+                            {formData.format === 'recorded' && <CheckCircle2 className="w-5 h-5 text-purple-500" />}
+                          </button>
+                        )}
+                        {(!course.formatAvailability || course.formatAvailability.includes('online')) && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({...formData, format: 'online'})}
+                            className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
+                              formData.format === 'online' ? 'border-purple-600 bg-purple-600/10' : 'border-purple-900/20 bg-black'
+                            }`}
+                          >
+                            <div className="text-left">
+                              <div className="font-bold text-sm">{t('payment.online')}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-purple-400 font-medium">{t('payment.onlineExtra')}</span>
+                                <span className="text-[10px] text-gray-500">•</span>
+                                <span className="text-[10px] text-gray-400">{t('payment.startDate')}: {formData.startDate}</span>
+                              </div>
+                            </div>
+                            {formData.format === 'online' && <CheckCircle2 className="w-5 h-5 text-purple-500" />}
+                          </button>
+                        )}
                       </div>
                     </div>
 

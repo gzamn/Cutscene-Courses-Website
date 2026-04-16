@@ -91,7 +91,11 @@ export default function Courses() {
                       {course.title}
                     </h3>
                     <div className="text-3xl font-black text-purple-500 whitespace-nowrap">
-                      {course.price.toLocaleString()} {course.currency}
+                      {course.isComingSoon ? (
+                        <span className="text-xl text-purple-400 uppercase tracking-widest">{t('course.comingSoon') || 'Coming Soon'}</span>
+                      ) : (
+                        `${course.price.toLocaleString()} ${course.currency}`
+                      )}
                     </div>
                   </Link>
 
@@ -152,13 +156,22 @@ export default function Courses() {
                       >
                         {t('courses.details')}
                       </Link>
-                      <Link 
-                        to={`/payment?courseId=${course.id}`}
-                        className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
-                      >
-                        {t('courses.getStarted')}
-                        <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-                      </Link>
+                      {course.isComingSoon ? (
+                        <button 
+                          disabled
+                          className="w-full sm:w-auto px-10 py-4 bg-zinc-800 text-gray-400 cursor-not-allowed rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                        >
+                          {t('course.comingSoon') || 'Coming Soon'}
+                        </button>
+                      ) : (
+                        <Link 
+                          to={`/payment?courseId=${course.id}`}
+                          className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
+                        >
+                          {t('courses.getStarted')}
+                          <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>

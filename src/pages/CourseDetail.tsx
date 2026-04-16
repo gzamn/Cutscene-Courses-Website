@@ -145,6 +145,11 @@ export default function CourseDetail() {
               </div>
               <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
                 {course.title}
+                {course.isComingSoon && (
+                  <span className="block text-2xl text-purple-400 mt-2 uppercase tracking-[0.2em] font-black">
+                    {t('course.comingSoon') || 'Coming Soon'}
+                  </span>
+                )}
               </h1>
               <p className="text-xl text-gray-400 mb-8 leading-relaxed">
                 {course.detailedDescription}
@@ -287,11 +292,12 @@ export default function CourseDetail() {
                               className="overflow-hidden"
                             >
                               <div className="p-6 pt-0 flex flex-col gap-3">
-                                {chapter.lessons && chapter.lessons.map((lesson: any, lIdx: number) => {
-                                  const isFirstSession = index === 0 && lIdx === 0;
-                                  const isLocked = !isEnrolled && !isFirstSession;
-                                  
-                                  return (
+                                  {chapter.lessons && chapter.lessons.map((lesson: any, lIdx: number) => {
+                                    const isFirstSession = index === 0 && lIdx === 0;
+                                    const isGraphicDesignRecorded = course.id === '4' && lesson.type !== 'session' && lesson.type !== 'live';
+                                    const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
+                                    
+                                    return (
                                     <Link 
                                       key={lesson._id || lIdx}
                                       to={isLocked ? '#' : `/courses/${course.id}/video/${index + 1}/${lesson.type || 'session'}`}
@@ -372,7 +378,8 @@ export default function CourseDetail() {
                                   { type: 'homework', label: 'Homework', icon: FileText }
                                 ].map((item) => {
                                   const isFirstSession = chapter === 1 && item.type === 'session';
-                                  const isLocked = !isEnrolled && !isFirstSession;
+                                  const isGraphicDesignRecorded = course.id === '4' && item.type !== 'session' && item.type !== 'live';
+                                  const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
                                   
                                   return (
                                     <Link 
@@ -542,9 +549,11 @@ export default function CourseDetail() {
                 </div>
 
                 <div className="mt-10">
-                  <div className="text-3xl font-black text-white mb-6">
-                    {course.price.toLocaleString()} {course.currency}
-                  </div>
+                  {!course.isComingSoon && (
+                    <div className="text-3xl font-black text-white mb-6">
+                      {course.price.toLocaleString()} {course.currency}
+                    </div>
+                  )}
                   {isEnrolled ? (
                     <Link 
                       to="/dashboard"
@@ -553,6 +562,13 @@ export default function CourseDetail() {
                       {t('dashboard.continue')}
                       <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </Link>
+                  ) : course.isComingSoon ? (
+                    <button 
+                      disabled
+                      className="w-full py-4 bg-zinc-800 text-gray-400 cursor-not-allowed rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                      {t('course.comingSoon') || 'Coming Soon'}
+                    </button>
                   ) : (
                     <Link 
                       to={`/payment?courseId=${course.id}`}

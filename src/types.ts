@@ -22,6 +22,8 @@ export interface Course {
     avatar: string;
   };
   homeworks?: Homework[];
+  isComingSoon?: boolean;
+  formatAvailability?: ('recorded' | 'online')[];
 }
 
 export const COURSES: Course[] = [
@@ -50,7 +52,8 @@ export const COURSES: Course[] = [
     homeworks: [
       { chapter: 1, description: 'Create a 30-second sequence from raw footage.', expectedOutcome: 'Clean cuts and logical flow.' },
       { chapter: 2, description: 'Apply basic color correction.', expectedOutcome: 'Natural skin tones and consistent exposure.' }
-    ]
+    ],
+    formatAvailability: ['recorded', 'online']
   },
   {
     id: '2',
@@ -77,7 +80,36 @@ export const COURSES: Course[] = [
     homeworks: [
       { chapter: 1, description: 'Edit a multi-cam interview with at least 3 angles.', expectedOutcome: 'Seamless transitions and perfectly synced audio.' },
       { chapter: 2, description: 'Create a cinematic color grade for a short film scene.', expectedOutcome: 'Consistent mood and professional look.' }
-    ]
+    ],
+    formatAvailability: ['recorded', 'online']
+  },
+  {
+    id: '4',
+    title: 'Graphic Design',
+    description: 'Learn the principles of professional graphic design using industry-standard tools.',
+    detailedDescription: 'Master typography, color theory, layout, and composition. This course covers Adobe Photoshop, Illustrator, and InDesign, providing you with the skills to create stunning visual identities, print materials, and digital assets.',
+    price: 12000,
+    currency: 'DA',
+    image: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=800&auto=format&fit=crop',
+    duration: '6 weeks',
+    level: 'Beginner',
+    requirements: ['Computer with at least 8GB RAM', 'Design software installed', 'Basic creativity', 'Good internet connection'],
+    learningOutcomes: [
+      'Master professional design tools',
+      'Understand typography and layout principles',
+      'Create visual identities and branding',
+      'Design for both print and digital media'
+    ],
+    instructor: {
+      name: 'Amine Rouabhia',
+      bio: 'Professional video editor and motion designer with extensive experience in creating high-impact visual content.',
+      avatar: 'https://picsum.photos/seed/amine/100/100',
+    },
+    homeworks: [
+      { chapter: 1, description: 'Design a minimalist logo.', expectedOutcome: 'Clear concept and balanced composition.' },
+      { chapter: 2, description: 'Create a social media poster.', expectedOutcome: 'Hierarchy and effective use of color.' }
+    ],
+    formatAvailability: ['online']
   },
   {
     id: '3',
@@ -104,6 +136,8 @@ export const COURSES: Course[] = [
     homeworks: [
       { chapter: 1, description: 'Animate a logo using at least 3 different animation principles.', expectedOutcome: 'Fluid motion and professional timing.' },
       { chapter: 2, description: 'Create a 10-second kinetic typography sequence.', expectedOutcome: 'Clear legibility and dynamic movement.' }
-    ]
+    ],
+    isComingSoon: true,
+    formatAvailability: ['recorded', 'online']
   },
 ];
