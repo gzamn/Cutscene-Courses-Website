@@ -13,6 +13,7 @@ import CutsceneAI from './pages/CutsceneAI';
 import Profile from './pages/Profile';
 import StudioPage from './pages/Studio';
 import ScrollToTop from './components/ScrollToTop';
+import SiteEditor from './components/SiteEditor';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 
@@ -57,6 +58,7 @@ function App() {
               </Routes>
             </main>
             <Footer />
+            <SiteEditor />
           </div>
         </div>
       </Router>
