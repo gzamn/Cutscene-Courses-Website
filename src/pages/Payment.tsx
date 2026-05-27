@@ -1,7 +1,7 @@
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Building2, Globe, Landmark, Loader2 } from 'lucide-react';
+import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Building2, Globe, Landmark, Loader2, Send } from 'lucide-react';
 import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -50,42 +50,10 @@ export default function Payment() {
     setStep('payment');
   };
 
-  const handlePayment = async () => {
+  const handleTelegramPayment = async () => {
     if (!user || !courseId) {
       alert(t('payment.loginRequired'));
       navigate('/login');
-      return;
-    }
-
-    if (paymentMethod === 'edahabia') {
-      setProcessing(true);
-      try {
-        const response = await fetch('/api/create-checkout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            amount: calculateTotal(),
-            currency: course.currency,
-            courseTitle: course.title,
-            successUrl: `${window.location.origin}/dashboard?payment=success`,
-            failureUrl: `${window.location.origin}/payment?courseId=${courseId}&payment=failed`,
-          }),
-        });
-
-        const data = await response.json();
-        if (data.checkout_url) {
-          window.location.href = data.checkout_url;
-        } else {
-          throw new Error(data.error || 'Failed to create checkout session');
-        }
-      } catch (error) {
-        console.error('Payment Error:', error);
-        alert(t('payment.error'));
-      } finally {
-        setProcessing(false);
-      }
       return;
     }
 
@@ -100,7 +68,7 @@ export default function Payment() {
           uid: user.uid,
           courseId: courseId,
           enrolledAt: new Date().toISOString(),
-          status: 'active',
+          status: 'pending_telegram',
           fullName: formData.fullName,
           email: formData.email,
           phone: formData.phone,
@@ -109,11 +77,13 @@ export default function Payment() {
           totalPaid: calculateTotal()
         });
       }
-
-      alert(t('payment.success'));
-      navigate('/dashboard');
+      
+      // Redirect to Telegram
+      window.location.href = 'https://t.me/gzamine';
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'enrollments');
+      console.error('Telegram redirect or save error:', error);
+      // Fallback redirect
+      window.location.href = 'https://t.me/gzamine';
     } finally {
       setProcessing(false);
     }
@@ -312,11 +282,11 @@ export default function Payment() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="bg-zinc-950 border border-purple-900/30 rounded-[2.5rem] p-10"
+                  className="bg-zinc-950 border border-purple-900/30 rounded-[2.5rem] p-10 text-center"
                 >
-                  <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-2xl font-bold flex items-center gap-3">
-                      <CreditCard className="w-7 h-7 text-purple-500" />
+                  <div className="flex items-center justify-between mb-8 text-left">
+                    <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
+                      <Send className="w-7 h-7 text-purple-500" />
                       {t('payment.method')}
                     </h2>
                     <button 
@@ -327,196 +297,36 @@ export default function Payment() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 mb-8">
-                    <button 
-                      onClick={() => setPaymentMethod('edahabia')}
-                      className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
-                        paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                          paymentMethod === 'edahabia' ? 'bg-purple-600/20' : 'bg-zinc-800'
-                        }`}>
-                          <CreditCard className={`w-6 h-6 ${paymentMethod === 'edahabia' ? 'text-purple-500' : 'text-gray-500'}`} />
-                        </div>
-                        <div className="text-left">
-                          <div className={`font-bold transition-colors ${paymentMethod === 'edahabia' ? 'text-white' : 'text-gray-400'}`}>EDAHABIA / CIB</div>
-                          <div className="text-gray-500 text-sm">Algerie Poste & Interbank Cards</div>
-                        </div>
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        paymentMethod === 'edahabia' ? 'border-purple-600' : 'border-gray-700'
-                      }`}>
-                        {paymentMethod === 'edahabia' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => setPaymentMethod('card')}
-                      className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
-                        paymentMethod === 'card' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                          paymentMethod === 'card' ? 'bg-purple-600/20' : 'bg-zinc-800'
-                        }`}>
-                          <CreditCard className={`w-6 h-6 ${paymentMethod === 'card' ? 'text-purple-500' : 'text-gray-500'}`} />
-                        </div>
-                        <div className="text-left">
-                          <div className={`font-bold transition-colors ${paymentMethod === 'card' ? 'text-white' : 'text-gray-400'}`}>Credit Card</div>
-                          <div className="text-gray-500 text-sm">Visa, Mastercard, American Express</div>
-                        </div>
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        paymentMethod === 'card' ? 'border-purple-600' : 'border-gray-700'
-                      }`}>
-                        {paymentMethod === 'card' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => setPaymentMethod('bank')}
-                      className={`flex items-center justify-between p-6 bg-black border-2 transition-all group rounded-2xl ${
-                        paymentMethod === 'bank' ? 'border-purple-600' : 'border-purple-900/20 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                          paymentMethod === 'bank' ? 'bg-purple-600/20' : 'bg-zinc-800'
-                        }`}>
-                          <Building2 className={`w-6 h-6 ${paymentMethod === 'bank' ? 'text-purple-500' : 'text-gray-500'}`} />
-                        </div>
-                        <div className="text-left">
-                          <div className={`font-bold transition-colors ${paymentMethod === 'bank' ? 'text-white' : 'text-gray-400'}`}>{t('payment.bankTransfer')}</div>
-                          <div className="text-gray-500 text-sm">BaridiMob, SEPA, SWIFT</div>
-                        </div>
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        paymentMethod === 'bank' ? 'border-purple-600' : 'border-gray-700'
-                      }`}>
-                        {paymentMethod === 'bank' && <div className="w-3 h-3 bg-purple-600 rounded-full" />}
-                      </div>
-                    </button>
+                  <div className="my-10 space-y-4">
+                    <div className="w-20 h-20 bg-purple-600/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-purple-500/20">
+                      <Send className="w-10 h-10 text-purple-500 animate-pulse" />
+                    </div>
+                    <h3 className="text-2xl font-black text-white px-2">
+                      Contact us on telegram to complete the payment
+                    </h3>
+                    <p className="text-gray-400 text-sm max-w-md mx-auto leading-relaxed">
+                      To complete your purchase for <strong className="text-purple-400">{course.title}</strong>, click the button below to message our administrator on Telegram. We will provide payment instructions and activate your course immediately.
+                    </p>
                   </div>
 
-                  <div className="space-y-6">
-                    {paymentMethod === 'card' && (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-400 mb-2">{t('payment.cardNumber')}</label>
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              placeholder="0000 0000 0000 0000"
-                              className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                            />
-                            <CreditCard className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-400 mb-2">{t('payment.expiryDate')}</label>
-                            <input 
-                              type="text" 
-                              placeholder="MM/YY"
-                              className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-400 mb-2">CVV</label>
-                            <input 
-                              type="text" 
-                              placeholder="123"
-                              className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                            />
-                          </div>
-                        </div>
-                      </div>
+                  <button 
+                    onClick={handleTelegramPayment}
+                    disabled={processing}
+                    className="w-full py-5 bg-[#229ED9] hover:bg-[#1A8DB8] text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-cyan-500/10 group disabled:opacity-50"
+                  >
+                    {processing ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <>
+                        Open Telegram
+                        <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+                      </>
                     )}
+                  </button>
 
-                    {paymentMethod === 'edahabia' && (
-                      <div className="p-8 bg-purple-600/10 border border-purple-600/30 rounded-2xl text-center space-y-4">
-                        <CreditCard className="w-12 h-12 text-purple-500 mx-auto" />
-                        <div className="space-y-2">
-                          <h3 className="font-bold text-lg">External Payment Gateway</h3>
-                          <p className="text-sm text-gray-400">
-                            You will be redirected to the secure SATIM/Algerie Poste payment portal to complete your transaction.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {paymentMethod === 'bank' && (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { id: 'local', label: 'Local', icon: Landmark, sub: 'BaridiMob' },
-                            { id: 'eu', label: 'EU', icon: Globe, sub: 'SEPA' },
-                            { id: 'international', label: 'Global', icon: Globe, sub: 'SWIFT' }
-                          ].map((type) => (
-                            <button
-                              key={type.id}
-                              onClick={() => setBankType(type.id as BankTransferType)}
-                              className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                                bankType === type.id ? 'border-purple-600 bg-purple-600/10' : 'border-purple-900/20 bg-black'
-                              }`}
-                            >
-                              <type.icon className={`w-5 h-5 ${bankType === type.id ? 'text-purple-500' : 'text-gray-500'}`} />
-                              <div className="text-center">
-                                <div className="text-xs font-bold">{type.label}</div>
-                                <div className="text-[10px] text-gray-500">{type.sub}</div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className="p-6 bg-black border border-purple-900/30 rounded-2xl space-y-4">
-                          <div className="text-sm text-gray-400">
-                            {bankType === 'local' ? (
-                              <div className="space-y-2">
-                                <div className="font-bold text-white mb-2">BaridiMob Details:</div>
-                                <div className="flex justify-between"><span>RIP:</span> <span className="text-white font-mono">00799999000123456789</span></div>
-                                <div className="flex justify-between"><span>Name:</span> <span className="text-white">Cutscene Academy</span></div>
-                              </div>
-                            ) : bankType === 'eu' ? (
-                              <div className="space-y-2">
-                                <div className="font-bold text-white mb-2">SEPA Details:</div>
-                                <div className="flex justify-between"><span>IBAN:</span> <span className="text-white font-mono">FR76 3000 6000 0123 4567 8901 234</span></div>
-                                <div className="flex justify-between"><span>BIC:</span> <span className="text-white font-mono">BNPAFRPP</span></div>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <div className="font-bold text-white mb-2">International Details:</div>
-                                <div className="flex justify-between"><span>SWIFT:</span> <span className="text-white font-mono">CUTS DZ AL XXX</span></div>
-                                <div className="flex justify-between"><span>Account:</span> <span className="text-white font-mono">1234567890</span></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <button 
-                      onClick={handlePayment}
-                      disabled={processing}
-                      className="w-full py-5 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl shadow-purple-600/30 group disabled:opacity-50"
-                    >
-                      {processing ? (
-                        <Loader2 className="w-6 h-6 animate-spin" />
-                      ) : (
-                        <>
-                          {t('payment.pay')} {calculateTotal().toLocaleString()} {course.currency}
-                          <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-                        </>
-                      )}
-                    </button>
-
-                    <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
-                      <Lock className="w-4 h-4" />
-                      <span>{t('payment.secure')}</span>
-                    </div>
+                  <div className="flex items-center justify-center gap-2 text-gray-500 text-sm mt-6">
+                    <Lock className="w-4 h-4" />
+                    <span>Secure Telegram Support</span>
                   </div>
                 </motion.div>
               )}

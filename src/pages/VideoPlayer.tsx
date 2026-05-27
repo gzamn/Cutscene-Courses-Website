@@ -7,7 +7,6 @@ import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { GoogleGenAI } from "@google/genai";
 import { useLanguage } from '../context/LanguageContext';
 
 export default function VideoPlayer() {
@@ -23,15 +22,9 @@ export default function VideoPlayer() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
-  // Homework & AI Chat State
+  // Homework State
   const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
-    { role: 'ai', text: t('ai.welcome') }
-  ]);
-  const [input, setInput] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
   const [isWindowFocused, setIsWindowFocused] = useState(true);
@@ -107,10 +100,6 @@ export default function VideoPlayer() {
       window.removeEventListener('contextmenu', handleContextMenu);
     };
   }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   useEffect(() => {
     if (!user || !id || !chapter || !type) {
@@ -205,11 +194,6 @@ export default function VideoPlayer() {
         fileName: file.name,
         createdAt: new Date().toISOString()
       });
-
-      setMessages(prev => [...prev, { role: 'ai', text: t('ai.received') }]);
-      
-      // Trigger AI review
-      await handleSendMessage("I've uploaded my homework video. Please review it and evaluate my work out of 10.");
     } catch (error) {
       console.error('Upload failed:', error);
       alert('Upload failed. Please try again.');
@@ -225,48 +209,6 @@ export default function VideoPlayer() {
       setHomeworkVideo(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'homework_submissions');
-    }
-  };
-
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim() || isThinking) return;
-    
-    const userMessage = text;
-    if (text !== "I've uploaded my homework video. Please review it and evaluate my work out of 10.") {
-      setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
-    }
-    setInput('');
-    setIsThinking(true);
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = "gemini-3-flash-preview";
-      
-      const systemPrompt = `You are an expert video editing mentor. 
-      The student is working on Chapter ${chapter} of the course "${course?.title}".
-      Homework Task: ${homework?.description}
-      Expected Outcome: ${homework?.expectedOutcome}
-      
-      If the student has uploaded a video (homeworkVideo is ${homeworkVideo ? 'present' : 'not present'}), provide a constructive review.
-      Since you are a text-based AI in this chat, simulate a review based on the context of the course and common mistakes students make at this level.
-      Always evaluate the student out of 10 if they ask for a review.
-      Be encouraging but professional. Use emojis to make the chat friendly.`;
-
-      const response = await ai.models.generateContent({
-        model,
-        contents: [...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })), { role: 'user', parts: [{ text: userMessage }] }],
-        config: {
-          systemInstruction: systemPrompt
-        }
-      });
-
-      const aiResponse = response.text || "I'm sorry, I couldn't process that. Could you try again?";
-      setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
-    } catch (error) {
-      console.error('AI Error:', error);
-      setMessages(prev => [...prev, { role: 'ai', text: "I'm having trouble connecting right now. Please try again in a moment." }]);
-    } finally {
-      setIsThinking(false);
     }
   };
 
@@ -473,74 +415,6 @@ export default function VideoPlayer() {
                 </div>
               )}
             </div>
-
-            {/* AI Chat Section for Homework */}
-            {type === 'homework' && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-zinc-950 border border-purple-900/30 rounded-3xl overflow-hidden flex flex-col h-[500px]"
-              >
-                <div className="p-4 bg-purple-900/10 border-b border-purple-900/20 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                    <Bot className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm">{t('ai.mentor')}</div>
-                    <div className="text-[10px] text-green-500 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                      {t('ai.online')}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-grow overflow-y-auto p-6 space-y-4">
-                  {messages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${
-                        msg.role === 'user' 
-                          ? 'bg-purple-600 text-white rounded-tr-none' 
-                          : 'bg-zinc-900 text-gray-300 rounded-tl-none border border-purple-900/10'
-                      }`}>
-                        {msg.text}
-                      </div>
-                    </div>
-                  ))}
-                  {isThinking && (
-                    <div className="flex justify-start">
-                      <div className="bg-zinc-900 text-gray-300 p-4 rounded-2xl rounded-tl-none border border-purple-900/10 flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" />
-                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:0.4s]" />
-                      </div>
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-
-                <div className="p-4 bg-black/40 border-t border-purple-900/20">
-                  <form 
-                    onSubmit={(e) => { e.preventDefault(); handleSendMessage(input); }}
-                    className="flex gap-2"
-                  >
-                    <input 
-                      type="text" 
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder={t('ai.ask')}
-                      className="flex-grow bg-zinc-900 border border-purple-900/30 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                    <button 
-                      type="submit"
-                      disabled={!input.trim() || isThinking}
-                      className="p-2 bg-purple-600 text-white rounded-xl hover:bg-purple-500 disabled:opacity-50 transition-colors"
-                    >
-                      <Send className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                    </button>
-                  </form>
-                </div>
-              </motion.div>
-            )}
           </div>
 
           <div className="space-y-8">

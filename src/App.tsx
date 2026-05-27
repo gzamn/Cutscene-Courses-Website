@@ -9,7 +9,6 @@ import Login from './pages/Login';
 import Payment from './pages/Payment';
 import VideoPlayer from './pages/VideoPlayer';
 import Dashboard from './pages/Dashboard';
-import CutsceneAI from './pages/CutsceneAI';
 import Profile from './pages/Profile';
 import StudioPage from './pages/Studio';
 import ScrollToTop from './components/ScrollToTop';
@@ -47,7 +46,6 @@ function App() {
                 <Route path="/support" element={<Support />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/payment" element={<Payment />} />
-                <Route path="/ai" element={<ProtectedRoute><CutsceneAI /></ProtectedRoute>} />
                 <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
