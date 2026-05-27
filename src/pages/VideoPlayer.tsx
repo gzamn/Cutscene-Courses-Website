@@ -1,13 +1,68 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare } from 'lucide-react';
 import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useLanguage } from '../context/LanguageContext';
+
+const YOUTUBE_VIDEOS: Record<string, string[]> = {
+  '1': [
+    'g2qHeN78Wlg', // Ch 1 Session
+    'Jn6A_9X_3p8', // Ch 2
+    'M9hFv_1vNzo', // Ch 3
+    'K19_ePZJby0', // Ch 4
+    'z82c7fSOfqE', // Ch 5
+    'U03K6GAtKMo', // Ch 6
+    'z9P6mN0sNGo', // Ch 7
+    'U_8T_Y_lZYo', // Ch 8
+    '6AOC77oA9E4', // Ch 9
+    'Hsk_118v0g8', // Ch 10
+    '6iF2Y39Z9r4', // Ch 11
+    '9R-f_mX0wO4'  // Ch 12
+  ],
+  '2': [
+    'gO8Vp6_Z9x8', // Ch 1
+    'EAn8p3ZIn_s', // Ch 2
+    'vG-L84R89n0', // Ch 3
+    '5R42-8sN_E8', // Ch 4
+    'vN1qUf5M9hA', // Ch 5
+    '8H6f68N_l9w', // Ch 6
+    'bSg4cNuHj24', // Ch 7
+    'tO8C2mYQ_k8', // Ch 8
+    'YpM_9u8R0nE', // Ch 9
+    'f9r2S8W__8M', // Ch 10
+    'Q3fNn88v9Z0', // Ch 11
+    '2VbE8p89M0o'  // Ch 12
+  ],
+  '3': [
+    '8_85VunF-1c', // Ch 1
+    'QpI77U8aP_g', // Ch 2
+    'v82eK36tH4Q', // Ch 3
+    '2fP_l-g0Hsc', // Ch 4
+    '7A07Z8bNol8', // Ch 5
+    'j6S1e8T7P1M'  // Ch 6
+  ],
+  '4': [
+    '9G6k7E-pZog', // Ch 1
+    'YqQx75OPRa0', // Ch 2
+    'V_K77qJ8488', // Ch 3
+    'm0t0BNoQ-3w', // Ch 4
+    'X79K6Q-v0g8', // Ch 5
+    'Bq9gM_m8wM8'  // Ch 6
+  ]
+};
+
+const getYoutubeVideoId = (courseId: string, chapterStr: string, typeStr: string) => {
+  const videos = YOUTUBE_VIDEOS[courseId] || YOUTUBE_VIDEOS['1'];
+  const chapterIdx = parseInt(chapterStr || '1') - 1;
+  const offset = typeStr === 'exercise' ? 1 : typeStr === 'homework' ? 2 : 0;
+  const targetIdx = Math.max(0, (chapterIdx + offset) % videos.length);
+  return videos[targetIdx];
+};
 
 export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
@@ -28,6 +83,11 @@ export default function VideoPlayer() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
   const [isWindowFocused, setIsWindowFocused] = useState(true);
+
+  // Comments State
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentInput, setCommentInput] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   const isFirstSession = parseInt(chapter || '0') === 1 && type === 'session';
   const totalChapters = course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '4' ? 12 : 24;
@@ -149,6 +209,66 @@ export default function VideoPlayer() {
       unsubVideos();
     };
   }, [user, id, chapter, type]);
+
+  // Comments real-time subscription
+  useEffect(() => {
+    if (!id || !chapter) return;
+
+    const qComments = query(
+      collection(db, 'comments'),
+      where('courseId', '==', id),
+      where('chapter', '==', parseInt(chapter))
+    );
+
+    const unsubComments = onSnapshot(qComments, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const sorted = list.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setComments(sorted);
+    }, (error) => {
+      console.error("Comments subscription error: ", error);
+    });
+
+    return () => unsubComments();
+  }, [id, chapter]);
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !id || !chapter || !commentInput.trim()) return;
+
+    setSubmittingComment(true);
+    try {
+      const commentRef = doc(collection(db, 'comments'));
+      const commentId = commentRef.id;
+
+      await setDoc(commentRef, {
+        id: commentId,
+        courseId: id,
+        chapter: parseInt(chapter),
+        uid: user.uid,
+        userName: user.displayName || user.email?.split('@')[0] || 'Student',
+        userAvatar: user.photoURL || '',
+        content: commentInput.trim(),
+        createdAt: new Date().toISOString()
+      });
+
+      setCommentInput('');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      alert('Failed to add comment. Please try again.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
+    try {
+      await deleteDoc(doc(db, 'comments', commentId));
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment.');
+    }
+  };
 
   const handleMarkComplete = async () => {
     if (!user || !id || !chapter || !type) return;
@@ -280,7 +400,7 @@ export default function VideoPlayer() {
                 </div>
               )}
 
-              {/* Mock Video Player */}
+              {/* YouTube Video Player */}
               {(!isEnrolled && !isFirstSession) ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-sm z-20 p-8 text-center">
                   <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
@@ -299,16 +419,15 @@ export default function VideoPlayer() {
                   </Link>
                 </div>
               ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/50">
-                  <div className="w-24 h-24 bg-purple-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-600/40 mb-6">
-                    <Play className="w-10 h-10 text-white fill-current translate-x-1" />
-                  </div>
-                  <p className="text-xl font-bold text-gray-300">{t('course.videoContent')} {chapter}: {typeLabels[type || 'session']}</p>
-                  {isFirstSession && !isEnrolled && (
-                    <div className="mt-4 px-4 py-1 bg-purple-600/20 border border-purple-500/30 rounded-full text-xs font-bold text-purple-400 uppercase tracking-widest">
-                      Free Trial Session
-                    </div>
-                  )}
+                <div className="absolute inset-0 w-full h-full bg-black">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${getYoutubeVideoId(course.id, chapter || '1', type || 'session')}?rel=0&showinfo=0&modestbranding=1&autoplay=1`}
+                    title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="w-full h-full"
+                  ></iframe>
                 </div>
               )}
             </motion.div>
@@ -415,6 +534,99 @@ export default function VideoPlayer() {
                 </div>
               )}
             </div>
+
+            {/* Chapter Comments Discussion Section */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 shadow-xl"
+            >
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-500" />
+                {t('comments.discussion') || 'Chapter Discussion'} ({comments.length})
+              </h2>
+
+              {/* Comment submission form */}
+              {user ? (
+                <form onSubmit={handleAddComment} className="mb-8">
+                  <div className="relative">
+                    <textarea
+                      value={commentInput}
+                      onChange={(e) => setCommentInput(e.target.value)}
+                      placeholder={t('comments.placeholder') || "Share your thoughts about this chapter..."}
+                      disabled={submittingComment}
+                      rows={3}
+                      className="w-full bg-zinc-900 border border-purple-900/20 rounded-2xl p-4 pr-12 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors resize-none disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!commentInput.trim() || submittingComment}
+                      className="absolute bottom-4 right-4 p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all disabled:opacity-50 disabled:hover:bg-purple-600 flex items-center justify-center"
+                    >
+                      {submittingComment ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="p-4 bg-purple-900/10 border border-purple-900/20 rounded-2xl text-center text-sm text-purple-300 mb-8">
+                  Please log in to leave a comment.
+                </div>
+              )}
+
+              {/* Comments list */}
+              <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {comments.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    {t('comments.empty') || "No comments yet. Start the conversation!"}
+                  </div>
+                ) : (
+                  comments.map((comment) => {
+                    const isAuthor = user && user.uid === comment.uid;
+                    const nameInitial = comment.userName ? comment.userName.charAt(0).toUpperCase() : 'S';
+
+                    return (
+                      <div key={comment.id} className="flex gap-4 p-4 bg-zinc-900/30 border border-purple-900/10 rounded-2xl relative group">
+                        {comment.userAvatar ? (
+                          <img 
+                            src={comment.userAvatar} 
+                            alt={comment.userName} 
+                            className="w-10 h-10 rounded-full object-cover shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-purple-900/40 border border-purple-500/20 flex items-center justify-center text-purple-300 font-bold shrink-0">
+                            {nameInitial}
+                          </div>
+                        )}
+                        <div className="flex-grow">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="font-bold text-sm text-gray-200">{comment.userName}</span>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                              {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                        </div>
+
+                        {isAuthor && (
+                          <button
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            title="Delete comment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
           </div>
 
           <div className="space-y-8">
