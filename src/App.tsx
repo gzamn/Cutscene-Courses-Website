@@ -14,6 +14,20 @@ import StudioPage from './pages/Studio';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { useEffect } from 'react';
+import { seedDatabase } from './lib/seeder';
+
+function DatabaseInitializer() {
+  const { user } = useAuth();
+  
+  useEffect(() => {
+    if (user) {
+      seedDatabase(user);
+    }
+  }, [user]);
+
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -28,6 +42,7 @@ function App() {
       <AuthProvider>
         <Router>
         <ScrollToTop />
+        <DatabaseInitializer />
         <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
           {/* Global Background Gradients */}
           <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
