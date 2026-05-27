@@ -1,48 +1,36 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-react';
-import { COURSES } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { useEffect, useState } from 'react';
 import { client, urlFor } from '../lib/sanity';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function Courses() {
   const { t, language } = useLanguage();
-  const [courses, setCourses] = useState<any[]>(COURSES);
-  const [loading, setLoading] = useState(false);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCourses = async () => {
-      if (!import.meta.env.VITE_SANITY_PROJECT_ID) return;
-      
+    const fetchFirestoreCourses = async () => {
       setLoading(true);
       try {
-        const query = `*[_type == "course"] {
-          ...,
-          "id": slug.current,
-          "instructor": {
-            "name": "Cutscene Academy",
-            "avatar": "https://picsum.photos/seed/instructor/200/200",
-            "bio": "Expert instructors from Cutscene Academy."
-          }
-        }`;
-        const sanityCourses = await client.fetch(query);
-        if (sanityCourses && sanityCourses.length > 0) {
-          setCourses(sanityCourses.map((c: any) => ({
-            ...c,
-            image: c.image ? urlFor(c.image).url() : 'https://picsum.photos/seed/course/800/600',
-            requirements: c.requirements || [],
-            detailedDescription: c.description || '',
-          })));
-        }
+        const querySnapshot = await getDocs(collection(db, 'courses'));
+        const list = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setCourses(list);
       } catch (error) {
-        console.error('Sanity Fetch Error:', error);
+        console.error('Error fetching courses from Firestore:', error);
+        handleFirestoreError(error, OperationType.LIST, 'courses');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCourses();
+    fetchFirestoreCourses();
   }, []);
   
   return (
@@ -56,6 +44,11 @@ export default function Courses() {
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : courses.length === 0 ? (
+          <div className="text-center py-20 bg-zinc-950/30 rounded-[2.5rem] border border-dashed border-purple-900/20 max-w-4xl mx-auto">
+            <p className="text-gray-400 text-lg mb-2">No courses available yet</p>
+            <p className="text-gray-500 text-sm">Please add courses from the Firebase Console dashboard.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-12">

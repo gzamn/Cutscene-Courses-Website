@@ -2,66 +2,40 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare } from 'lucide-react';
-import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useLanguage } from '../context/LanguageContext';
 
-const YOUTUBE_VIDEOS: Record<string, string[]> = {
-  '1': [
-    'g2qHeN78Wlg', // Ch 1 Session
-    'Jn6A_9X_3p8', // Ch 2
-    'M9hFv_1vNzo', // Ch 3
-    'K19_ePZJby0', // Ch 4
-    'z82c7fSOfqE', // Ch 5
-    'U03K6GAtKMo', // Ch 6
-    'z9P6mN0sNGo', // Ch 7
-    'U_8T_Y_lZYo', // Ch 8
-    '6AOC77oA9E4', // Ch 9
-    'Hsk_118v0g8', // Ch 10
-    '6iF2Y39Z9r4', // Ch 11
-    '9R-f_mX0wO4'  // Ch 12
-  ],
-  '2': [
-    'gO8Vp6_Z9x8', // Ch 1
-    'EAn8p3ZIn_s', // Ch 2
-    'vG-L84R89n0', // Ch 3
-    '5R42-8sN_E8', // Ch 4
-    'vN1qUf5M9hA', // Ch 5
-    '8H6f68N_l9w', // Ch 6
-    'bSg4cNuHj24', // Ch 7
-    'tO8C2mYQ_k8', // Ch 8
-    'YpM_9u8R0nE', // Ch 9
-    'f9r2S8W__8M', // Ch 10
-    'Q3fNn88v9Z0', // Ch 11
-    '2VbE8p89M0o'  // Ch 12
-  ],
-  '3': [
-    '8_85VunF-1c', // Ch 1
-    'QpI77U8aP_g', // Ch 2
-    'v82eK36tH4Q', // Ch 3
-    '2fP_l-g0Hsc', // Ch 4
-    '7A07Z8bNol8', // Ch 5
-    'j6S1e8T7P1M'  // Ch 6
-  ],
-  '4': [
-    '9G6k7E-pZog', // Ch 1
-    'YqQx75OPRa0', // Ch 2
-    'V_K77qJ8488', // Ch 3
-    'm0t0BNoQ-3w', // Ch 4
-    'X79K6Q-v0g8', // Ch 5
-    'Bq9gM_m8wM8'  // Ch 6
-  ]
-};
+const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => {
+  if (!course) return '';
+  
+  // 1. Try to find in flat lessons array (e.g. { chapter: 1, type: 'session', video_url: '...' })
+  if (course.lessons && Array.isArray(course.lessons)) {
+    const lesson = course.lessons.find((l: any) => 
+      parseInt(l.chapter) === parseInt(chapterStr) && 
+      (l.type === typeStr || l.id === typeStr)
+    );
+    if (lesson && lesson.video_url) return lesson.video_url;
+  }
 
-const getYoutubeVideoId = (courseId: string, chapterStr: string, typeStr: string) => {
-  const videos = YOUTUBE_VIDEOS[courseId] || YOUTUBE_VIDEOS['1'];
-  const chapterIdx = parseInt(chapterStr || '1') - 1;
-  const offset = typeStr === 'exercise' ? 1 : typeStr === 'homework' ? 2 : 0;
-  const targetIdx = Math.max(0, (chapterIdx + offset) % videos.length);
-  return videos[targetIdx];
+  // 2. Try to find in chapters array (e.g. { title: 'Intro', lessons: [{ type: 'session', video_url: '...' }] })
+  if (course.chapters && Array.isArray(course.chapters)) {
+    const chapterIdx = parseInt(chapterStr) - 1;
+    const targetChapter = course.chapters[chapterIdx];
+    if (targetChapter && targetChapter.lessons && Array.isArray(targetChapter.lessons)) {
+      const lesson = targetChapter.lessons.find((l: any) => 
+        l.type === typeStr || l.id === typeStr
+      );
+      if (lesson && lesson.video_url) return lesson.video_url;
+    }
+  }
+
+  // 3. Fallback to top-level video_url coordinate if present on the document itself
+  if (course.video_url) return course.video_url;
+
+  return '';
 };
 
 export default function VideoPlayer() {
@@ -69,9 +43,8 @@ export default function VideoPlayer() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
-  const course = COURSES.find(c => c.id === id);
-  const homework = course?.homeworks?.find(h => h.chapter === parseInt(chapter || '0'));
   
+  const [course, setCourse] = useState<any>(null);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,8 +62,9 @@ export default function VideoPlayer() {
   const [commentInput, setCommentInput] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  const homework = course?.homeworks?.find((h: any) => h.chapter === parseInt(chapter || '0'));
   const isFirstSession = parseInt(chapter || '0') === 1 && type === 'session';
-  const totalChapters = course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '4' ? 12 : 24;
+  const totalChapters = course ? (course.chapters?.length || course.lessons?.length || 12) : 12;
   const types = ['session', 'exercise', 'homework'];
   
   const getNextLessonLink = () => {
@@ -142,7 +116,6 @@ export default function VideoPlayer() {
       }
       // Block Cmd+Shift+3/4 (Mac) - limited but deterrent
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === '3' || e.key === '4')) {
-        // We can't actually block OS level shortcuts, but we can try to detect and alert
         console.warn('Screenshot shortcut detected');
       }
     };
@@ -162,51 +135,84 @@ export default function VideoPlayer() {
   }, []);
 
   useEffect(() => {
-    if (!user || !id || !chapter || !type) {
+    if (!id || !chapter || !type) {
       setLoading(false);
       return;
     }
 
-    // Check enrollment
-    const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
-    const unsubEnrollment = onSnapshot(qEnrollment, (snap) => {
-      setIsEnrolled(!snap.empty);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'enrollments'));
+    let isSubscribed = true;
 
-    // Listen to lesson progress
-    const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
-    const progressRef = doc(db, 'progress', lessonId);
-    const unsubProgress = onSnapshot(progressRef, (doc) => {
-      if (doc.exists()) {
-        setIsCompleted(doc.data().completed);
-      } else {
-        setIsCompleted(false);
-      }
-      setLoading(false);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'progress'));
-
-    // Listen to homework video
-    let unsubVideos = () => {};
-    if (type === 'homework') {
-      const qVideos = query(
-        collection(db, 'homework_submissions'),
-        where('uid', '==', user.uid),
-        where('courseId', '==', id),
-        where('chapter', '==', parseInt(chapter))
-      );
-      unsubVideos = onSnapshot(qVideos, (snap) => {
-        if (!snap.empty) {
-          setHomeworkVideo({ id: snap.docs[0].id, ...snap.docs[0].data() });
-        } else {
-          setHomeworkVideo(null);
+    // Fetch Course doc from Firestore
+    const fetchCourse = async () => {
+      try {
+        const courseRef = doc(db, 'courses', id);
+        const courseSnap = await getDoc(courseRef);
+        if (courseSnap.exists() && isSubscribed) {
+          setCourse({ id: courseSnap.id, ...courseSnap.data() });
         }
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'homework_submissions'));
+      } catch (error) {
+        console.error('Error fetching course:', error);
+      }
+    };
+    fetchCourse();
+
+    // Check enrollment
+    let unsubEnrollment = () => {};
+    let unsubProgress = () => {};
+    let unsubVideos = () => {};
+
+    if (user) {
+      const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
+      unsubEnrollment = onSnapshot(qEnrollment, (snap) => {
+        if (isSubscribed) setIsEnrolled(!snap.empty);
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'enrollments'));
+
+      // Listen to lesson progress
+      const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
+      const progressRef = doc(db, 'progress', lessonId);
+      unsubProgress = onSnapshot(progressRef, (snapshot) => {
+        if (isSubscribed) {
+          if (snapshot.exists()) {
+            setIsCompleted(snapshot.data().completed);
+          } else {
+            setIsCompleted(false);
+          }
+        }
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'progress'));
+
+      // Listen to homework video
+      if (type === 'homework') {
+        const qVideos = query(
+          collection(db, 'homework_submissions'),
+          where('uid', '==', user.uid),
+          where('courseId', '==', id),
+          where('chapter', '==', parseInt(chapter))
+        );
+        unsubVideos = onSnapshot(qVideos, (snap) => {
+          if (isSubscribed) {
+            if (!snap.empty) {
+              setHomeworkVideo({ id: snap.docs[0].id, ...snap.docs[0].data() });
+            } else {
+              setHomeworkVideo(null);
+            }
+          }
+        }, (error) => handleFirestoreError(error, OperationType.LIST, 'homework_submissions'));
+      }
+    } else {
+      setIsEnrolled(false);
+      setIsCompleted(false);
     }
 
+    const timer = setTimeout(() => {
+      if (isSubscribed) setLoading(false);
+    }, 1200);
+
     return () => {
+      isSubscribed = false;
       unsubEnrollment();
       unsubProgress();
       unsubVideos();
+      clearTimeout(timer);
     };
   }, [user, id, chapter, type]);
 
@@ -332,6 +338,14 @@ export default function VideoPlayer() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (!course) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
@@ -421,7 +435,7 @@ export default function VideoPlayer() {
               ) : (
                 <div className="absolute inset-0 w-full h-full bg-black">
                   <iframe
-                    src={`https://www.youtube.com/embed/${getYoutubeVideoId(course.id, chapter || '1', type || 'session')}?rel=0&showinfo=0&modestbranding=1&autoplay=1`}
+                    src={getLessonVideoUrl(course, chapter || '1', type || 'session')}
                     title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

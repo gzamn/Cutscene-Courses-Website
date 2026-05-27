@@ -1,11 +1,10 @@
 import { useLocation, Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CreditCard, ShieldCheck, ArrowRight, CheckCircle2, Lock, Building2, Globe, Landmark, Loader2, Send } from 'lucide-react';
-import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useLanguage } from '../context/LanguageContext';
 
 type PaymentMethod = 'card' | 'bank' | 'edahabia' | 'cib';
@@ -18,8 +17,9 @@ export default function Payment() {
   const { t, language } = useLanguage();
   const searchParams = new URLSearchParams(location.search);
   const courseId = searchParams.get('courseId');
-  const course = COURSES.find(c => c.id === courseId);
   
+  const [course, setCourse] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<'info' | 'payment'>('info');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('edahabia');
   const [bankType, setBankType] = useState<BankTransferType>('local');
@@ -30,13 +30,40 @@ export default function Payment() {
     fullName: '',
     email: user?.email || '',
     phone: '',
-    format: (course.formatAvailability && !course.formatAvailability.includes('recorded')) ? 'online' : 'recorded',
-    startDate: '2026-05-01' // Example starting date
+    format: 'recorded',
+    startDate: '2026-05-01'
   });
+
+  useEffect(() => {
+    if (!courseId) {
+      setLoading(false);
+      return;
+    }
+    const fetchCourse = async () => {
+      try {
+        const courseRef = doc(db, 'courses', courseId);
+        const courseSnap = await getDoc(courseRef);
+        if (courseSnap.exists()) {
+          const data = courseSnap.id ? { id: courseSnap.id, ...courseSnap.data() } as any : null;
+          setCourse(data);
+          if (data) {
+            setFormData(prev => ({
+              ...prev,
+              format: (data.formatAvailability && !data.formatAvailability.includes('recorded')) ? 'online' : 'recorded'
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching course in payment page:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCourse();
+  }, [courseId]);
 
   const calculateTotal = () => {
     if (!course) return 0;
-    // Don't add extra price for Graphic Design course (id: '4')
     if (course.id === '4') return course.price;
     return formData.format === 'online' ? course.price + 2000 : course.price;
   };
@@ -82,12 +109,19 @@ export default function Payment() {
       window.location.href = 'https://t.me/gzamine';
     } catch (error) {
       console.error('Telegram redirect or save error:', error);
-      // Fallback redirect
       window.location.href = 'https://t.me/gzamine';
     } finally {
       setProcessing(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!course) {
     return (

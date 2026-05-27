@@ -4,11 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { COURSES } from '../types';
 import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
-import { client, urlFor } from '../lib/sanity';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
@@ -19,7 +17,15 @@ export default function Dashboard() {
   const [userVideos, setUserVideos] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
-  const [sanityCourses, setSanityCourses] = useState<any[]>([]);
+  const [firestoreCourses, setFirestoreCourses] = useState<any[]>([]);
+
+  // Listen to courses collection
+  useEffect(() => {
+    const unsubCourses = onSnapshot(collection(db, 'courses'), (snapshot) => {
+      setFirestoreCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error("Error listening to courses:", error));
+    return () => unsubCourses();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -29,25 +35,6 @@ export default function Dashboard() {
     const unsubEnrollments = onSnapshot(qEnrollments, (snapshot) => {
       const enrollmentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setEnrollments(enrollmentData);
-      
-      // Fetch course details from Sanity for these enrollments
-      if (import.meta.env.VITE_SANITY_PROJECT_ID && enrollmentData.length > 0) {
-        const courseIds = enrollmentData.map((e: any) => e.courseId);
-        const querySanity = `*[_type == "course" && slug.current in $courseIds] {
-          ...,
-          "id": slug.current,
-          "chapters": chapters[]-> {
-            ...,
-            "lessons": lessons[]->
-          }
-        }`;
-        client.fetch(querySanity, { courseIds }).then(courses => {
-          setSanityCourses(courses.map((c: any) => ({
-            ...c,
-            image: c.image ? urlFor(c.image).url() : 'https://picsum.photos/seed/course/800/600',
-          })));
-        });
-      }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'enrollments'));
 
     // Listen to progress
@@ -90,7 +77,7 @@ export default function Dashboard() {
           const certExists = certificates.some(c => c.courseId === courseId);
           if (!certExists) {
             try {
-              const course = COURSES.find(c => c.id === courseId);
+              const course = firestoreCourses.find(c => c.id === courseId);
               await addDoc(collection(db, 'certificates'), {
                 uid: user.uid,
                 courseId: courseId,
@@ -149,18 +136,23 @@ export default function Dashboard() {
 
   const getCourseProgress = (courseId: string) => {
     const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
-    const sanityCourse = sanityCourses.find(c => c.id === courseId);
+    const dbCourse = firestoreCourses.find(c => c.id === courseId);
     let totalLessons = 0;
     
-    if (sanityCourse && sanityCourse.chapters) {
-      totalLessons = sanityCourse.chapters.reduce((acc: number, ch: any) => acc + (ch.lessons?.length || 0), 0);
-    } else {
+    if (dbCourse) {
+      if (dbCourse.chapters) {
+        totalLessons = dbCourse.chapters.reduce((acc: number, ch: any) => acc + (ch.lessons?.length || 0), 0);
+      } else if (dbCourse.lessons) {
+        totalLessons = dbCourse.lessons.length;
+      }
+    }
+    
+    if (totalLessons === 0) {
       const chapters = courseId === '1' ? 12 : courseId === '2' ? 18 : 24;
       totalLessons = chapters * 3; 
     }
     
-    if (totalLessons === 0) return 0;
-    return Math.round((courseProgress.length / totalLessons) * 100);
+    return Math.min(100, Math.round((courseProgress.length / totalLessons) * 100));
   };
 
   const latestActivity = [...progress]
@@ -205,12 +197,12 @@ export default function Dashboard() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {enrollments.length > 0 ? enrollments.map((enrollment) => {
-                  const course = sanityCourses.find(c => c.id === enrollment.courseId) || COURSES.find(c => c.id === enrollment.courseId);
+                  const course = firestoreCourses.find(c => c.id === enrollment.courseId);
                   if (!course) return null;
                   const prog = getCourseProgress(course.id);
                   const courseLessons = progress.filter(p => p.courseId === course.id && p.completed);
                   
-                  const totalChapters = course.chapters?.length || (course.id === '1' ? 12 : course.id === '2' ? 18 : 24);
+                  const totalChapters = course.chapters?.length || course.lessons?.length || 12;
                   
                   return (
                     <motion.div 
@@ -430,7 +422,7 @@ export default function Dashboard() {
               </h2>
               <div className="space-y-4">
                 {latestActivity.length > 0 ? latestActivity.map((activity, i) => {
-                  const course = COURSES.find(c => c.id === activity.courseId);
+                  const course = firestoreCourses.find(c => c.id === activity.courseId);
                   return (
                     <motion.div 
                       key={activity.id}

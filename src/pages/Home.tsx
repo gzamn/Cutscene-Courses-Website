@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video } from 'lucide-react';
-import { COURSES } from '../types';
 import { useLanguage } from '../context/LanguageContext';
+import { useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 const STUDENT_WORK = [
   {
@@ -36,6 +38,23 @@ const STUDENT_WORK = [
 
 export default function Home() {
   const { t, language } = useLanguage();
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'courses'));
+        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).slice(0, 3);
+        setCourses(list);
+      } catch (err) {
+        console.error("Error fetching homepage courses:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCourses();
+  }, []);
   const scrollToStudentsWork = () => {
     const element = document.getElementById('students-work');
     element?.scrollIntoView({ behavior: 'smooth' });
@@ -167,53 +186,67 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {COURSES.map((course) => (
-              <motion.div 
-                key={course.id}
-                whileHover={{ y: -10 }}
-                className="bg-black border border-purple-900/20 rounded-2xl overflow-hidden group"
-              >
-                <Link to={`/courses/${course.id}`} className="relative h-48 overflow-hidden block">
-                  <img 
-                    src={course.image} 
-                    alt={course.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-4 left-4 flex flex-col gap-2">
-                    <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-                      {course.level}
-                    </span>
-                    <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
-                      <Clock className="w-3 h-3 text-purple-400" /> {course.duration}
-                    </span>
-                  </div>
-                </Link>
-                <div className="p-6">
-                  <Link to={`/courses/${course.id}`}>
-                    <h3 className="text-xl font-bold mb-2 group-hover:text-purple-400 transition-colors">{course.title}</h3>
+            {loading ? (
+              <div className="col-span-3 flex justify-center py-20">
+                <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : courses.length === 0 ? (
+              <div className="col-span-3 text-center py-10 bg-zinc-900/30 rounded-2xl border border-dashed border-purple-900/20 max-w-4xl mx-auto w-full">
+                <p className="text-gray-400">No courses available yet</p>
+              </div>
+            ) : (
+              courses.map((course) => (
+                <motion.div 
+                  key={course.id}
+                  whileHover={{ y: -10 }}
+                  className="bg-black border border-purple-900/20 rounded-2xl overflow-hidden group"
+                >
+                  <Link to={`/courses/${course.id}`} className="relative h-48 overflow-hidden block">
+                    <img 
+                      src={course.image} 
+                      alt={course.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-4 left-4 flex flex-col gap-2">
+                      <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+                        {course.level}
+                      </span>
+                      {course.duration && (
+                        <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-purple-400" /> {course.duration}
+                        </span>
+                      )}
+                    </div>
                   </Link>
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2">{course.description}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl font-bold text-white">{course.price.toLocaleString()} {course.currency}</span>
-                    <div className="flex gap-2">
-                      <Link 
-                        to={`/courses/${course.id}`}
-                        className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-purple-900/30 rounded-lg transition-all text-xs font-bold"
-                      >
-                        {t('courses.details')}
-                      </Link>
-                      <Link 
-                        to={`/payment?courseId=${course.id}`}
-                        className="px-4 py-2 bg-brand-radial hover:opacity-90 text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold shadow-lg shadow-purple-600/10"
-                      >
-                        {t('courses.getStarted')}
-                      </Link>
+                  <div className="p-6">
+                    <Link to={`/courses/${course.id}`}>
+                      <h3 className="text-xl font-bold mb-2 group-hover:text-purple-400 transition-colors">{course.title}</h3>
+                    </Link>
+                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">{course.description}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl font-bold text-white">
+                        {course.price ? `${course.price.toLocaleString()} ${course.currency || 'DA'}` : 'Free'}
+                      </span>
+                      <div className="flex gap-2">
+                        <Link 
+                          to={`/courses/${course.id}`}
+                          className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-purple-900/30 rounded-lg transition-all text-xs font-bold"
+                        >
+                          {t('courses.details')}
+                        </Link>
+                        <Link 
+                          to={`/payment?courseId=${course.id}`}
+                          className="px-4 py-2 bg-brand-radial hover:opacity-90 text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold shadow-lg shadow-purple-600/10"
+                        >
+                          {t('courses.getStarted')}
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
       </section>

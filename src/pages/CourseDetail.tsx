@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText, MessageSquare, Send, Lock } from 'lucide-react';
-import { COURSES } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useLanguage } from '../context/LanguageContext';
 import { client, urlFor } from '../lib/sanity';
 
@@ -14,8 +13,8 @@ export default function CourseDetail() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
-  const [course, setCourse] = useState<any>(COURSES.find(c => c.id === id));
-  const [loading, setLoading] = useState(false);
+  const [course, setCourse] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
@@ -27,40 +26,33 @@ export default function CourseDetail() {
     if (!id) return;
 
     const fetchCourse = async () => {
-      if (!import.meta.env.VITE_SANITY_PROJECT_ID) return;
-      
       setLoading(true);
       try {
-        const query = `*[_type == "course" && slug.current == $id][0] {
-          ...,
-          "id": slug.current,
-          "chapters": chapters[]-> {
-            ...,
-            "lessons": lessons[]->
-          },
-          "instructor": {
-            "name": "Cutscene Academy",
-            "avatar": "https://picsum.photos/seed/instructor/200/200",
-            "bio": "Expert instructors from Cutscene Academy."
-          }
-        }`;
-        const sanityCourse = await client.fetch(query, { id });
-        if (sanityCourse) {
+        const courseRef = doc(db, 'courses', id);
+        const courseSnap = await getDoc(courseRef);
+        if (courseSnap.exists()) {
+          const data = courseSnap.data();
           setCourse({
-            ...sanityCourse,
-            image: sanityCourse.image ? urlFor(sanityCourse.image).url() : 'https://picsum.photos/seed/course/800/600',
-            requirements: sanityCourse.requirements || [],
-            detailedDescription: sanityCourse.description || '',
-            learningOutcomes: sanityCourse.learningOutcomes || [
+            id: courseSnap.id,
+            ...data,
+            requirements: data.requirements || [],
+            learningOutcomes: data.learningOutcomes || [
               "Master professional video editing techniques",
               "Learn advanced color grading and sound design",
               "Understand industry-standard workflows",
               "Create high-quality cinematic content"
             ],
+            instructor: data.instructor || {
+              name: "Amine Rouabhia",
+              avatar: "https://picsum.photos/seed/instructor/200/200",
+              bio: "Professional video editor and motion designer with extensive experience."
+            },
           });
+        } else {
+          setCourse(null);
         }
       } catch (error) {
-        console.error('Sanity Fetch Error:', error);
+        console.error('Error fetching course from Firestore:', error);
       } finally {
         setLoading(false);
       }
@@ -122,6 +114,14 @@ export default function CourseDetail() {
       setSubmittingReview(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!course) {
     return (
