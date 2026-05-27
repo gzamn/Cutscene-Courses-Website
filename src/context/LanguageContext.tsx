@@ -1,20 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
-export type Language = 'en' | 'fr' | 'ar';
+type Language = 'en' | 'fr' | 'ar';
 
-export interface LanguageContextType {
+interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
   isRTL: boolean;
-  isEditMode: boolean;
-  setIsEditMode: (val: boolean) => void;
-  updateTranslation: (lang: Language, key: string, value: string) => Promise<void>;
-  customTranslations: Record<Language, Record<string, string>>;
-  getRawTranslation: (lang: Language, key: string) => string;
-  allKeys: string[];
 }
 
 const translations: Record<Language, Record<string, string>> = {
@@ -541,37 +533,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     return (saved as Language) || 'en';
   });
 
-  const [customTranslations, setCustomTranslations] = useState<Record<Language, Record<string, string>>>({
-    en: {},
-    fr: {},
-    ar: {}
-  });
-
-  const [isEditMode, setIsEditMode] = useState(() => {
-    return localStorage.getItem('isEditMode') === 'true';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('isEditMode', String(isEditMode));
-  }, [isEditMode]);
-
-  useEffect(() => {
-    const docRef = doc(db, 'site_content', 'custom_translations');
-    const unsub = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setCustomTranslations({
-          en: data.en || {},
-          fr: data.fr || {},
-          ar: data.ar || {}
-        });
-      }
-    }, (error) => {
-      console.warn("Firestore custom site translation permission or setup issue:", error);
-    });
-    return unsub;
-  }, []);
-
   useEffect(() => {
     localStorage.setItem('language', language);
     document.documentElement.lang = language;
@@ -579,53 +540,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   const t = (key: string) => {
-    if (customTranslations[language]?.[key] !== undefined) {
-      return customTranslations[language][key];
-    }
-    return translations[language]?.[key] || key;
+    return translations[language][key] || key;
   };
 
-  const getRawTranslation = (lang: Language, key: string) => {
-    if (customTranslations[lang]?.[key] !== undefined) {
-      return customTranslations[lang][key];
-    }
-    return translations[lang]?.[key] || '';
-  };
-
-  const updateTranslation = async (lang: Language, key: string, value: string) => {
-    const updated = {
-      ...customTranslations,
-      [lang]: {
-        ...customTranslations[lang],
-        [key]: value
-      }
-    };
-    setCustomTranslations(updated);
-
-    try {
-      const docRef = doc(db, 'site_content', 'custom_translations');
-      await setDoc(docRef, updated);
-    } catch (error) {
-      console.error("Failed to save translations in Firestore:", error);
-    }
-  };
-
-  const allKeys = Object.keys(translations.en);
   const isRTL = language === 'ar';
 
   return (
-    <LanguageContext.Provider value={{ 
-      language, 
-      setLanguage, 
-      t, 
-      isRTL, 
-      isEditMode, 
-      setIsEditMode, 
-      updateTranslation, 
-      customTranslations, 
-      getRawTranslation,
-      allKeys 
-    }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, isRTL }}>
       <div dir={isRTL ? 'rtl' : 'ltr'}>
         {children}
       </div>

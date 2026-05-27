@@ -240,10 +240,5 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidChatMessage(request.resource.data);
       allow delete: if isAuthenticated() && isOwner(resource.data.uid);
     }
-
-    match /site_content/{docId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
-    }
   }
 }
