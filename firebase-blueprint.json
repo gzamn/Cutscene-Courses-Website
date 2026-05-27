@@ -100,6 +100,45 @@
       },
       "required": ["uid", "courseId", "chapter", "url", "fileName", "createdAt"]
     },
+    "Course": {
+      "title": "Course",
+      "description": "Information about a course.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "detailedDescription": { "type": "string" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
+        "image": { "type": "string" },
+        "duration": { "type": "string" },
+        "level": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+        "requirements": { "type": "array" },
+        "learningOutcomes": { "type": "array" },
+        "instructor": { "type": "object" },
+        "homeworks": { "type": "array" },
+        "isComingSoon": { "type": "boolean" },
+        "formatAvailability": { "type": "array" }
+      },
+      "required": ["id", "title", "description", "price", "currency"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment left by a user on a course.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "integer" },
+        "uid": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "courseId", "chapter", "uid", "userName", "content", "createdAt"]
+    },
     "ChatMessage": {
       "title": "ChatMessage",
       "description": "Messages in the AI chat history.",
@@ -124,6 +163,8 @@
     "/certificates/{certificateId}": { "schema": "Certificate", "description": "User certificates." },
     "/videos/{videoId}": { "schema": "Video", "description": "Uploaded video metadata." },
     "/homework_submissions/{submissionId}": { "schema": "HomeworkSubmission", "description": "Student homework submissions." },
+    "/courses/{courseId}": { "schema": "Course", "description": "Information about courses." },
+    "/comments/{commentId}": { "schema": "Comment", "description": "User comments on courses." },
     "/chat_history/{messageId}": { "schema": "ChatMessage", "description": "AI chat messages." }
   }
 }

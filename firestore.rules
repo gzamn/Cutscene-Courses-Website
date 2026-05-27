@@ -175,6 +175,28 @@ service cloud.firestore {
              isValidDateString(data.createdAt);
     }
 
+    function isValidCourse(data) {
+      return hasOnlyAllowedFields(['id', 'title', 'description', 'detailedDescription', 'price', 'currency', 'image', 'duration', 'level', 'requirements', 'learningOutcomes', 'instructor', 'homeworks', 'isComingSoon', 'formatAvailability']) &&
+             data.id is string &&
+             data.title is string && data.title.size() > 0 &&
+             data.description is string &&
+             (data.price is int || data.price is float) && data.price >= 0 &&
+             data.currency is string &&
+             (!('isComingSoon' in data) || data.isComingSoon is bool);
+    }
+
+    function isValidComment(data) {
+      return hasOnlyAllowedFields(['id', 'courseId', 'chapter', 'uid', 'userName', 'userAvatar', 'content', 'createdAt']) &&
+             data.id is string &&
+             data.courseId is string &&
+             data.chapter is int &&
+             data.uid == request.auth.uid &&
+             data.userName is string && data.userName.size() > 0 &&
+             (!('userAvatar' in data) || data.userAvatar is string) &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             isValidDateString(data.createdAt);
+    }
+
     function isValidChatMessage(data) {
       return hasOnlyAllowedFields(['uid', 'role', 'content', 'type', 'url', 'fileName', 'createdAt']) &&
              data.uid == request.auth.uid &&
@@ -231,6 +253,18 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
       allow create: if isAuthenticated() && isValidHomeworkSubmission(request.resource.data);
       allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidHomeworkSubmission(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+    }
+
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidComment(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidComment(request.resource.data);
       allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
     }
 
