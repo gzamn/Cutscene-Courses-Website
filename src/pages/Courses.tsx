@@ -4,8 +4,7 @@ import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-r
 import { useLanguage } from '../context/LanguageContext';
 import { useEffect, useState } from 'react';
 import { client, urlFor } from '../lib/sanity';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs } from '../firebase';
 
 export default function Courses() {
   const { t, language } = useLanguage();
@@ -17,10 +16,21 @@ export default function Courses() {
       setLoading(true);
       try {
         const querySnapshot = await getDocs(collection(db, 'courses'));
-        const list = querySnapshot.docs.map(doc => ({
+        let list = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
+        
+        if (list.length === 0) {
+          console.log('Courses list is empty, attempting to seed default courses...');
+          await ensureDefaultCoursesSeeded();
+          const querySnapshotSec = await getDocs(collection(db, 'courses'));
+          list = querySnapshotSec.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+        }
+        
         setCourses(list);
       } catch (error) {
         console.error('Error fetching courses from Firestore:', error);
@@ -62,7 +72,7 @@ export default function Courses() {
               >
                 <Link to={`/courses/${course.id}`} className="lg:w-2/5 relative min-h-[300px] overflow-hidden">
                   <img 
-                    src={course.image} 
+                    src={course.image || 'https://picsum.photos/seed/course/800/600'} 
                     alt={course.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     referrerPolicy="no-referrer"
@@ -77,7 +87,7 @@ export default function Courses() {
                   )}
                   <div className="absolute top-6 left-6 flex flex-col gap-2">
                     <span className="px-4 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-                      {course.level}
+                      {course.level || 'Beginner'}
                     </span>
                   </div>
                 </Link>
@@ -91,13 +101,13 @@ export default function Courses() {
                       {course.isComingSoon ? (
                         <span className="text-xl text-purple-400 uppercase tracking-widest">{t('course.comingSoon') || 'Coming Soon'}</span>
                       ) : (
-                        `${course.price.toLocaleString()} ${course.currency}`
+                        `${(course.price || 0).toLocaleString()} ${course.currency || 'DA'}`
                       )}
                     </div>
                   </Link>
 
                   <p className="text-gray-300 text-lg mb-8 leading-relaxed">
-                    {course.detailedDescription}
+                    {course.detailedDescription || course.description}
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
@@ -108,7 +118,7 @@ export default function Courses() {
                         {t('course.requirements')}
                       </h4>
                       <ul className="space-y-2">
-                        {course.requirements.map((pre: string, idx: number) => (
+                        {(course.requirements || []).map((pre: string, idx: number) => (
                           <li key={idx} className="text-gray-400 text-sm flex items-start gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-purple-900 mt-1.5 shrink-0" />
                             {pre}
@@ -125,15 +135,15 @@ export default function Courses() {
                       </h4>
                       <div className="flex items-center gap-4 mb-3">
                         <img 
-                          src={course.instructor.avatar} 
-                          alt={course.instructor.name} 
+                          src={course.instructor?.avatar || 'https://picsum.photos/seed/instructor/200/200'} 
+                          alt={course.instructor?.name || 'Amine Rouabhia'} 
                           className="w-12 h-12 rounded-full object-cover border-2 border-purple-600"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="font-bold text-white">{course.instructor.name}</div>
+                        <div className="font-bold text-white">{course.instructor?.name || 'Amine Rouabhia'}</div>
                       </div>
                       <p className="text-gray-400 text-sm italic leading-relaxed">
-                        "{course.instructor.bio}"
+                        "{course.instructor?.bio || 'Professional instructor.'}"
                       </p>
                     </div>
                   </div>
@@ -142,7 +152,7 @@ export default function Courses() {
                     <div className="flex items-center gap-6">
                       <div className="flex items-center gap-2 text-gray-400">
                         <BarChart className="w-5 h-5 text-purple-500" />
-                        <span className="font-medium">{course.level} {t('course.level')}</span>
+                        <span className="font-medium">{course.level || 'Beginner'} {t('course.level')}</span>
                       </div>
                     </div>
                     

@@ -1,108 +1,22 @@
 {
   "entities": {
     "User": {
-      "title": "User",
-      "description": "User profile information.",
+      "title": "User Profile",
+      "description": "Information about registered students and instructors",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "description": "Firebase Auth UID." },
+        "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
-        "photoURL": { "type": "string", "format": "uri" },
-        "role": { "type": "string", "enum": ["student", "admin"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "instructor", "admin"] },
+        "createdAt": { "type": "string" }
       },
-      "required": ["uid", "email", "role"]
-    },
-    "Enrollment": {
-      "title": "Enrollment",
-      "description": "User enrollment in a course.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string", "description": "User UID." },
-        "courseId": { "type": "string" },
-        "enrolledAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["active", "completed"] },
-        "fullName": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
-        "format": { "type": "string", "enum": ["recorded", "online"] },
-        "startDate": { "type": "string", "format": "date" }
-      },
-      "required": ["uid", "courseId", "enrolledAt", "fullName", "email", "phone", "format"]
-    },
-    "Progress": {
-      "title": "Progress",
-      "description": "Tracking user progress in a course chapter.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "courseId": { "type": "string" },
-        "chapter": { "type": "integer" },
-        "type": { "type": "string", "enum": ["session", "exercise", "homework"] },
-        "completed": { "type": "boolean" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["uid", "courseId", "chapter", "type", "completed"]
-    },
-    "Review": {
-      "title": "Review",
-      "description": "User review for a course.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "courseId": { "type": "string" },
-        "rating": { "type": "integer" },
-        "comment": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "userName": { "type": "string" }
-      },
-      "required": ["uid", "courseId", "rating", "comment", "createdAt"]
-    },
-    "Certificate": {
-      "title": "Certificate",
-      "description": "Earned course certificate.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "courseId": { "type": "string" },
-        "issuedAt": { "type": "string", "format": "date-time" },
-        "certificateUrl": { "type": "string", "format": "uri" }
-      },
-      "required": ["uid", "courseId", "issuedAt"]
-    },
-    "Video": {
-      "title": "Video",
-      "description": "Metadata for uploaded videos.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string", "description": "Uploader UID." },
-        "title": { "type": "string" },
-        "url": { "type": "string", "format": "uri" },
-        "courseId": { "type": "string" },
-        "chapter": { "type": "integer" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["uid", "title", "url", "createdAt"]
-    },
-    "HomeworkSubmission": {
-      "title": "HomeworkSubmission",
-      "description": "Student homework video submission.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "courseId": { "type": "string" },
-        "chapter": { "type": "integer" },
-        "url": { "type": "string", "format": "uri" },
-        "fileName": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["uid", "courseId", "chapter", "url", "fileName", "createdAt"]
+      "required": ["uid", "email"]
     },
     "Course": {
       "title": "Course",
-      "description": "Information about a course.",
+      "description": "Academy course details",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -113,58 +27,168 @@
         "currency": { "type": "string" },
         "image": { "type": "string" },
         "duration": { "type": "string" },
-        "level": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
-        "requirements": { "type": "array" },
-        "learningOutcomes": { "type": "array" },
+        "level": { "type": "string" },
         "instructor": { "type": "object" },
-        "homeworks": { "type": "array" },
-        "isComingSoon": { "type": "boolean" },
-        "formatAvailability": { "type": "array" }
+        "chapters": { "type": "array" }
       },
-      "required": ["id", "title", "description", "price", "currency"]
+      "required": ["id", "title", "price"]
+    },
+    "Enrollment": {
+      "title": "Enrollment",
+      "description": "User enrollment status in courses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "enrolledAt": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["uid", "courseId"]
+    },
+    "Progress": {
+      "title": "Progress",
+      "description": "Tracking student lesson completions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "string" },
+        "type": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "courseId", "chapter", "type"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Course reviews and ratings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "userName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "courseId", "rating"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Earned dynamic course completion certificates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "courseTitle": { "type": "string" },
+        "userName": { "type": "string" },
+        "issuedAt": { "type": "string" }
+      },
+      "required": ["uid", "courseId"]
+    },
+    "Submission": {
+      "title": "Homework Submission",
+      "description": "Student homework uploads and links",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapterTitle": { "type": "string" },
+        "githubUrl": { "type": "string" },
+        "notionUrl": { "type": "string" },
+        "imageUrls": { "type": "array" },
+        "comment": { "type": "string" },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["uid", "courseId"]
     },
     "Comment": {
       "title": "Comment",
-      "description": "A comment left by a user on a course.",
+      "description": "Course or video player discussion comments",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "courseId": { "type": "string" },
-        "chapter": { "type": "integer" },
-        "uid": { "type": "string" },
-        "userName": { "type": "string" },
-        "userAvatar": { "type": "string" },
-        "content": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "chapter": { "type": "string" },
+        "user": { "type": "object" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string" }
       },
-      "required": ["id", "courseId", "chapter", "uid", "userName", "content", "createdAt"]
+      "required": ["courseId", "text", "user"]
     },
-    "ChatMessage": {
-      "title": "ChatMessage",
-      "description": "Messages in the AI chat history.",
+    "Chapter": {
+      "title": "Course Chapter",
+      "description": "Detailed chapter and learning links under a course",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "role": { "type": "string", "enum": ["user", "assistant"] },
-        "content": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "image", "video", "music", "document"] },
-        "url": { "type": "string", "format": "uri" },
-        "fileName": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "title": { "type": "string" },
+        "position": { "type": "number" },
+        "is_preview": { "type": "boolean" },
+        "session_url": { "type": "string" },
+        "exercise_url": { "type": "string" },
+        "homework_url": { "type": "string" }
       },
-      "required": ["uid", "role", "content", "type", "createdAt"]
+      "required": ["title", "position"]
+    },
+    "StudentWork": {
+      "title": "Student Work Showcase",
+      "description": "Information about exceptional student projects to display on the home page",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentName": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "courseId": { "type": "string" },
+        "courseTitle": { "type": "string" }
+      },
+      "required": ["studentName", "thumbnail", "courseId", "courseTitle"]
     }
   },
   "firestore": {
-    "/users/{uid}": { "schema": "User", "description": "User profiles." },
-    "/enrollments/{enrollmentId}": { "schema": "Enrollment", "description": "Course enrollments." },
-    "/progress/{progressId}": { "schema": "Progress", "description": "User course progress." },
-    "/reviews/{reviewId}": { "schema": "Review", "description": "Course reviews." },
-    "/certificates/{certificateId}": { "schema": "Certificate", "description": "User certificates." },
-    "/videos/{videoId}": { "schema": "Video", "description": "Uploaded video metadata." },
-    "/homework_submissions/{submissionId}": { "schema": "HomeworkSubmission", "description": "Student homework submissions." },
-    "/courses/{courseId}": { "schema": "Course", "description": "Information about courses." },
-    "/comments/{commentId}": { "schema": "Comment", "description": "User comments on courses." },
-    "/chat_history/{messageId}": { "schema": "ChatMessage", "description": "AI chat messages." }
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Direct user records"
+    },
+    "courses/{courseId}": {
+      "schema": "Course",
+      "description": "Course documents"
+    },
+    "courses/{courseId}/chapters/{chapterId}": {
+      "schema": "Chapter",
+      "description": "Chapters subcollection under courses"
+    },
+    "enrollments/{enrollmentId}": {
+      "schema": "Enrollment",
+      "description": "User enrollments"
+    },
+    "progress/{progressId}": {
+      "schema": "Progress",
+      "description": "User learning progress records"
+    },
+    "reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Course feedback and stars"
+    },
+    "certificates/{certificateId}": {
+      "schema": "Certificate",
+      "description": "Achievement certifications"
+    },
+    "homework_submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Uploaded exercise assignments"
+    },
+    "comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Discussion postings"
+    },
+    "student_works/{workId}": {
+      "schema": "StudentWork",
+      "description": "Students' project showcase items"
+    }
   }
 }

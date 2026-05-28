@@ -2,277 +2,111 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: {uid}
-    // Fields:
-    //   - uid: string (required) - User UID
-    //   - email: string (required) - User email
-    //   - displayName: string (optional) - User display name
-    //   - photoURL: string (optional) - User photo URL
-    //   - role: string (required, ['student', 'admin']) - User role
-    //   - createdAt: string (required) - ISO 8601 creation date
-    //
-    // Collection: enrollments
-    // Document ID: {enrollmentId}
-    // Fields:
-    //   - uid: string (required) - User UID
-    //   - courseId: string (required) - Course ID
-    //   - enrolledAt: string (required) - ISO 8601 enrollment date
-    //   - status: string (required, ['active', 'completed']) - Enrollment status
-    //
-    // Collection: progress
-    // Document ID: {progressId}
-    // Fields:
-    //   - uid: string (required) - User UID
-    //   - courseId: string (required) - Course ID
-    //   - chapter: number (required) - Chapter number
-    //   - type: string (required, ['session', 'exercise', 'homework']) - Content type
-    //   - completed: bool (required) - Completion status
-    //   - updatedAt: string (required) - ISO 8601 update date
-    //
-    // Collection: reviews
-    // Document ID: {reviewId}
-    // Fields:
-    //   - uid: string (required) - User UID
-    //   - courseId: string (required) - Course ID
-    //   - rating: number (required, 1-5) - Rating
-    //   - comment: string (required) - Review comment
-    //   - createdAt: string (required) - ISO 8601 creation date
-    //   - userName: string (optional) - User display name
-    //
-    // Collection: certificates
-    // Document ID: {certificateId}
-    // Fields:
-    //   - uid: string (required) - User UID
-    //   - courseId: string (required) - Course ID
-    //   - issuedAt: string (required) - ISO 8601 issuance date
-    //   - certificateUrl: string (required) - URL to certificate
-    //
-    // Collection: videos
-    // Document ID: {videoId}
-    // Fields:
-    //   - uid: string (required) - Uploader UID
-    //   - title: string (required) - Video title
-    //   - url: string (required) - Video URL
-    //   - courseId: string (optional) - Associated course
-    //   - chapter: number (optional) - Associated chapter
-    //   - createdAt: string (required) - ISO 8601 creation date
-    //
-    // Collection: homework_submissions
-    // Document ID: {submissionId}
-    // Fields:
-    //   - uid: string (required) - User UID
-    //   - courseId: string (required) - Course ID
-    //   - chapter: number (required) - Chapter number
-    //   - url: string (required) - Video URL
-    //   - fileName: string (required) - Original file name
-    //   - createdAt: string (required) - ISO 8601 creation date
-    //
-    // ===============================================================
+    // Default-deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
 
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-
-    function isAuthenticated() {
+    // Global Identity & Role Primitives
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "aminerouabhia14@gmail.com" && request.auth.token.email_verified == true));
+      return isSignedIn() && (
+        request.auth.token.email == 'aminerouabhia14@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
-    function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function isValidDateString(dateStr) {
-      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    // Users (Student/Instructor Profiles)
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && request.resource.data.uid == userId;
     }
 
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
-             data.uid == request.auth.uid &&
-             data.email is string && isValidEmail(data.email) &&
-             data.role in ['student', 'admin'] &&
-             isValidDateString(data.createdAt) &&
-             (!('updatedAt' in data) || isValidDateString(data.updatedAt));
-    }
-
-    function isValidEnrollment(data) {
-      return hasOnlyAllowedFields(['uid', 'courseId', 'enrolledAt', 'status', 'fullName', 'email', 'phone', 'format', 'startDate']) &&
-             data.uid == request.auth.uid &&
-             data.courseId is string &&
-             isValidDateString(data.enrolledAt) &&
-             data.status in ['active', 'completed'] &&
-             data.fullName is string && data.fullName.size() > 0 &&
-             data.email is string && isValidEmail(data.email) &&
-             data.phone is string && data.phone.size() > 0 &&
-             data.format in ['recorded', 'online'] &&
-             (!('startDate' in data) || data.startDate is string);
-    }
-
-    function isValidProgress(data) {
-      return hasOnlyAllowedFields(['uid', 'courseId', 'chapter', 'type', 'completed', 'updatedAt']) &&
-             data.uid == request.auth.uid &&
-             data.courseId is string &&
-             data.chapter is int &&
-             data.type in ['session', 'exercise', 'homework'] &&
-             data.completed is bool &&
-             isValidDateString(data.updatedAt);
-    }
-
-    function isValidReview(data) {
-      return hasOnlyAllowedFields(['uid', 'courseId', 'rating', 'comment', 'createdAt', 'userName']) &&
-             data.uid == request.auth.uid &&
-             data.courseId is string &&
-             data.rating is int && data.rating >= 1 && data.rating <= 5 &&
-             data.comment is string && data.comment.size() < 1000 &&
-             isValidDateString(data.createdAt);
-    }
-
-    function isValidCertificate(data) {
-      return hasOnlyAllowedFields(['uid', 'courseId', 'issuedAt', 'certificateUrl']) &&
-             data.uid is string &&
-             data.courseId is string &&
-             isValidDateString(data.issuedAt) &&
-             data.certificateUrl is string;
-    }
-
-    function isValidVideo(data) {
-      return hasOnlyAllowedFields(['uid', 'title', 'url', 'courseId', 'chapter', 'createdAt']) &&
-             data.uid == request.auth.uid &&
-             data.title is string && data.title.size() < 200 &&
-             data.url is string &&
-             isValidDateString(data.createdAt);
-    }
-
-    function isValidHomeworkSubmission(data) {
-      return hasOnlyAllowedFields(['uid', 'courseId', 'chapter', 'url', 'fileName', 'createdAt']) &&
-             data.uid == request.auth.uid &&
-             data.courseId is string &&
-             data.chapter is int &&
-             data.url is string &&
-             data.fileName is string &&
-             isValidDateString(data.createdAt);
-    }
-
-    function isValidCourse(data) {
-      return hasOnlyAllowedFields(['id', 'title', 'description', 'detailedDescription', 'price', 'currency', 'image', 'duration', 'level', 'requirements', 'learningOutcomes', 'instructor', 'homeworks', 'isComingSoon', 'formatAvailability']) &&
-             data.id is string &&
-             data.title is string && data.title.size() > 0 &&
-             data.description is string &&
-             (data.price is int || data.price is float) && data.price >= 0 &&
-             data.currency is string &&
-             (!('isComingSoon' in data) || data.isComingSoon is bool);
-    }
-
-    function isValidComment(data) {
-      return hasOnlyAllowedFields(['id', 'courseId', 'chapter', 'uid', 'userName', 'userAvatar', 'content', 'createdAt']) &&
-             data.id is string &&
-             data.courseId is string &&
-             data.chapter is int &&
-             data.uid == request.auth.uid &&
-             data.userName is string && data.userName.size() > 0 &&
-             (!('userAvatar' in data) || data.userAvatar is string) &&
-             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
-             isValidDateString(data.createdAt);
-    }
-
-    function isValidChatMessage(data) {
-      return hasOnlyAllowedFields(['uid', 'role', 'content', 'type', 'url', 'fileName', 'createdAt']) &&
-             data.uid == request.auth.uid &&
-             data.role in ['user', 'assistant'] &&
-             data.content is string && data.content.size() < 10000 &&
-             data.type in ['text', 'image', 'video', 'music', 'document'] &&
-             (!('url' in data) || data.url is string) &&
-             (!('fileName' in data) || data.fileName is string) &&
-             isValidDateString(data.createdAt);
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
-
-    match /users/{uid} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'student' || isAdmin());
-      allow update: if isAuthenticated() && isOwner(uid) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
-    }
-
-    match /enrollments/{enrollmentId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
-      allow create: if isAuthenticated() && isValidEnrollment(request.resource.data);
-      allow update: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin()) && isValidEnrollment(request.resource.data);
-    }
-
-    match /progress/{progressId} {
-      allow read: if isAuthenticated() && isOwner(resource.data.uid);
-      allow create: if isAuthenticated() && isValidProgress(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidProgress(request.resource.data);
-    }
-
-    match /reviews/{reviewId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && isValidReview(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidReview(request.resource.data);
-      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
-    }
-
-    match /certificates/{certificateId} {
-      allow read: if isAuthenticated() && isOwner(resource.data.uid);
-      allow create, update: if isAdmin() && isValidCertificate(request.resource.data);
-    }
-
-    match /videos/{videoId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidVideo(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidVideo(request.resource.data);
-      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
-    }
-
-    match /homework_submissions/{submissionId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
-      allow create: if isAuthenticated() && isValidHomeworkSubmission(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidHomeworkSubmission(request.resource.data);
-      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
-    }
-
+    // Courses Metadata
     match /courses/{courseId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
+
+      // Chapters Subcollection under Courses
+      match /chapters/{chapterId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
     }
 
+    // Dynamic Course enrollments mapping
+    match /enrollments/{enrollmentId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Student Video/Chapters Progress Metrics
+    match /progress/{progressId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Course Feedback & Stars reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Course completion digital certificates
+    match /certificates/{certificateId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Uploaded Exercises Submissions
+    match /homework_submissions/{submissionId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Inter-Student lesson discussion comments
     match /comments/{commentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidComment(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidComment(request.resource.data);
-      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
-    match /chat_history/{messageId} {
-      allow read: if isAuthenticated() && isOwner(resource.data.uid);
-      allow create: if isAuthenticated() && isValidChatMessage(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.uid) && isValidChatMessage(request.resource.data);
-      allow delete: if isAuthenticated() && isOwner(resource.data.uid);
+    // Students' project showcase items
+    match /student_works/{workId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.student_id == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.student_id == request.auth.uid);
+    }
+
+    // Config parameters
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

@@ -3,8 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldCheck, Calendar, ChevronDown, ChevronUp, BookOpen, Dumbbell, FileText, MessageSquare, Send, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { client, urlFor } from '../lib/sanity';
 
@@ -32,9 +31,35 @@ export default function CourseDetail() {
         const courseSnap = await getDoc(courseRef);
         if (courseSnap.exists()) {
           const data = courseSnap.data();
+
+          // Fetch chapters from subcollection
+          const chaptersQuery = query(collection(db, `courses/${id}/chapters`));
+          const chaptersSnap = await getDocs(chaptersQuery);
+          let chaptersData = [];
+
+          if (!chaptersSnap.empty) {
+            chaptersData = chaptersSnap.docs.map(docSnap => {
+              const ch = docSnap.data();
+              return {
+                id: docSnap.id,
+                title: ch.title,
+                position: ch.position,
+                is_preview: ch.is_preview,
+                lessons: [
+                  { id: "session", type: "session", title: "Session Video", video_url: ch.session_url || "" },
+                  { id: "exercise", type: "exercise", title: "Exercise Video", video_url: ch.exercise_url || "" },
+                  { id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url || "" }
+                ]
+              };
+            }).sort((a, b) => (a.position || 0) - (b.position || 0));
+          } else {
+            chaptersData = data.chapters || [];
+          }
+
           setCourse({
             id: courseSnap.id,
             ...data,
+            chapters: chaptersData,
             requirements: data.requirements || [],
             learningOutcomes: data.learningOutcomes || [
               "Master professional video editing techniques",
@@ -69,14 +94,20 @@ export default function CourseDetail() {
     // Check enrollment
     if (user) {
       const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
+      // Check enrollment and check paid status
       getDocs(qEnrollment).then(snap => {
-        setIsEnrolled(!snap.empty);
+        if (snap.empty) {
+          setIsEnrolled(false);
+        } else {
+          const anyPaid = snap.docs.some(docSnap => docSnap.data().paid === true);
+          setIsEnrolled(anyPaid);
+        }
       });
 
       // Listen to progress
       const qProgress = query(collection(db, 'progress'), where('uid', '==', user.uid), where('courseId', '==', id), where('completed', '==', true));
       const unsubProgress = onSnapshot(qProgress, (snap) => {
-        const completed = new Set(snap.docs.map(doc => {
+        const completed = new Set<string>(snap.docs.map(doc => {
           const data = doc.data();
           return `${data.chapter}-${data.type}`;
         }));
@@ -577,7 +608,7 @@ export default function CourseDetail() {
                 <div className="mt-10">
                   {!course.isComingSoon && (
                     <div className="text-3xl font-black text-white mb-6">
-                      {course.price.toLocaleString()} {course.currency}
+                      {(course.price || 0).toLocaleString()} {course.currency || 'DA'}
                     </div>
                   )}
                   {isEnrolled ? (

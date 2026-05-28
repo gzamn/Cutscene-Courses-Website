@@ -21,6 +21,7 @@ export default function Navbar() {
   const navLinks = [
     { name: t('nav.home'), path: '/' },
     { name: t('nav.courses'), path: '/courses' },
+    { name: t('nav.student_work'), path: '/student-work' },
     { name: t('nav.contact'), path: '/support' },
   ];
 
@@ -56,6 +57,19 @@ export default function Navbar() {
                   {link.name}
                 </NavLink>
               ))}
+              {userProfile?.role === 'admin' && (
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) => 
+                    `transition-colors font-semibold whitespace-nowrap text-sm sm:text-base flex items-center gap-1 border border-purple-900/40 bg-purple-950/20 px-2.5 py-1 rounded-lg ${
+                      isActive ? 'text-purple-300 border-purple-500/50 bg-purple-900/40' : 'text-purple-400 hover:text-purple-300 hover:bg-purple-900/20'
+                    }`
+                  }
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-md shadow-purple-500/50 animate-pulse" />
+                  Admin
+                </NavLink>
+              )}
             </div>
           </div>
 

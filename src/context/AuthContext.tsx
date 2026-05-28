@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, FirebaseUser } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db, FirebaseUser, onAuthStateChanged, doc, onSnapshot } from '../firebase';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -23,25 +21,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        // Listen to user profile changes
-        const userRef = doc(db, 'users', user.uid);
-        const unsubProfile = onSnapshot(userRef, (doc) => {
-          if (doc.exists()) {
-            setUserProfile(doc.data());
+    let unsubProfile: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (currUser) => {
+      // Clean up previous profile listener
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
+      setUser(currUser);
+
+      if (currUser) {
+        const userRef = doc(db, 'users', currUser.uid);
+        unsubProfile = onSnapshot(userRef, (snap) => {
+          if (snap.exists()) {
+            setUserProfile(snap.data());
+          } else {
+            // Profile doc might not exist yet during sign-up
+            setUserProfile({
+              uid: currUser.uid,
+              email: currUser.email,
+              displayName: currUser.displayName || '',
+              role: 'student',
+            });
           }
+          setLoading(false);
+        }, (error) => {
+          console.error("Error loading user profile:", error);
+          // Set a fallback profile to prevent the UI from blocking if firestore read fails
+          setUserProfile({
+            uid: currUser.uid,
+            email: currUser.email,
+            displayName: currUser.displayName || '',
+            role: 'student',
+          });
+          setLoading(false);
         });
-        setLoading(false);
-        return () => unsubProfile();
       } else {
         setUserProfile(null);
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubProfile) {
+        unsubProfile();
+      }
+    };
   }, []);
 
   return (

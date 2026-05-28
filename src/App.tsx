@@ -11,6 +11,8 @@ import VideoPlayer from './pages/VideoPlayer';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import StudioPage from './pages/Studio';
+import AdminPanel from './pages/Admin';
+import StudentWork from './pages/StudentWork';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -20,6 +22,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, userProfile, loading } = useAuth();
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!userProfile || userProfile.role !== 'admin') return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -43,6 +53,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/courses" element={<Courses />} />
+                <Route path="/student-work" element={<StudentWork />} />
                 <Route path="/courses/:id" element={<CourseDetail />} />
                 <Route path="/support" element={<Support />} />
                 <Route path="/login" element={<Login />} />
@@ -50,6 +61,7 @@ function App() {
                 <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
                 <Route path="/studio/*" element={<StudioPage />} />
                 {/* Catch-all route to redirect back to home */}
                 <Route path="*" element={<Navigate to="/" replace />} />

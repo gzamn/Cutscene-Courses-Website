@@ -1,10 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { db, storage, auth } from '../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { updateProfile, updateEmail, updatePassword } from 'firebase/auth';
+import { db, storage, auth, doc, updateDoc, ref, uploadBytes, getDownloadURL, updateProfile, updateEmail, updatePassword } from '../firebase';
 import { User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -18,11 +15,12 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrlInput, setAvatarUrlInput] = useState('');
 
   React.useEffect(() => {
     if (userProfile) {
       setDisplayName(userProfile.displayName || '');
+      setAvatarUrlInput(userProfile.photoURL || '');
     }
     if (user) {
       setEmail(user.email || '');
@@ -81,17 +79,14 @@ export default function Profile() {
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  const handleAvatarLinkSubmit = async () => {
+    if (!user || !avatarUrlInput.trim()) return;
 
     setUploadingAvatar(true);
     setMessage(null);
 
     try {
-      const storageRef = ref(storage, `avatars/${user.uid}`);
-      await uploadBytes(storageRef, file);
-      const photoURL = await getDownloadURL(storageRef);
+      const photoURL = avatarUrlInput.trim();
 
       // Update Auth
       await updateProfile(user, { photoURL });
@@ -100,10 +95,10 @@ export default function Profile() {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { photoURL });
 
-      setMessage({ type: 'success', text: 'Profile picture updated!' });
+      setMessage({ type: 'success', text: 'Profile picture updated via URL!' });
     } catch (error) {
-      console.error('Avatar Upload Error:', error);
-      setMessage({ type: 'error', text: 'Failed to upload picture.' });
+      console.error('Avatar URL Update Error:', error);
+      setMessage({ type: 'error', text: 'Failed to update picture.' });
     } finally {
       setUploadingAvatar(false);
     }
@@ -126,7 +121,7 @@ export default function Profile() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {/* Avatar Section */}
             <div className="flex flex-col items-center space-y-6">
-              <div className="relative group">
+              <div className="relative">
                 <div className="w-40 h-40 rounded-[2.5rem] overflow-hidden border-2 border-purple-500/30 shadow-2xl shadow-purple-600/20">
                   {uploadingAvatar ? (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
@@ -138,20 +133,27 @@ export default function Profile() {
                     alt="Avatar"
                     className="w-full h-full object-cover"
                   />
+                </div>
+              </div>
+              <div className="w-full max-w-xs space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 text-left">Avatar Link URL</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/pfp.jpg"
+                    value={avatarUrlInput}
+                    onChange={(e) => setAvatarUrlInput(e.target.value)}
+                    className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
                   <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    type="button"
+                    onClick={handleAvatarLinkSubmit}
+                    disabled={uploadingAvatar || !avatarUrlInput.trim()}
+                    className="px-3 py-2 bg-purple-650 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 shrink-0 cursor-pointer"
                   >
-                    <Camera className="w-8 h-8 text-white" />
+                    Save
                   </button>
                 </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleAvatarUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
               </div>
               <div className="text-center">
                 <h3 className="font-bold text-lg">{userProfile?.displayName}</h3>

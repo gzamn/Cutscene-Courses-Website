@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { db, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
@@ -17,6 +15,7 @@ export default function Dashboard() {
   const [userVideos, setUserVideos] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadUrl, setUploadUrl] = useState('');
   const [firestoreCourses, setFirestoreCourses] = useState<any[]>([]);
 
   // Listen to courses collection
@@ -98,28 +97,25 @@ export default function Dashboard() {
     checkAndGenerateCertificates();
   }, [user, enrollments, progress, certificates]);
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user || !uploadTitle) return;
+  const handleVideoLinkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !uploadTitle.trim() || !uploadUrl.trim()) return;
 
     setUploading(true);
     try {
-      const storageRef = ref(storage, `videos/${user.uid}/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-
       await addDoc(collection(db, 'videos'), {
         uid: user.uid,
-        title: uploadTitle,
-        url,
+        title: uploadTitle.trim(),
+        url: uploadUrl.trim(),
         createdAt: new Date().toISOString()
       });
 
       setUploadTitle('');
-      alert('Video uploaded successfully!');
+      setUploadUrl('');
+      alert('Video link submitted successfully!');
     } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Upload failed. Please try again.');
+      console.error('Submit link failed:', error);
+      alert('Submit link failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -290,28 +286,32 @@ export default function Dashboard() {
                 {t('dashboard.uploadTitle')}
               </h2>
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <form onSubmit={handleVideoLinkSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <input 
                     type="text" 
-                    placeholder={t('dashboard.uploadPlaceholder')}
+                    required
+                    placeholder={t('dashboard.uploadPlaceholder') || "Video Title"}
                     value={uploadTitle}
                     onChange={(e) => setUploadTitle(e.target.value)}
-                    className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                   />
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      disabled={uploading || !uploadTitle}
-                      className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                    />
-                    <div className={`w-full h-full bg-purple-600/10 border-2 border-dashed border-purple-600/30 rounded-2xl flex items-center justify-center gap-3 px-6 py-4 transition-colors ${uploading ? 'opacity-50' : 'hover:bg-purple-600/20'}`}>
-                      {uploading ? <Clock className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                      <span className="font-bold">{uploading ? t('dashboard.uploading') : t('dashboard.uploadBtn')}</span>
-                    </div>
-                  </div>
-                </div>
+                  <input 
+                    type="url" 
+                    required
+                    placeholder="Paste project/video URL link"
+                    value={uploadUrl}
+                    onChange={(e) => setUploadUrl(e.target.value)}
+                    className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={uploading || !uploadTitle.trim() || !uploadUrl.trim()}
+                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded-2xl flex items-center justify-center gap-3 px-6 py-4 transition-colors cursor-pointer"
+                  >
+                    {uploading ? <Clock className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    <span className="font-bold">{uploading ? 'Submitting...' : 'Submit Link'}</span>
+                  </button>
+                </form>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {userVideos.map((video) => (

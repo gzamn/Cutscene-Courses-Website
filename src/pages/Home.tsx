@@ -1,63 +1,87 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
-
-const STUDENT_WORK = [
-  {
-    courseId: '1',
-    courseTitle: 'Basic Video Editing',
-    works: [
-      { id: 'w1', studentName: 'Ahmed Z.', thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400&auto=format&fit=crop' },
-      { id: 'w2', studentName: 'Sara M.', thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=400&auto=format&fit=crop' },
-      { id: 'w3', studentName: 'Karim L.', thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=400&auto=format&fit=crop' },
-    ]
-  },
-  {
-    courseId: '2',
-    courseTitle: 'Advanced Video Editing',
-    works: [
-      { id: 'w4', studentName: 'Yassine B.', thumbnail: 'https://images.unsplash.com/photo-1535016120720-40c646bebbfc?q=80&w=400&auto=format&fit=crop' },
-      { id: 'w5', studentName: 'Lina K.', thumbnail: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=400&auto=format&fit=crop' },
-      { id: 'w9', studentName: 'Amir T.', thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=400&auto=format&fit=crop' },
-    ]
-  },
-  {
-    courseId: '3',
-    courseTitle: 'Motion Design',
-    works: [
-      { id: 'w6', studentName: 'Omar D.', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=400&auto=format&fit=crop' },
-      { id: 'w7', studentName: 'Meriem S.', thumbnail: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=400&auto=format&fit=crop' },
-      { id: 'w8', studentName: 'Sofiane R.', thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=400&auto=format&fit=crop' },
-    ]
-  }
-];
+import { db, collection, getDocs, ensureDefaultStudentWorksSeeded } from '../firebase';
 
 export default function Home() {
   const { t, language } = useLanguage();
   const [courses, setCourses] = useState<any[]>([]);
+  const [studentWorks, setStudentWorks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchCourses = async () => {
+    const loadData = async () => {
       try {
+        setLoading(true);
+        // Fetch courses
         const snap = await getDocs(collection(db, 'courses'));
         const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).slice(0, 3);
         setCourses(list);
+
+        // Fetch student works
+        let worksSnap = await getDocs(collection(db, 'student_works'));
+        if (worksSnap.empty) {
+          await ensureDefaultStudentWorksSeeded();
+          worksSnap = await getDocs(collection(db, 'student_works'));
+        }
+        const worksList = worksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const groups: { [key: string]: any } = {};
+        worksList.forEach((w: any) => {
+          const cId = w.course_id || w.courseId || 'unknown';
+          const cTitle = w.course_name || w.courseTitle || 'Other';
+          if (!groups[cId]) {
+            groups[cId] = {
+              courseId: cId,
+              courseTitle: cTitle,
+              works: []
+            };
+          }
+          const sName = w.student_name || w.studentName || 'Anonymous Student';
+          const sAvatar = w.student_avatar || w.studentAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${sName}&backgroundColor=9333ea`;
+          groups[cId].works.push({
+            id: w.id,
+            studentName: sName,
+            studentAvatar: sAvatar,
+            thumbnail: w.image_url || w.thumbnail || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400',
+            videoUrl: w.video_url || w.url || ''
+          });
+        });
+        setStudentWorks(Object.values(groups));
       } catch (err) {
-        console.error("Error fetching homepage courses:", err);
+        console.error("Error loading homepage data:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchCourses();
+    loadData();
   }, []);
+
   const scrollToStudentsWork = () => {
     const element = document.getElementById('students-work');
     element?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const getEmbedVideoUrl = (url: string) => {
+    if (!url) return '';
+    try {
+      if (url.includes('youtu.be/')) {
+        const id = url.split('youtu.be/')[1]?.split('?')[0];
+        return `https://www.youtube.com/embed/${id}`;
+      }
+      if (url.includes('v=')) {
+        const id = url.split('v=')[1]?.split('&')[0];
+        return `https://www.youtube.com/embed/${id}`;
+      }
+      if (url.includes('embed/')) {
+        return url;
+      }
+      return url;
+    } catch {
+      return url;
+    }
   };
 
   return (
@@ -78,14 +102,7 @@ export default function Home() {
               transition={{ duration: 0.8, ease: "easeOut" }}
               className="lg:col-span-7 text-left"
             >
-              <div className="flex items-center gap-3 mb-8">
-                <span className="h-px w-12 bg-purple-500/50" />
-                <span className="text-micro text-purple-400">
-                  {t('hero.badge')}
-                </span>
-              </div>
-              
-              <h1 className="text-6xl md:text-8xl font-black mb-8 leading-[0.9] tracking-tighter uppercase">
+              <h1 className="text-6xl md:text-8xl font-black mb-8 leading-[0.9] tracking-tighter uppercase pt-8">
                 {language === 'ar' ? (
                   <>
                     حاب تتعلم <br />
@@ -201,47 +218,81 @@ export default function Home() {
                   whileHover={{ y: -10 }}
                   className="bg-black border border-purple-900/20 rounded-2xl overflow-hidden group"
                 >
-                  <Link to={`/courses/${course.id}`} className="relative h-48 overflow-hidden block">
-                    <img 
-                      src={course.image} 
-                      alt={course.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute top-4 left-4 flex flex-col gap-2">
-                      <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-                        {course.level}
-                      </span>
-                      {course.duration && (
-                        <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
-                          <Clock className="w-3 h-3 text-purple-400" /> {course.duration}
+                  {course.isComingSoon ? (
+                    <div className="relative h-48 overflow-hidden block">
+                      <img 
+                        src={course.image} 
+                        alt={course.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] z-10">
+                        <div className="w-12 h-12 bg-black/60 border border-purple-500/30 rounded-full flex items-center justify-center shadow-2xl">
+                          <Lock className="w-6 h-6 text-purple-400" />
+                        </div>
+                      </div>
+                      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+                        <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+                          {course.level}
                         </span>
-                      )}
+                      </div>
                     </div>
-                  </Link>
-                  <div className="p-6">
-                    <Link to={`/courses/${course.id}`}>
-                      <h3 className="text-xl font-bold mb-2 group-hover:text-purple-400 transition-colors">{course.title}</h3>
+                  ) : (
+                    <Link to={`/courses/${course.id}`} className="relative h-48 overflow-hidden block">
+                      <img 
+                        src={course.image} 
+                        alt={course.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+                        <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+                          {course.level}
+                        </span>
+                        {course.duration && (
+                          <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
+                            <Clock className="w-3 h-3 text-purple-400" /> {course.duration}
+                          </span>
+                        )}
+                      </div>
                     </Link>
+                  )}
+                  <div className="p-6">
+                    {course.isComingSoon ? (
+                      <h3 className="text-xl font-bold mb-2 text-zinc-400 transition-colors">{course.title}</h3>
+                    ) : (
+                      <Link to={`/courses/${course.id}`}>
+                        <h3 className="text-xl font-bold mb-2 group-hover:text-purple-400 transition-colors">{course.title}</h3>
+                      </Link>
+                    )}
                     <p className="text-gray-400 text-sm mb-4 line-clamp-2">{course.description}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold text-white">
-                        {course.price ? `${course.price.toLocaleString()} ${course.currency || 'DA'}` : 'Free'}
-                      </span>
-                      <div className="flex gap-2">
-                        <Link 
-                          to={`/courses/${course.id}`}
-                          className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-purple-900/30 rounded-lg transition-all text-xs font-bold"
-                        >
-                          {t('courses.details')}
-                        </Link>
-                        <Link 
-                          to={`/payment?courseId=${course.id}`}
-                          className="px-4 py-2 bg-brand-radial hover:opacity-90 text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold shadow-lg shadow-purple-600/10"
-                        >
-                          {t('courses.getStarted')}
-                        </Link>
-                      </div>
+                      {course.isComingSoon ? (
+                        <span className="px-3.5 py-1.5 bg-purple-500/10 text-purple-400 text-[11px] font-bold uppercase tracking-wider rounded-lg border border-purple-500/25 max-w-max select-none shadow-sm flex items-center gap-1.5">
+                          <span>🔮</span>
+                          <span>{t('course.comingSoon')}</span>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-2xl font-bold text-white">
+                            {course.price ? `${course.price.toLocaleString()} ${course.currency || 'DA'}` : 'Free'}
+                          </span>
+                          <div className="flex gap-2">
+                            <Link 
+                              to={`/courses/${course.id}`}
+                              className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-purple-900/30 rounded-lg transition-all text-xs font-bold"
+                            >
+                              {t('courses.details')}
+                            </Link>
+                            <Link 
+                              to={`/payment?courseId=${course.id}`}
+                              className="px-4 py-2 bg-brand-radial hover:opacity-90 text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold shadow-lg shadow-purple-600/10"
+                            >
+                              {t('courses.getStarted')}
+                            </Link>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -267,7 +318,7 @@ export default function Home() {
           </div>
 
           <div className="space-y-20">
-            {STUDENT_WORK.map((category, idx) => (
+            {studentWorks.map((category, idx) => (
               <div key={category.courseId}>
                 <div className="flex items-center gap-4 mb-8">
                   <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center">
@@ -278,7 +329,7 @@ export default function Home() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {category.works.map((work, i) => (
+                  {category.works.map((work: any, i: number) => (
                     <motion.div 
                       key={work.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -287,22 +338,33 @@ export default function Home() {
                       transition={{ delay: i * 0.1 }}
                       className="group"
                     >
-                      <div className="relative aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-purple-900/20 group-hover:border-purple-500/50 transition-all shadow-xl">
+                      <div 
+                        onClick={() => work.videoUrl && setActiveVideoUrl(work.videoUrl)}
+                        className={`relative aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-purple-900/20 group-hover:border-purple-500/50 transition-all shadow-xl ${work.videoUrl ? 'cursor-pointer' : ''}`}
+                      >
                         <img 
                           src={work.thumbnail} 
                           alt={work.studentName}
                           className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity duration-500"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-600/40">
-                            <Play className="w-6 h-6 text-white fill-current" />
+                        {work.videoUrl && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-600/40 transform hover:scale-115 transition-transform duration-300">
+                              <Play className="w-6 h-6 text-white fill-current" />
+                            </div>
                           </div>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                          <div className="text-sm font-bold text-white flex items-center gap-2">
-                            <Users className="w-4 h-4 text-purple-400" />
-                            {work.studentName}
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/75 to-transparent flex items-center gap-3 z-20">
+                          <img
+                            src={work.studentAvatar}
+                            alt={work.studentName}
+                            className="w-8 h-8 rounded-full object-cover border border-purple-500/30 shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-white leading-tight">{work.studentName}</div>
+                            <div className="text-[9px] text-purple-300 font-mono tracking-wider uppercase">Verified Scholar</div>
                           </div>
                         </div>
                       </div>
@@ -314,6 +376,44 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Video Overlay Modal */}
+      <AnimatePresence>
+        {activeVideoUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[9999] flex-col"
+          >
+            <div className="relative w-full max-w-4xl aspect-video bg-zinc-950 rounded-2xl overflow-hidden border border-purple-500/30 shadow-2xl">
+              <button
+                onClick={() => setActiveVideoUrl(null)}
+                className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black text-white rounded-full transition-all border border-white/10 z-50 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {activeVideoUrl.includes('youtube.com') || activeVideoUrl.includes('youtu.be') ? (
+                <iframe
+                  src={getEmbedVideoUrl(activeVideoUrl)}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Video Player"
+                />
+              ) : (
+                <video
+                  src={activeVideoUrl}
+                  className="w-full h-full object-contain"
+                  controls
+                  autoPlay
+                />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

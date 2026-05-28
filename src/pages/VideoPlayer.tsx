@@ -3,9 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
 const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => {
@@ -53,6 +51,7 @@ export default function VideoPlayer() {
   // Homework State
   const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
+  const [homeworkLinkInput, setHomeworkLinkInput] = useState('');
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
   const [isWindowFocused, setIsWindowFocused] = useState(true);
@@ -97,12 +96,33 @@ export default function VideoPlayer() {
   // Window focus detection
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
+    const handleBlur = () => {
+      // Delay slightly to evaluate the activeElement after focus shift is resolved
+      setTimeout(() => {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.tagName === 'IFRAME') {
+          // Ignore if focus is inside the video stream iframe to keep actions like play/pause uninterrupted
+          return;
+        }
+        setIsWindowFocused(false);
+      }, 200);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsWindowFocused(false);
+      } else {
+        setIsWindowFocused(true);
+      }
+    };
+
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -148,7 +168,33 @@ export default function VideoPlayer() {
         const courseRef = doc(db, 'courses', id);
         const courseSnap = await getDoc(courseRef);
         if (courseSnap.exists() && isSubscribed) {
-          setCourse({ id: courseSnap.id, ...courseSnap.data() });
+          const data = courseSnap.data();
+
+          // Fetch chapters from subcollection
+          const chaptersQuery = query(collection(db, `courses/${id}/chapters`));
+          const chaptersSnap = await getDocs(chaptersQuery);
+          let chaptersData = [];
+
+          if (!chaptersSnap.empty) {
+            chaptersData = chaptersSnap.docs.map(docSnap => {
+              const ch = docSnap.data();
+              return {
+                id: docSnap.id,
+                title: ch.title,
+                position: ch.position,
+                is_preview: ch.is_preview,
+                lessons: [
+                  { id: "session", type: "session", title: "Session Video", video_url: ch.session_url || "" },
+                  { id: "exercise", type: "exercise", title: "Exercise Video", video_url: ch.exercise_url || "" },
+                  { id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url || "" }
+                ]
+              };
+            }).sort((a, b) => (a.position || 0) - (b.position || 0));
+          } else {
+            chaptersData = data.chapters || [];
+          }
+
+          setCourse({ id: courseSnap.id, ...data, chapters: chaptersData });
         }
       } catch (error) {
         console.error('Error fetching course:', error);
@@ -164,7 +210,14 @@ export default function VideoPlayer() {
     if (user) {
       const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
       unsubEnrollment = onSnapshot(qEnrollment, (snap) => {
-        if (isSubscribed) setIsEnrolled(!snap.empty);
+        if (isSubscribed) {
+          if (snap.empty) {
+            setIsEnrolled(false);
+          } else {
+            const anyPaid = snap.docs.some(docSnap => docSnap.data().paid === true);
+            setIsEnrolled(anyPaid);
+          }
+        }
       }, (error) => handleFirestoreError(error, OperationType.GET, 'enrollments'));
 
       // Listen to lesson progress
@@ -302,27 +355,33 @@ export default function VideoPlayer() {
     }
   };
 
-  const handleHomeworkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user || !id || !chapter) return;
+  const handleHomeworkLinkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!homeworkLinkInput.trim() || !user || !id || !chapter) return;
 
     setUploading(true);
     try {
-      const storageRef = ref(storage, `homework/${user.uid}/${id}_ch${chapter}_${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const url = homeworkLinkInput.trim();
+      let label = "Project Link";
+      try {
+        const parsed = new URL(url);
+        label = parsed.hostname.replace('www.', '') + ' Link';
+      } catch {
+        label = "Submission Link";
+      }
 
       await addDoc(collection(db, 'homework_submissions'), {
         uid: user.uid,
         courseId: id,
         chapter: parseInt(chapter),
         url,
-        fileName: file.name,
+        fileName: label,
         createdAt: new Date().toISOString()
       });
+      setHomeworkLinkInput('');
     } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Upload failed. Please try again.');
+      console.error('Submission failed:', error);
+      alert('Submission failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -388,60 +447,66 @@ export default function VideoPlayer() {
               ref={videoContainerRef}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8 select-none transition-all duration-500 ${!isWindowFocused ? 'blur-2xl scale-105' : ''}`}
+              className="relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8 select-none"
             >
-              {/* Security Watermark */}
-              <AnimatePresence>
-                {isEnrolled || isFirstSession ? (
-                  <motion.div
-                    animate={{ top: watermarkPos.top, left: watermarkPos.left }}
-                    transition={{ duration: 2, ease: "easeInOut" }}
-                    className="absolute z-30 pointer-events-none select-none opacity-20 text-[10px] font-mono text-white whitespace-nowrap bg-black/20 px-2 py-1 rounded-md border border-white/5"
-                  >
-                    {user?.email} • {user?.uid.slice(0, 8)} • PROTECTED CONTENT
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
+              {/* Blur-bounded content wrapper */}
+              <div className={`w-full h-full transition-all duration-500 ${!isWindowFocused ? 'blur-2xl scale-98 pointer-events-none select-none opacity-40' : ''}`}>
+                
+                {/* Security Watermark when active */}
+                <AnimatePresence>
+                  {isEnrolled || isFirstSession ? (
+                    <motion.div
+                      animate={{ top: watermarkPos.top, left: watermarkPos.left }}
+                      transition={{ duration: 2, ease: "easeInOut" }}
+                      className="absolute z-30 pointer-events-none select-none opacity-20 text-[10px] font-mono text-white whitespace-nowrap bg-black/20 px-2 py-1 rounded-md border border-white/5"
+                    >
+                      {user?.email} • {user?.uid.slice(0, 8)} • PROTECTED CONTENT
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
 
-              {/* Security Warning Overlay on Blur */}
+                {/* YouTube Video Player or Locker info */}
+                {(!isEnrolled && !isFirstSession) ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-sm z-20 p-8 text-center">
+                    <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
+                      <Lock className="w-10 h-10 text-purple-500" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2">{t('course.lockedTitle')}</h2>
+                    <p className="text-gray-400 max-w-md mb-8">
+                      {t('course.lockedDesc')}
+                    </p>
+                    <Link 
+                      to={`/payment?courseId=${course.id}`}
+                      className="px-8 py-3 bg-brand-radial text-white rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-purple-600/20 flex items-center gap-2"
+                    >
+                      {t('course.unlock')}
+                      <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-black">
+                    <iframe
+                      src={getLessonVideoUrl(course, chapter || '1', type || 'session')}
+                      title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      className="w-full h-full"
+                    ></iframe>
+                  </div>
+                )}
+              </div>
+
+              {/* CRISP & UNBLURRED Security Warning Overlay on Blur */}
               {!isWindowFocused && (
-                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
-                  <div className="text-center p-6">
-                    <ShieldAlert className="w-12 h-12 text-purple-500 mx-auto mb-4 animate-pulse" />
-                    <h3 className="text-xl font-bold text-white mb-2">Content Protected</h3>
-                    <p className="text-sm text-gray-400">Please return to the window to continue watching.</p>
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
+                  <div className="text-center p-6 bg-zinc-950/90 border border-purple-500/20 rounded-3xl max-w-sm mx-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                    <ShieldAlert className="w-12 h-12 text-purple-400 mx-auto mb-4 animate-bounce" />
+                    <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-wider">Content Protected</h3>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      Cutscene academy content is protected with live digital watermark security. Click anywhere on this page to continue playing.
+                    </p>
                   </div>
-                </div>
-              )}
-
-              {/* YouTube Video Player */}
-              {(!isEnrolled && !isFirstSession) ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-sm z-20 p-8 text-center">
-                  <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
-                    <Lock className="w-10 h-10 text-purple-500" />
-                  </div>
-                  <h2 className="text-2xl font-bold mb-2">{t('course.lockedTitle')}</h2>
-                  <p className="text-gray-400 max-w-md mb-8">
-                    {t('course.lockedDesc')}
-                  </p>
-                  <Link 
-                    to={`/payment?courseId=${course.id}`}
-                    className="px-8 py-3 bg-brand-radial text-white rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-purple-600/20 flex items-center gap-2"
-                  >
-                    {t('course.unlock')}
-                    <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                  </Link>
-                </div>
-              ) : (
-                <div className="absolute inset-0 w-full h-full bg-black">
-                  <iframe
-                    src={getLessonVideoUrl(course, chapter || '1', type || 'session')}
-                    title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    className="w-full h-full"
-                  ></iframe>
                 </div>
               )}
             </motion.div>
@@ -528,22 +593,33 @@ export default function VideoPlayer() {
                       </button>
                     </div>
                   ) : (
-                    <div className="relative">
-                      <input 
-                        type="file" 
-                        accept="video/*"
-                        onChange={handleHomeworkUpload}
-                        disabled={uploading}
-                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <div className={`w-full py-8 bg-purple-600/5 border-2 border-dashed border-purple-600/20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-colors ${uploading ? 'opacity-50' : 'hover:bg-purple-600/10'}`}>
-                        {uploading ? <Loader2 className="w-8 h-8 text-purple-500 animate-spin" /> : <Upload className="w-8 h-8 text-purple-500" />}
-                        <div className="text-center">
-                          <div className="font-bold">{uploading ? 'Uploading...' : t('course.upload')}</div>
-                          <div className="text-xs text-gray-500 mt-1">MP4, MOV or AVI (Max 50MB)</div>
+                    <form onSubmit={handleHomeworkLinkSubmit} className="space-y-4">
+                      <div>
+                        <div className="flex gap-3">
+                          <input 
+                            type="url" 
+                            required
+                            placeholder="e.g. https://youtube.com/watch?v=... or https://drive.google.com/..."
+                            value={homeworkLinkInput}
+                            onChange={(e) => setHomeworkLinkInput(e.target.value)}
+                            disabled={uploading}
+                            className="flex-grow bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                          <button
+                            type="submit"
+                            disabled={uploading || !homeworkLinkInput.trim()}
+                            className="px-6 py-3 bg-purple-650 hover:bg-purple-600 disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            {uploading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              'Submit'
+                            )}
+                          </button>
                         </div>
+                        <span className="block text-[10px] text-gray-500 mt-1.5">{t('course.uploadLinkHint') || 'Paste direct link to your video or image asset.'}</span>
                       </div>
-                    </div>
+                    </form>
                   )}
                 </div>
               )}
