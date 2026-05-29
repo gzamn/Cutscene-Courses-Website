@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { GraduationCap, LogOut, User, LayoutDashboard, Globe } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Globe } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { logout } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -31,9 +31,11 @@ export default function Navbar() {
         <div className="flex flex-col md:flex-row items-center py-4 gap-4 md:justify-between">
           <div className="flex items-center gap-10">
             <Link to="/" className="flex items-center gap-3 group shrink-0">
-              <div className="p-2 bg-brand-radial rounded-xl group-hover:scale-105 transition-transform shadow-lg shadow-purple-600/20">
-                <GraduationCap className="w-5 h-5 text-white" />
-              </div>
+              <img 
+                src="https://i.imgur.com/GbSMeSE.png" 
+                alt="Cutscene Logo" 
+                className="w-9 h-9 object-cover rounded-xl group-hover:scale-105 transition-transform"
+              />
               <div className="flex flex-col">
                 <span className="text-xl font-black tracking-tighter text-white leading-none">
                   CUTSCENE

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { GraduationCap, Mail, Instagram, Linkedin, Music, Phone, MessageCircle } from 'lucide-react';
+import { Mail, Instagram, Linkedin, Music, Phone, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -8,9 +8,11 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 bg-purple-600 rounded-md">
-                <GraduationCap className="w-5 h-5 text-white" />
-              </div>
+              <img 
+                src="https://i.imgur.com/GbSMeSE.png" 
+                alt="Cutscene Logo" 
+                className="w-8 h-8 object-cover rounded-xl"
+              />
               <span className="text-lg font-bold text-white">Cutscene</span>
             </div>
             <p className="text-gray-400 max-w-sm">

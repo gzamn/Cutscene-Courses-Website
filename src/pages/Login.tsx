@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { GraduationCap } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import AuthFlow from '../components/AuthFlow';
 
@@ -23,9 +22,11 @@ export default function Login() {
       >
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4 group">
-            <div className="p-2 bg-purple-600 rounded-xl group-hover:scale-110 transition-transform">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
+            <img 
+              src="https://i.imgur.com/GbSMeSE.png" 
+              alt="Cutscene Logo" 
+              className="w-10 h-10 object-cover rounded-xl group-hover:scale-110 transition-transform"
+            />
             <span className="text-2xl font-bold text-white tracking-tight">Cutscene</span>
           </div>
         </div>
