@@ -82,6 +82,46 @@ export default function VideoPlayer() {
   const nextLink = getNextLessonLink();
   const isLastLesson = nextLink === '/dashboard';
 
+  const currentChapter = parseInt(chapter || '1');
+  const currentType = type || 'session';
+  
+  const prevType = currentType === 'homework' ? 'exercise' : currentType === 'exercise' ? 'session' : null;
+  const nextType = currentType === 'session' ? 'exercise' : currentType === 'exercise' ? 'homework' : null;
+
+  const prevLessonUrl = prevType ? `/courses/${id}/video/${currentChapter}/${prevType}` : null;
+  const nextLessonUrl = nextType ? `/courses/${id}/video/${currentChapter}/${nextType}` : null;
+  
+  const prevChapterUrl = currentChapter > 1 ? `/courses/${id}/video/${currentChapter - 1}/session` : null;
+  const nextChapterUrl = currentChapter < totalChapters ? `/courses/${id}/video/${currentChapter + 1}/session` : null;
+
+  const getPrevLessonText = () => {
+    if (currentType === 'exercise') {
+      if (language === 'ar') return 'الرجوع إلى الحصة';
+      if (language === 'fr') return 'Retour à la Session';
+      return 'Go back to Session';
+    }
+    if (currentType === 'homework') {
+      if (language === 'ar') return 'الرجوع إلى التمرين';
+      if (language === 'fr') return 'Retour à l’Exercice';
+      return 'Go back to Exercise';
+    }
+    return '';
+  };
+
+  const getNextLessonText = () => {
+    if (currentType === 'session') {
+      if (language === 'ar') return 'الذهاب للتمرين';
+      if (language === 'fr') return 'Aller à l’Exercice';
+      return 'Go to Exercise';
+    }
+    if (currentType === 'exercise') {
+      if (language === 'ar') return 'الذهاب للتطبيق المنزلي';
+      if (language === 'fr') return 'Aller au Devoir';
+      return 'Go to Homework';
+    }
+    return '';
+  };
+
   // Watermark movement
   useEffect(() => {
     const interval = setInterval(() => {
@@ -511,28 +551,91 @@ export default function VideoPlayer() {
               )}
             </motion.div>
 
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                  <Icon className="w-8 h-8 text-purple-500" />
-                  Chapter {chapter}: {typeLabels[type || 'session']}
-                </h1>
-                <p className="text-gray-400">{course.title}</p>
+            <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 md:p-8 mb-8">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-purple-900/20 mb-6">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-black mb-1 flex items-center gap-3">
+                    <Icon className="w-8 h-8 text-purple-500 shrink-0" />
+                    Chapter {chapter}: {typeLabels[type || 'session']}
+                  </h1>
+                  <p className="text-gray-400 text-sm">{course.title}</p>
+                </div>
+                
+                {/* Chapter jump controls */}
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                  {prevChapterUrl && (
+                    <Link
+                      to={prevChapterUrl}
+                      className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 border border-purple-950/40 text-[11px] font-bold uppercase rounded-xl transition-all flex items-center gap-1.5 text-gray-300"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      {language === 'ar' ? `العودة للفصل ${currentChapter - 1}` : language === 'fr' ? `Retour au Ch. ${currentChapter - 1}` : `Back to Ch. ${currentChapter - 1}`}
+                    </Link>
+                  )}
+                  {nextChapterUrl && (
+                    <Link
+                      to={nextChapterUrl}
+                      className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 border border-purple-950/40 text-[11px] font-bold uppercase rounded-xl transition-all flex items-center gap-1.5 text-gray-300 ml-auto md:ml-0"
+                    >
+                      {language === 'ar' ? `الذهاب للفصل ${currentChapter + 1}` : language === 'fr' ? `Aller au Ch. ${currentChapter + 1}` : `Next Ch. ${currentChapter + 1}`}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-4">
+
+              {/* Lesson switcher arrows inside the chapter */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  {prevLessonUrl ? (
+                    <Link
+                      to={prevLessonUrl}
+                      className="flex items-center gap-3 p-4 bg-zinc-900 hover:bg-purple-950/20 hover:border-purple-500/30 border border-purple-900/10 rounded-2xl transition-all group text-left h-full"
+                    >
+                      <ArrowLeft className="w-5 h-5 text-purple-400 group-hover:-translate-x-1 transition-transform shrink-0" />
+                      <div>
+                        <div className="text-[9px] uppercase font-black tracking-widest text-purple-400">
+                          {language === 'ar' ? 'الدرس السابق' : language === 'fr' ? 'Leçon Précédente' : 'Previous Lesson'}
+                        </div>
+                        <div className="text-xs md:text-sm font-bold text-white mt-0.5">{getPrevLessonText()}</div>
+                      </div>
+                    </Link>
+                  ) : <div className="h-full min-h-[70px] bg-zinc-900/10 border border-dashed border-zinc-900/35 rounded-2xl flex items-center justify-center text-[10px] text-gray-600 font-bold uppercase tracking-wider">{language === 'ar' ? 'بداية الفصل' : language === 'fr' ? 'Début' : 'Start of Chapter'}</div>}
+                </div>
+
+                <div>
+                  {nextLessonUrl ? (
+                    <Link
+                      to={nextLessonUrl}
+                      className="flex items-center justify-between p-4 bg-zinc-900 hover:bg-purple-950/20 hover:border-purple-500/30 border border-purple-900/10 rounded-2xl transition-all group text-right h-full"
+                    >
+                      <div className="ml-auto pr-3">
+                        <div className="text-[9px] uppercase font-black tracking-widest text-purple-400">
+                          {language === 'ar' ? 'الدرس التالي' : language === 'fr' ? 'Leçon Suivante' : 'Next Lesson'}
+                        </div>
+                        <div className="text-xs md:text-sm font-bold text-white mt-0.5">{getNextLessonText()}</div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-purple-400 group-hover:translate-x-1 transition-transform shrink-0" />
+                    </Link>
+                  ) : <div className="h-full min-h-[70px] bg-zinc-900/10 border border-dashed border-zinc-900/35 rounded-2xl flex items-center justify-center text-[10px] text-gray-600 font-bold uppercase tracking-wider">{language === 'ar' ? 'نهاية الفصل' : language === 'fr' ? 'Fin' : 'End of Chapter'}</div>}
+                </div>
+              </div>
+
+              {/* Mark as Complete and primary Progress controller under them */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-purple-900/10">
                 <button 
                   onClick={handleMarkComplete}
                   disabled={isCompleted || submitting || loading}
-                  className={`px-6 py-2 border border-purple-900/30 rounded-xl transition-all text-sm font-bold flex items-center gap-2 ${
+                  className={`w-full sm:w-auto px-8 py-3 bg-zinc-900 hover:bg-zinc-800 border border-purple-900/30 rounded-2xl transition-all text-sm font-bold flex items-center justify-center gap-2.5 ${
                     isCompleted 
-                      ? 'bg-green-600/20 text-green-500 border-green-500/30' 
-                      : 'bg-zinc-900 hover:bg-zinc-800'
+                      ? 'bg-green-600/15 text-green-400 border-green-500/20 shadow-lg shadow-green-500/5' 
+                      : 'text-white'
                   } disabled:opacity-50`}
                 >
                   {submitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : isCompleted ? (
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-4.5 h-4.5" />
                   ) : null}
                   {isCompleted ? t('course.completed') : t('course.markComplete')}
                 </button>
@@ -540,7 +643,7 @@ export default function VideoPlayer() {
                 {isCompleted && (
                   <Link
                     to={nextLink}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all text-sm font-bold flex items-center gap-2 shadow-lg shadow-purple-600/20"
+                    className="w-full sm:w-auto px-8 py-3 bg-brand-radial hover:opacity-95 text-white rounded-2xl transition-all text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl shadow-purple-600/20"
                   >
                     {isLastLesson ? t('dashboard.return') || 'Return to Dashboard' : t('course.nextLesson') || 'Next Lesson'}
                     <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />

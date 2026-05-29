@@ -20,6 +20,38 @@ export default function CourseDetail() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [enrollmentCount, setEnrollmentCount] = useState<number>(0);
+
+  const averageRating = reviews.length > 0 
+    ? (reviews.reduce((acc, r) => acc + Number(r.rating || 5), 0) / reviews.length).toFixed(1)
+    : '5.0';
+
+  const getContinueUrl = () => {
+    if (!course || !course.chapters || course.chapters.length === 0) {
+      return `/courses/${id}/video/1/session`;
+    }
+    
+    for (let index = 0; index < course.chapters.length; index++) {
+      const chapterNum = index + 1;
+      for (const type of ['session', 'exercise', 'homework']) {
+        if (!completedLessons.has(`${chapterNum}-${type}`)) {
+          return `/courses/${id}/video/${chapterNum}/${type}`;
+        }
+      }
+    }
+    
+    return `/courses/${id}/video/1/session`;
+  };
+
+  useEffect(() => {
+    if (!id) return;
+    const qEnrollments = query(collection(db, 'enrollments'), where('courseId', '==', id));
+    getDocs(qEnrollments).then(snap => {
+      setEnrollmentCount(snap.size);
+    }).catch(err => {
+      console.error("Error fetching enrollments count:", err);
+    });
+  }, [id, isEnrolled]);
 
   useEffect(() => {
     if (!id) return;
@@ -187,7 +219,9 @@ export default function CourseDetail() {
                 </span>
                 <div className="flex items-center gap-1 text-yellow-500">
                   <Star className="w-4 h-4 fill-current" />
-                  <span className="text-sm font-bold">4.9 (120+ {t('course.reviews')})</span>
+                  <span className="text-sm font-bold">
+                    {averageRating} ({reviews.length} {t('course.reviews')})
+                  </span>
                 </div>
               </div>
               <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
@@ -209,14 +243,14 @@ export default function CourseDetail() {
                 </div>
                 <div className="flex items-center gap-2 text-gray-300">
                   <Users className="w-5 h-5 text-purple-500" />
-                  <span>330+ {t('stats.students')}</span>
+                  <span>{enrollmentCount} {t('stats.students')}</span>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 {isEnrolled ? (
                   <Link 
-                    to="/dashboard"
+                    to={getContinueUrl()}
                     className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                   >
                     {t('dashboard.continue')}
@@ -231,10 +265,15 @@ export default function CourseDetail() {
                     <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </Link>
                 )}
-                <button className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2">
-                  <Play className="w-5 h-5 text-purple-500 fill-current" />
-                  Watch Trailer
-                </button>
+                {!isEnrolled && (
+                  <Link 
+                    to={`/courses/${course.id}/video/1/session`}
+                    className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-5 h-5 text-purple-500 fill-current" />
+                    {language === 'ar' ? 'شاهد حصة واحدة مجاناً' : language === 'fr' ? 'Regarder 1 session GRATUITE' : 'Watch 1 FREE session'}
+                  </Link>
+                )}
               </div>
             </motion.div>
 
@@ -601,7 +640,7 @@ export default function CourseDetail() {
                     <span className="text-gray-500 flex items-center gap-2">
                       <Users className="w-4 h-4" /> {t('stats.students')}
                     </span>
-                    <span className="text-gray-300">330+</span>
+                    <span className="text-gray-300">{enrollmentCount}</span>
                   </div>
                 </div>
 
@@ -613,7 +652,7 @@ export default function CourseDetail() {
                   )}
                   {isEnrolled ? (
                     <Link 
-                      to="/dashboard"
+                      to={getContinueUrl()}
                       className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                     >
                       {t('dashboard.continue')}

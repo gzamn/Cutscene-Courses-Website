@@ -85,11 +85,19 @@ export default function Courses() {
                       </div>
                     </div>
                   )}
-                  <div className="absolute top-6 left-6 flex flex-col gap-2">
-                    <span className="px-4 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-                      {course.level || 'Beginner'}
-                    </span>
-                  </div>
+                  {!course.isComingSoon && (
+                    <div className="absolute top-6 left-6 flex flex-col gap-2">
+                      <span className={`px-4 py-1.5 text-xs font-bold rounded-full uppercase tracking-wider backdrop-blur-md ${
+                        (course.level || '').toLowerCase() === 'beginner'
+                          ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                          : (course.level || '').toLowerCase() === 'advanced'
+                          ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                          : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                      }`}>
+                        {course.level || 'Beginner'}
+                      </span>
+                    </div>
+                  )}
                 </Link>
                 
                 <div className="p-8 lg:p-12 flex-1 flex flex-col">
@@ -150,34 +158,36 @@ export default function Courses() {
                   
                   <div className="mt-auto pt-8 border-t border-purple-900/20 flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <BarChart className="w-5 h-5 text-purple-500" />
-                        <span className="font-medium">{course.level || 'Beginner'} {t('course.level')}</span>
-                      </div>
+                      {!course.isComingSoon && (
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <BarChart className="w-5 h-5 text-purple-500" />
+                          <span className="font-medium">{course.level || 'Beginner'} {t('course.level')}</span>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                      <Link 
-                        to={`/courses/${course.id}`}
-                        className="w-full sm:w-auto px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border border-purple-900/30"
-                      >
-                        {t('courses.details')}
-                      </Link>
                       {course.isComingSoon ? (
-                        <button 
-                          disabled
-                          className="w-full sm:w-auto px-10 py-4 bg-zinc-800 text-gray-400 cursor-not-allowed rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
-                        >
-                          {t('course.comingSoon') || 'Coming Soon'}
-                        </button>
+                        <span className="px-6 py-3.5 bg-purple-500/10 text-purple-400 text-sm font-bold uppercase tracking-wider rounded-2xl border border-purple-500/20 shadow-sm flex items-center gap-2 select-none">
+                          <span>🔮</span>
+                          <span>{t('course.comingSoon') || 'Coming Soon'}</span>
+                        </span>
                       ) : (
-                        <Link 
-                          to={`/payment?courseId=${course.id}`}
-                          className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
-                        >
-                          {t('courses.getStarted')}
-                          <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-                        </Link>
+                        <>
+                          <Link 
+                            to={`/courses/${course.id}`}
+                            className="w-full sm:w-auto px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border border-purple-900/30"
+                          >
+                            {t('courses.details')}
+                          </Link>
+                          <Link 
+                            to={`/payment?courseId=${course.id}`}
+                            className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
+                          >
+                            {t('courses.getStarted')}
+                            <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+                          </Link>
+                        </>
                       )}
                     </div>
                   </div>

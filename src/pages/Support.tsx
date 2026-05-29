@@ -11,21 +11,24 @@ export default function Support() {
       desc: t('support.emailDesc'), 
       contact: 'cutscenedz@gmail.com', 
       icon: Mail,
-      action: t('support.emailAction')
+      action: t('support.emailAction'),
+      url: 'mailto:cutscenedz@gmail.com'
     },
     { 
       title: t('support.whatsappTitle'), 
       desc: t('support.whatsappDesc'), 
-      contact: '+213 558 006 704', 
+      contact: '+213 776 76 22 66', 
       icon: MessageCircle,
-      action: t('support.whatsappAction')
+      action: t('support.whatsappAction'),
+      url: 'https://wa.me/213776762266'
     },
     { 
       title: t('support.phoneTitle'), 
       desc: t('support.phoneDesc'), 
-      contact: '+213 791 575 149', 
+      contact: '+213 776 76 22 66', 
       icon: Phone,
-      action: t('support.phoneAction')
+      action: t('support.phoneAction'),
+      url: 'tel:+213776762266'
     }
   ];
 
@@ -62,10 +65,15 @@ export default function Support() {
               <h3 className="text-2xl font-bold mb-3">{item.title}</h3>
               <p className="text-gray-400 mb-6 leading-relaxed">{item.desc}</p>
               <div className="text-white font-bold mb-8">{item.contact}</div>
-              <button className="flex items-center gap-2 text-purple-400 font-bold hover:text-purple-300 transition-colors group/btn">
+              <a 
+                href={item.url}
+                target={item.url.startsWith('http') ? '_blank' : undefined}
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-purple-400 font-bold hover:text-purple-300 transition-colors group/btn cursor-pointer"
+              >
                 {item.action}
                 <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </button>
+              </a>
             </motion.div>
           ))}
         </div>

@@ -84,25 +84,29 @@ export default function StudentWork() {
 
       // Fetch student works
       const worksSnap = await getDocs(collection(db, 'student_works'));
-      const worksList = worksSnap.docs.map(doc => {
-        const data = doc.data();
-        // Fallback mapper for old fields
-        return {
-          id: doc.id,
-          student_id: data.student_id || data.studentId || '',
-          student_name: data.student_name || data.studentName || 'Anonymous Student',
-          student_avatar: data.student_avatar || data.studentAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-          course_id: data.course_id || data.courseId || '',
-          course_name: data.course_name || data.courseTitle || '',
-          chapter_position: data.chapter_position !== undefined ? Number(data.chapter_position) : 1,
-          title: data.title || (data.courseTitle ? `Assignment for ${data.courseTitle}` : 'Showcase Work'),
-          description: data.description || 'Excellent concept execution by our creative student community.',
-          image_url: data.image_url || data.thumbnail || '',
-          video_url: data.video_url || '',
-          submitted_at: data.submitted_at || null,
-          is_featured: !!data.is_featured
-        } as StudentWorkItem;
-      });
+      const worksList = worksSnap.docs
+        .map(doc => {
+          const data = doc.data();
+          // Fallback mapper for old fields
+          return {
+            id: doc.id,
+            student_id: data.student_id || data.studentId || '',
+            student_name: data.student_name || data.studentName || 'Anonymous Student',
+            student_avatar: data.student_avatar || data.studentAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            course_id: data.course_id || data.courseId || '',
+            course_name: data.course_name || data.courseTitle || '',
+            chapter_position: data.chapter_position !== undefined ? Number(data.chapter_position) : 1,
+            title: data.title || (data.courseTitle ? `Assignment for ${data.courseTitle}` : 'Showcase Work'),
+            description: data.description || 'Excellent concept execution by our creative student community.',
+            image_url: data.image_url || data.thumbnail || '',
+            video_url: data.video_url || '',
+            submitted_at: data.submitted_at || null,
+            is_featured: !!data.is_featured,
+            approved: data.approved !== undefined ? data.approved : (data.status === 'approved' ? true : false),
+            status: data.status || 'pending'
+          } as any;
+        })
+        .filter(w => w.approved === true || w.status === 'approved');
 
       // Sort: Featured first, then by submission or id
       worksList.sort((a, b) => {
@@ -141,6 +145,21 @@ export default function StudentWork() {
       if (url.includes('v=')) {
         const id = url.split('v=')[1]?.split('&')[0];
         return `https://www.youtube.com/embed/${id}`;
+      }
+      // Check Google Drive
+      if (url.includes('drive.google.com/file/d/')) {
+        const parts = url.split('drive.google.com/file/d/');
+        if (parts[1]) {
+          const fileId = parts[1].split('/')[0];
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      if (url.includes('drive.google.com/open?id=')) {
+        const parts = url.split('drive.google.com/open?id=');
+        if (parts[1]) {
+          const fileId = parts[1].split('&')[0];
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
       }
       // Check for embed links already
       if (url.includes('embed/')) {
@@ -210,12 +229,14 @@ export default function StudentWork() {
       image_url: autoImageUrl,
       video_url: trimmedVideo ? getEmbedVideoUrl(trimmedVideo) : '',
       submitted_at: serverTimestamp(),
-      is_featured: false
+      is_featured: false,
+      approved: false,
+      status: 'pending'
     };
 
     try {
       await addDoc(collection(db, 'student_works'), newWork);
-      setSuccessMessage('Congratulations! Your showcase was published successfully to our community gallery!');
+      setSuccessMessage('Project submitted successfully! Please wait for an administrator to approve your work before it gets published.');
       
       // Reset inputs
       setFormTitle('');

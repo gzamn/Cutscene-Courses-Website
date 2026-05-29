@@ -447,15 +447,15 @@ export const ensureDefaultCoursesSeeded = async () => {
 };
 
 export const DEFAULT_STUDENT_WORKS = [
-  { id: 'w1', studentName: 'Ahmed Z.', thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design' },
-  { id: 'w2', studentName: 'Sara M.', thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design' },
-  { id: 'w3', studentName: 'Karim L.', thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design' },
-  { id: 'w4', studentName: 'Yassine B.', thumbnail: 'https://images.unsplash.com/photo-1535016120720-40c646bebbfc?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp' },
-  { id: 'w5', studentName: 'Lina K.', thumbnail: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp' },
-  { id: 'w9', studentName: 'Amir T.', thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp' },
-  { id: 'w6', studentName: 'Omar D.', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=400&auto=format&fit=crop', courseId: '3', courseTitle: 'Advanced Frontend Engineering' },
-  { id: 'w7', studentName: 'Meriem S.', thumbnail: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=400&auto=format&fit=crop', courseId: '3', courseTitle: 'Advanced Frontend Engineering' },
-  { id: 'w8', studentName: 'Sofiane R.', thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=400&auto=format&fit=crop', courseId: '3', courseTitle: 'Advanced Frontend Engineering' }
+  { id: 'w1', studentName: 'Ahmed Z.', thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design', approved: true, status: 'approved' },
+  { id: 'w2', studentName: 'Sara M.', thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design', approved: true, status: 'approved' },
+  { id: 'w3', studentName: 'Karim L.', thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design', approved: true, status: 'approved' },
+  { id: 'w4', studentName: 'Yassine B.', thumbnail: 'https://images.unsplash.com/photo-1535016120720-40c646bebbfc?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp', approved: true, status: 'approved' },
+  { id: 'w5', studentName: 'Lina K.', thumbnail: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp', approved: true, status: 'approved' },
+  { id: 'w9', studentName: 'Amir T.', thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp', approved: true, status: 'approved' },
+  { id: 'w6', studentName: 'Omar D.', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=400&auto=format&fit=crop', courseId: '3', courseTitle: 'Advanced Frontend Engineering', approved: true, status: 'approved' },
+  { id: 'w7', studentName: 'Meriem S.', thumbnail: 'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?q=80&w=400&auto=format&fit=crop', courseId: '3', courseTitle: 'Advanced Frontend Engineering', approved: true, status: 'approved' },
+  { id: 'w8', studentName: 'Sofiane R.', thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=400&auto=format&fit=crop', courseId: '3', courseTitle: 'Advanced Frontend Engineering', approved: true, status: 'approved' }
 ];
 
 export const ensureDefaultStudentWorksSeeded = async () => {

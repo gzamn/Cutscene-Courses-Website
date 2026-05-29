@@ -35,21 +35,21 @@ export default function Footer() {
                 <a href="mailto:cutscenedz@gmail.com" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Email">
                   <Mail className="w-5 h-5" />
                 </a>
-                <a href="https://wa.me/213558006704" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
+                <a href="https://wa.me/213776762266" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
                   <MessageCircle className="w-5 h-5" />
                 </a>
-                <a href="#" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Instagram">
+                <a href="https://www.instagram.com/cutscene.dz/" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Instagram">
                   <Instagram className="w-5 h-5" />
                 </a>
-                <a href="#" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="TikTok">
+                <a href="https://www.tiktok.com/@cutscenedz" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="TikTok">
                   <Music className="w-5 h-5" />
                 </a>
               </div>
               <div className="space-y-2 text-gray-400 text-sm">
-                <div className="flex items-center gap-3">
+                <a href="tel:+213776762266" className="flex items-center gap-3 hover:text-purple-400 transition-colors">
                   <Phone className="w-4 h-4 text-purple-500" />
-                  <span className="font-mono">+213 791 575 149</span>
-                </div>
+                  <span className="font-mono">+213 776 76 22 66</span>
+                </a>
               </div>
             </div>
           </div>

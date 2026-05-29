@@ -48,7 +48,7 @@ export default function AdminPanel() {
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
     contactEmail: 'contact@cutscene-academy.com',
-    instagram: 'https://instagram.com/cutscene',
+    instagram: 'https://www.instagram.com/cutscene.dz/',
     youtube: 'https://youtube.com/cutscene',
     discord: 'https://discord.gg/cutscene'
   });
@@ -160,11 +160,30 @@ export default function AdminPanel() {
     try {
       // 1. First fetch separate subcollection documents
       const snap = await getDocs(collection(db, `courses/${courseId}/chapters`));
+      
+      const findVideo = (lessons: any[], type: string) => {
+        if (!Array.isArray(lessons)) return '';
+        const lesson = lessons.find((l: any) => l.type === type || l.id === type);
+        return lesson ? (lesson.video_url || lesson.videoUrl || '') : '';
+      };
+
       let list = snap.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
+        .map(doc => {
+          const ch = doc.data() as any;
+          const session_url = ch.session_url || ch.sessionUrl || findVideo(ch.lessons, 'session');
+          const exercise_url = ch.exercise_url || ch.exerciseUrl || findVideo(ch.lessons, 'exercise');
+          const homework_url = ch.homework_url || ch.homeworkUrl || findVideo(ch.lessons, 'homework');
+          return {
+            id: doc.id,
+            ...ch,
+            title: ch.title || '',
+            position: ch.position !== undefined ? Number(ch.position) : 0,
+            is_preview: !!ch.is_preview || !!ch.isPreview,
+            session_url,
+            exercise_url,
+            homework_url
+          };
+        })
         .sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0));
 
       // 2. Fallback to course document's inner array chapters if subcollection has no chapters
@@ -180,14 +199,14 @@ export default function AdminPanel() {
 
         if (matchCourse && Array.isArray(matchCourse.chapters)) {
           list = matchCourse.chapters.map((ch: any, idx: number) => {
-            const session_url = ch.lessons?.find((l: any) => l.type === 'session' || l.id === 'session')?.video_url || '';
-            const exercise_url = ch.lessons?.find((l: any) => l.type === 'exercise' || l.id === 'exercise')?.video_url || '';
-            const homework_url = ch.lessons?.find((l: any) => l.type === 'homework' || l.id === 'homework')?.video_url || '';
+            const session_url = ch.session_url || ch.sessionUrl || findVideo(ch.lessons, 'session');
+            const exercise_url = ch.exercise_url || ch.exerciseUrl || findVideo(ch.lessons, 'exercise');
+            const homework_url = ch.homework_url || ch.homeworkUrl || findVideo(ch.lessons, 'homework');
             return {
-              id: `seeded_${idx}`,
+              id: ch.id || `seeded_${idx}`,
               title: ch.title || `Chapter ${idx + 1}`,
-              position: idx + 1,
-              is_preview: false,
+              position: ch.position !== undefined ? Number(ch.position) : idx + 1,
+              is_preview: !!ch.is_preview || !!ch.isPreview,
               session_url,
               exercise_url,
               homework_url,
@@ -507,6 +526,19 @@ export default function AdminPanel() {
     }
   };
 
+  const handleApproveWork = async (work: any) => {
+    try {
+      await setDoc(doc(db, 'student_works', work.id), {
+        approved: true,
+        status: 'approved'
+      }, { merge: true });
+      showToast('success', 'Student artwork approved successfully and is now live!');
+      fetchStudentWorks();
+    } catch (err: any) {
+      showToast('error', 'Error approving student artwork: ' + err.message);
+    }
+  };
+
 
   // WEBSITE SETTINGS
   const handleSettingsSubmit = async (e: React.FormEvent) => {
@@ -789,15 +821,15 @@ export default function AdminPanel() {
               </div>
             ) : (
               <div className="bg-black/40 border border-purple-950/20 rounded-[2rem] overflow-hidden shadow-xl">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto relative">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-zinc-950 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
+                    <thead className="bg-[#09090b] text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
                       <tr>
-                        <th className="py-4 px-6">Index/Pos</th>
-                        <th className="py-4 px-6">Chapter Topic</th>
-                        <th className="py-4 px-6">Type Status</th>
-                        <th className="py-4 px-6">Handouts & Exercises</th>
-                        <th className="py-4 px-6 text-right sticky right-0 bg-zinc-950 border-l border-purple-950/20 z-20">Sequence Controls</th>
+                        <th className="py-4 px-6 bg-[#09090b]">Index/Pos</th>
+                        <th className="py-4 px-6 bg-[#09090b]">Chapter Topic</th>
+                        <th className="py-4 px-6 bg-[#09090b]">Type Status</th>
+                        <th className="py-4 px-6 bg-[#09090b]">Handouts & Exercises</th>
+                        <th className="py-4 px-6 text-right sticky right-0 bg-[#09090b] border-l border-purple-950/20 z-20 shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">Sequence Controls</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-purple-950/15">
@@ -856,7 +888,7 @@ export default function AdminPanel() {
                             )}
                             {!chap.exercise_url && !chap.homework_url && <span className="text-gray-650">—</span>}
                           </td>
-                          <td className="py-4 px-6 text-right space-x-1.5 sticky right-0 bg-[#0a0a0a] group-hover:bg-[#140e1e] transition-colors border-l border-purple-950/20 z-10">
+                           <td className="py-4 px-6 text-right space-x-1.5 sticky right-0 bg-[#09090b] group-hover:bg-[#18181b] transition-colors border-l border-purple-950/20 z-10 shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">
                             <button
                               onClick={() => startEditChapter(chap)}
                               className="p-2 bg-zinc-900 border border-white/5 hover:border-purple-500 hover:bg-purple-950/25 text-purple-400 rounded-lg transition-all cursor-pointer"
@@ -981,11 +1013,12 @@ export default function AdminPanel() {
                   <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-zinc-950 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
                       <tr>
+                        <th className="py-4 px-6">Approval Status</th>
                         <th className="py-4 px-6">Featured</th>
                         <th className="py-4 px-6">Illustration</th>
                         <th className="py-4 px-6">Task Title</th>
                         <th className="py-4 px-6">Submitted Student</th>
-                        <th className="py-4 px-6 text-right">Delete</th>
+                        <th className="py-4 px-6 text-right">Delete Operations</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-purple-950/15">
@@ -993,8 +1026,26 @@ export default function AdminPanel() {
                         const s_img = work.image_url || work.thumbnail || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=150';
                         const s_student = work.student_name || work.studentName || 'Student';
                         const s_title = work.title || 'Masterpiece';
+                        const isApproved = work.approved === true || work.status === 'approved';
                         return (
                           <tr key={work.id} className="hover:bg-white/5 transition-colors">
+                            <td className="py-4 px-6">
+                              {isApproved ? (
+                                <span className="px-3 py-1.5 bg-green-950/20 border border-green-500/30 text-green-400 text-[10px] uppercase font-black rounded-xl inline-flex items-center gap-1">
+                                  <Check className="w-3.5 h-3.5" />
+                                  Approved
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleApproveWork(work)}
+                                  className="px-3 py-1.5 bg-purple-900/30 border border-purple-550/30 text-purple-300 hover:bg-purple-900/50 text-[10px] uppercase font-black rounded-xl transition-all cursor-pointer inline-flex items-center gap-1"
+                                  title="Click to approve student work showcase"
+                                >
+                                  <PlusCircle className="w-3.5 h-3.5" />
+                                  Approve Request
+                                </button>
+                              )}
+                            </td>
                             <td className="py-4 px-6">
                               <button
                                 onClick={() => handleToggleWorkFeature(work)}

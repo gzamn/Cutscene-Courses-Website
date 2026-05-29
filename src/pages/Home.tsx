@@ -27,7 +27,9 @@ export default function Home() {
           await ensureDefaultStudentWorksSeeded();
           worksSnap = await getDocs(collection(db, 'student_works'));
         }
-        const worksList = worksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const worksList = worksSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() as any }))
+          .filter(w => w.approved === true || w.status === 'approved');
         const groups: { [key: string]: any } = {};
         worksList.forEach((w: any) => {
           const cId = w.course_id || w.courseId || 'unknown';
@@ -67,14 +69,32 @@ export default function Home() {
   const getEmbedVideoUrl = (url: string) => {
     if (!url) return '';
     try {
+      // Check for youtu.be links
       if (url.includes('youtu.be/')) {
         const id = url.split('youtu.be/')[1]?.split('?')[0];
         return `https://www.youtube.com/embed/${id}`;
       }
+      // Check for watch?v=
       if (url.includes('v=')) {
         const id = url.split('v=')[1]?.split('&')[0];
         return `https://www.youtube.com/embed/${id}`;
       }
+      // Check Google Drive
+      if (url.includes('drive.google.com/file/d/')) {
+        const parts = url.split('drive.google.com/file/d/');
+        if (parts[1]) {
+          const fileId = parts[1].split('/')[0];
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      if (url.includes('drive.google.com/open?id=')) {
+        const parts = url.split('drive.google.com/open?id=');
+        if (parts[1]) {
+          const fileId = parts[1].split('&')[0];
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      // Check for embed links already
       if (url.includes('embed/')) {
         return url;
       }
@@ -94,35 +114,35 @@ export default function Home() {
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full animate-fade-in">
+          <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
             <motion.div 
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
-              className="lg:col-span-7 text-left"
+              className="w-full text-center flex flex-col items-center pt-8"
             >
-              <h1 className="text-6xl md:text-8xl font-black mb-8 leading-[0.9] tracking-tighter uppercase pt-8">
+              <h1 className="text-6xl md:text-8xl font-black mb-8 leading-[0.9] tracking-tighter uppercase">
                 {language === 'ar' ? (
                   <>
                     حاب تتعلم <br />
-                    <span className="text-brand-gradient">مونتاج</span>؟ <br />
-                    <span className="opacity-40">Cutscene</span>
+                    <span className="text-white">مونتاج</span>؟ <br />
+                    <span className="text-brand-gradient">Cutscene هـنـا!</span>
                   </>
                 ) : (
                   <>
                     {t('hero.title1')} <br />
-                    <span className="text-brand-gradient">{t('hero.title2')}</span>? <br />
-                    <span className="opacity-40">Cutscene</span>
+                    <span className="text-white">{t('hero.title2')}</span>? <br />
+                    <span className="text-brand-gradient">{language === 'fr' ? 'Cutscene est ICI !' : 'Cutscene is HERE'}</span>
                   </>
                 )}
               </h1>
               
-              <p className="text-xl text-gray-400 mb-12 max-w-xl leading-relaxed font-light">
+              <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed font-light">
                 {t('hero.subtitle')}
               </p>
               
-              <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full sm:w-auto">
                 <Link 
                   to="/courses" 
                   className="w-full sm:w-auto px-10 py-5 bg-brand-radial hover:scale-105 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group shadow-2xl shadow-purple-600/40"
@@ -137,30 +157,6 @@ export default function Home() {
                   {t('hero.studentsWork')}
                 </button>
               </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8, rotate: 5 }}
-              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              transition={{ duration: 1, delay: 0.2 }}
-              className="lg:col-span-5 hidden lg:block relative"
-            >
-              <div className="relative z-10 rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-700">
-                <img 
-                  src="https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=800&auto=format&fit=crop" 
-                  alt="Hero"
-                  className="w-full aspect-[4/5] object-cover grayscale hover:grayscale-0 transition-all duration-700"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
-                <div className="absolute bottom-10 left-10">
-                  <div className="text-micro text-purple-400 mb-2">Featured Work</div>
-                  <div className="text-2xl font-black uppercase tracking-tighter">Cinematic Masterclass</div>
-                </div>
-              </div>
-              {/* Decorative elements */}
-              <div className="absolute -top-10 -right-10 w-40 h-40 border border-purple-500/20 rounded-full animate-spin-slow" />
-              <div className="absolute -bottom-10 -left-10 w-60 h-60 border border-purple-900/20 rounded-full" />
             </motion.div>
           </div>
 
@@ -231,11 +227,6 @@ export default function Home() {
                           <Lock className="w-6 h-6 text-purple-400" />
                         </div>
                       </div>
-                      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
-                        <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-                          {course.level}
-                        </span>
-                      </div>
                     </div>
                   ) : (
                     <Link to={`/courses/${course.id}`} className="relative h-48 overflow-hidden block">
@@ -246,11 +237,17 @@ export default function Home() {
                         referrerPolicy="no-referrer"
                       />
                       <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
-                        <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+                        <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider backdrop-blur-md ${
+                          (course.level || '').toLowerCase() === 'beginner' 
+                            ? 'bg-green-500/10 border border-green-500/30 text-green-400' 
+                            : (course.level || '').toLowerCase() === 'advanced'
+                            ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                            : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                        }`}>
                           {course.level}
                         </span>
                         {course.duration && (
-                          <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5">
+                          <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5 border border-white/5">
                             <Clock className="w-3 h-3 text-purple-400" /> {course.duration}
                           </span>
                         )}
@@ -394,20 +391,23 @@ export default function Home() {
                 <X className="w-5 h-5" />
               </button>
 
-              {activeVideoUrl.includes('youtube.com') || activeVideoUrl.includes('youtu.be') ? (
+              {activeVideoUrl.toLowerCase().endsWith('.mp4') || 
+               activeVideoUrl.toLowerCase().endsWith('.webm') || 
+               activeVideoUrl.toLowerCase().endsWith('.mov') || 
+               activeVideoUrl.toLowerCase().endsWith('.m4v') ? (
+                <video
+                  src={activeVideoUrl}
+                  className="w-full h-full object-contain"
+                  controls
+                  autoPlay
+                />
+              ) : (
                 <iframe
                   src={getEmbedVideoUrl(activeVideoUrl)}
                   className="w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   title="Video Player"
-                />
-              ) : (
-                <video
-                  src={activeVideoUrl}
-                  className="w-full h-full object-contain"
-                  controls
-                  autoPlay
                 />
               )}
             </div>

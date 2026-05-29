@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
   const [firestoreCourses, setFirestoreCourses] = useState<any[]>([]);
+  const [chaptersCountMap, setChaptersCountMap] = useState<{ [courseId: string]: number }>({});
 
   // Listen to courses collection
   useEffect(() => {
@@ -25,6 +26,32 @@ export default function Dashboard() {
     }, (error) => console.error("Error listening to courses:", error));
     return () => unsubCourses();
   }, []);
+
+  // Fetch chapter counts of enrolled courses
+  useEffect(() => {
+    if (enrollments.length === 0) return;
+    enrollments.forEach(async (enrollment) => {
+      try {
+        const snap = await getDocs(collection(db, `courses/${enrollment.courseId}/chapters`));
+        let count = snap.size;
+        if (count === 0) {
+          const dbCourse = firestoreCourses.find(c => c.id === enrollment.courseId);
+          if (dbCourse && Array.isArray(dbCourse.chapters)) {
+            count = dbCourse.chapters.length;
+          }
+        }
+        if (count === 0) {
+          count = enrollment.courseId === '1' ? 12 : enrollment.courseId === '2' ? 18 : enrollment.courseId === '3' ? 24 : 10;
+        }
+        setChaptersCountMap(prev => ({
+          ...prev,
+          [enrollment.courseId]: count
+        }));
+      } catch (err) {
+        console.error("Error fetching chapters count for course", enrollment.courseId, err);
+      }
+    });
+  }, [enrollments, firestoreCourses]);
 
   useEffect(() => {
     if (!user) return;
@@ -132,23 +159,30 @@ export default function Dashboard() {
 
   const getCourseProgress = (courseId: string) => {
     const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
-    const dbCourse = firestoreCourses.find(c => c.id === courseId);
-    let totalLessons = 0;
     
-    if (dbCourse) {
-      if (dbCourse.chapters) {
-        totalLessons = dbCourse.chapters.reduce((acc: number, ch: any) => acc + (ch.lessons?.length || 0), 0);
-      } else if (dbCourse.lessons) {
-        totalLessons = dbCourse.lessons.length;
+    const chaptersCount = chaptersCountMap[courseId] || (courseId === '1' ? 12 : courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+    const totalLessons = chaptersCount * 3;
+    
+    if (totalLessons === 0) return 0;
+    return Math.min(100, Math.round((courseProgress.length / totalLessons) * 100));
+  };
+
+  const getContinueUrl = (courseId: string) => {
+    const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
+    const completedSet = new Set(courseProgress.map(p => `${p.chapter}-${p.type}`));
+    
+    const chaptersCount = chaptersCountMap[courseId] || (courseId === '1' ? 12 : courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+    
+    for (let c = 1; c <= chaptersCount; c++) {
+      for (const type of ['session', 'exercise', 'homework']) {
+        if (!completedSet.has(`${c}-${type}`)) {
+          return `/courses/${courseId}/video/${c}/${type}`;
+        }
       }
     }
     
-    if (totalLessons === 0) {
-      const chapters = courseId === '1' ? 12 : courseId === '2' ? 18 : 24;
-      totalLessons = chapters * 3; 
-    }
-    
-    return Math.min(100, Math.round((courseProgress.length / totalLessons) * 100));
+    // Default to chapter 1 session if everything completed
+    return `/courses/${courseId}/video/1/session`;
   };
 
   const latestActivity = [...progress]
@@ -211,7 +245,7 @@ export default function Dashboard() {
                       <div className="aspect-video relative overflow-hidden">
                         <img src={course.image} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Link to={`/courses/${course.id}`} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2">
+                          <Link to={getContinueUrl(course.id)} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2">
                             <PlayCircle className="w-5 h-5" />
                             {t('dashboard.continue')}
                           </Link>
@@ -384,35 +418,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* Quick Stats */}
-            <section className="bg-brand-radial p-8 rounded-[2.5rem] text-white">
-              <h2 className="text-xl font-bold mb-4">{t('dashboard.streak')}</h2>
-              <div className="flex items-center gap-4 mb-6">
-                <motion.div 
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                  className="text-5xl font-black"
-                >
-                  7
-                </motion.div>
-                <div className="text-sm font-medium opacity-80 uppercase tracking-wider">{t('dashboard.days')}</div>
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between text-sm">
-                  <span>{t('dashboard.weeklyGoal')}</span>
-                  <span>80%</span>
-                </div>
-                <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: '80%' }}
-                    transition={{ duration: 1.5, delay: 0.5 }}
-                    className="bg-white h-full" 
-                  />
-                </div>
-              </div>
-            </section>
+
 
             {/* Latest Activity */}
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
