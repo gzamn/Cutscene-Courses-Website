@@ -47,7 +47,7 @@ export default function Navbar() {
             </Link>
 
             {/* Desktop Navigation Links */}
-            <div className="hidden lg:flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-6">
               {navLinks.map((link) => (
                 <NavLink
                   key={link.path}
@@ -78,7 +78,7 @@ export default function Navbar() {
           </div>
 
           {/* Desktop Auth Controls & Language Switcher */}
-          <div className="hidden lg:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-4">
             {/* Language Switcher */}
             <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-purple-900/20">
               <Globe className="w-4 h-4 text-purple-500 mx-1" />
@@ -144,7 +144,7 @@ export default function Navbar() {
           </div>
 
           {/* Mobile hamburger menu button */}
-          <div className="flex lg:hidden">
+          <div className="flex md:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="p-2 text-gray-400 hover:text-white transition-colors focus:outline-none"
@@ -157,7 +157,7 @@ export default function Navbar() {
 
         {/* Mobile menu panel */}
         {isOpen && (
-          <div className="lg:hidden py-4 border-t border-purple-900/10 flex flex-col gap-4 animate-fade-in">
+          <div className="md:hidden py-4 border-t border-purple-900/10 flex flex-col gap-4 animate-fade-in">
             {/* Mobile Nav Links */}
             <div className="flex flex-col gap-3">
               {navLinks.map((link) => (
