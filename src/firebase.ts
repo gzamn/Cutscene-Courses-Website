@@ -294,41 +294,23 @@ export const getDownloadURL = async (refInstance: any) => {
 export const DEFAULT_COURSES = [
   {
     id: "1",
-    title: "UI/UX Mobile App Design",
-    description: "Learn to design beautiful, user-centric mobile applications from scratch, covering prototyping, wireframing, and user testing.",
-    detailedDescription: "A comprehensive journey through user interface design and user experience research for modern iOS & Android applications.",
+    title: "Video Editing 101",
+    description: "Master professional cinematic video editing, color grading, sound design, and industry-standard workflows.",
+    detailedDescription: "Go from beginner to pro editor. Learn advanced montage techniques, cinematic pacing, color workflows, and sound editing.",
     price: 15000,
     currency: "DA",
-    image: "https://images.unsplash.com/photo-1541462608141-2ff030de4a40?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=800&q=80",
     duration: "12 weeks",
-    level: "Beginner",
-    requirements: ["Basic computer knowledge", "An interest in digital design products", "No design experience required"],
-    learningOutcomes: ["Master Figma tools", "Build interactive mobile prototypes", "Incorporate accessibility and human interface guidelines"],
+    level: "Beginner to Pro",
+    requirements: ["A computer capable of video editing", "Editing software of choice (Premiere Pro, DaVinci, or CapCut)", "No prior experience required"],
+    learningOutcomes: ["Master professional video editing techniques", "Incorporate advanced color grading and cinematic sound design", "Optimize editing efficiency and delivery workflows", "Structure stories with premium pacing"],
     instructor: {
       name: "Amine Rouabhia",
-      bio: "Senior UX Designer and educator focused on user-centric product experiences.",
-      avatar: "https://images.unsplash.com/photo-1541462608141-2ff030de4a40?auto=format&fit=crop&w=100&q=80"
+      bio: "Professional cinematic editor and director with a passion for creative visual storytelling.",
+      avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&q=80"
     },
     isComingSoon: false,
     formatAvailability: ["recorded", "online"],
-    chapters: [
-      {
-        title: "Introduction to Figma",
-        lessons: [
-          { id: "session", type: "session", video_url: "https://www.youtube.com/embed/g2qHeN78Wlg" },
-          { id: "exercise", type: "exercise", video_url: "https://www.youtube.com/embed/Jn6A_9X_3p8" },
-          { id: "homework", type: "homework", video_url: "https://www.youtube.com/embed/M9hFv_1vNzo" }
-        ]
-      },
-      {
-        title: "User Experience Research",
-        lessons: [
-          { id: "session", type: "session", video_url: "https://www.youtube.com/embed/K19_ePZJby0" },
-          { id: "exercise", type: "exercise", video_url: "https://www.youtube.com/embed/z82c7fSOfqE" },
-          { id: "homework", type: "homework", video_url: "https://www.youtube.com/embed/U03K6GAtKMo" }
-        ]
-      }
-    ]
   },
   {
     id: "2",
@@ -439,7 +421,55 @@ export const ensureDefaultCoursesSeeded = async () => {
       for (const course of DEFAULT_COURSES) {
         await fbSetDoc(fbDoc(db, 'courses', course.id), course);
       }
-      console.log("Starter courses database seeding completed successfully.");
+    } else {
+      // Force update Course ID '1' to Video Editing 101 so the theme, content, and titles match perfectly!
+      await fbSetDoc(fbDoc(db, 'courses', '1'), DEFAULT_COURSES[0], { merge: true });
+    }
+
+    // Now seed Video Editing subcollection chapters!
+    const id = "1";
+    const chSnap = await fbGetDocs(fbCollection(db, `courses/${id}/chapters`));
+    if (chSnap.empty) {
+      console.log("Seeding Video Editing 101 chapters subcollection...");
+      const initialChapters = [
+        {
+          courseId: id,
+          title: "Chapter 1: Mastering the Basics",
+          position: 1,
+          is_preview: true,
+          session_url_1: "https://www.youtube.com/embed/9G6k7E-pZog",
+          session_url_2: "https://www.youtube.com/embed/Jn6A_9X_3p8",
+          session_url_3: "https://www.youtube.com/embed/M9hFv_1vNzo",
+          session_url_4: "https://www.youtube.com/embed/Jn6A_9X_3p8",
+          exercise_url: "https://www.youtube.com/embed/YqQx75OPRa0"
+        },
+        {
+          courseId: id,
+          title: "Chapter 2: Advanced Editing & Visual Styles",
+          position: 2,
+          is_preview: false,
+          session_url_1: "https://www.youtube.com/embed/K19_ePZJby0",
+          session_url_2: "https://www.youtube.com/embed/z82c7fSOfqE",
+          session_url_3: "https://www.youtube.com/embed/U03K6GAtKMo",
+          session_url_4: "https://www.youtube.com/embed/z82c7fSOfqE",
+          exercise_url: "https://www.youtube.com/embed/Jn6A_9X_3p8"
+        },
+        {
+          courseId: id,
+          title: "Chapter 3: Professional Workflow & Directing",
+          position: 3,
+          is_preview: false,
+          session_url_1: "https://www.youtube.com/embed/8_85VunF-1c",
+          session_url_2: "https://www.youtube.com/embed/QpI77U8aP_g",
+          session_url_3: "https://www.youtube.com/embed/v82eK36tH4Q",
+          session_url_4: "https://www.youtube.com/embed/QpI77U8aP_g",
+          exercise_url: "https://www.youtube.com/embed/YqQx75OPRa0"
+        }
+      ];
+      for (const ch of initialChapters) {
+        await fbSetDoc(fbDoc(db, `courses/${id}/chapters`, `seeded_${ch.position}`), ch);
+      }
+      console.log("Starter chapters database subcollection seeding completed successfully.");
     }
   } catch (error) {
     console.warn("Could not seed starter academy courses:", error);
@@ -447,9 +477,9 @@ export const ensureDefaultCoursesSeeded = async () => {
 };
 
 export const DEFAULT_STUDENT_WORKS = [
-  { id: 'w1', studentName: 'Ahmed Z.', thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design', approved: true, status: 'approved' },
-  { id: 'w2', studentName: 'Sara M.', thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design', approved: true, status: 'approved' },
-  { id: 'w3', studentName: 'Karim L.', thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'UI/UX Mobile App Design', approved: true, status: 'approved' },
+  { id: 'w1', studentName: 'Ahmed Z.', thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'Video Editing 101', approved: true, status: 'approved' },
+  { id: 'w2', studentName: 'Sara M.', thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'Video Editing 101', approved: true, status: 'approved' },
+  { id: 'w3', studentName: 'Karim L.', thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=400&auto=format&fit=crop', courseId: '1', courseTitle: 'Video Editing 101', approved: true, status: 'approved' },
   { id: 'w4', studentName: 'Yassine B.', thumbnail: 'https://images.unsplash.com/photo-1535016120720-40c646bebbfc?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp', approved: true, status: 'approved' },
   { id: 'w5', studentName: 'Lina K.', thumbnail: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp', approved: true, status: 'approved' },
   { id: 'w9', studentName: 'Amir T.', thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=400&auto=format&fit=crop', courseId: '2', courseTitle: 'Web Development Bootcamp', approved: true, status: 'approved' },

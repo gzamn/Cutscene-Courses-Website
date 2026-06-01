@@ -17,7 +17,8 @@ import {
   setDoc, 
   doc, 
   deleteDoc, 
-  updateDoc 
+  updateDoc,
+  getDoc
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -56,6 +57,40 @@ export default function AdminPanel() {
   // Selected state for chapters course-filter
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
 
+  // Custom confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+    confirmText?: string;
+    isDanger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    confirmText: 'Confirm',
+    isDanger: true,
+  });
+
+  const askConfirmation = (
+    title: string, 
+    message: string, 
+    onConfirm: () => void | Promise<void>, 
+    confirmText = 'Confirm', 
+    isDanger = true
+  ) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      confirmText,
+      isDanger
+    });
+  };
+
   // Loading states
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [loadingChapters, setLoadingChapters] = useState(false);
@@ -87,7 +122,16 @@ export default function AdminPanel() {
     is_preview: false,
     session_url: '',
     exercise_url: '',
-    homework_url: ''
+    homework_url: '',
+    session_url_1: '',
+    session_url_2: '',
+    session_url_3: '',
+    session_url_4: '',
+    session_name_1: '',
+    session_name_2: '',
+    session_name_3: '',
+    session_name_4: '',
+    session_name: ''
   });
 
   // Toast Helper
@@ -350,17 +394,22 @@ export default function AdminPanel() {
   };
 
   const handleDeleteCourse = async (courseId: string, courseTitle: string) => {
-    if (!window.confirm(`Are you absolutely sure you want to permanently delete the course "${courseTitle}"? This will lock students and cannot be undone.`)) {
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, 'courses', courseId));
-      showToast('success', `Course "${courseTitle}" deleted from database.`);
-      fetchCourses();
-    } catch (err: any) {
-      console.error('Delete course failure:', err);
-      showToast('error', err.message || 'Error occurred while dropping course.');
-    }
+    askConfirmation(
+      'Delete Course',
+      `Are you absolutely sure you want to permanently delete the course "${courseTitle}"? This will lock students and cannot be undone.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'courses', courseId));
+          showToast('success', `Course "${courseTitle}" deleted from database.`);
+          fetchCourses();
+        } catch (err: any) {
+          console.error('Delete course failure:', err);
+          showToast('error', err.message || 'Error occurred while dropping course.');
+        }
+      },
+      'Delete Permanently',
+      true
+    );
   };
 
 
@@ -380,6 +429,15 @@ export default function AdminPanel() {
         session_url: chapterForm.session_url,
         exercise_url: chapterForm.exercise_url,
         homework_url: chapterForm.homework_url,
+        session_url_1: chapterForm.session_url_1,
+        session_url_2: chapterForm.session_url_2,
+        session_url_3: chapterForm.session_url_3,
+        session_url_4: chapterForm.session_url_4,
+        session_name_1: chapterForm.session_name_1,
+        session_name_2: chapterForm.session_name_2,
+        session_name_3: chapterForm.session_name_3,
+        session_name_4: chapterForm.session_name_4,
+        session_name: chapterForm.session_name,
         updatedAt: serverTimestamp()
       };
 
@@ -403,7 +461,16 @@ export default function AdminPanel() {
         is_preview: false,
         session_url: '',
         exercise_url: '',
-        homework_url: ''
+        homework_url: '',
+        session_url_1: '',
+        session_url_2: '',
+        session_url_3: '',
+        session_url_4: '',
+        session_name_1: '',
+        session_name_2: '',
+        session_name_3: '',
+        session_name_4: '',
+        session_name: ''
       });
       fetchChaptersForCourse(chapterForm.courseId);
     } catch (err: any) {
@@ -421,7 +488,16 @@ export default function AdminPanel() {
       is_preview: !!chapter.is_preview,
       session_url: chapter.session_url || '',
       exercise_url: chapter.exercise_url || '',
-      homework_url: chapter.homework_url || ''
+      homework_url: chapter.homework_url || '',
+      session_url_1: chapter.session_url_1 || '',
+      session_url_2: chapter.session_url_2 || '',
+      session_url_3: chapter.session_url_3 || '',
+      session_url_4: chapter.session_url_4 || '',
+      session_name_1: chapter.session_name_1 || '',
+      session_name_2: chapter.session_name_2 || '',
+      session_name_3: chapter.session_name_3 || '',
+      session_name_4: chapter.session_name_4 || '',
+      session_name: chapter.session_name || ''
     });
     setShowChapterModal(true);
   };
@@ -435,23 +511,57 @@ export default function AdminPanel() {
       is_preview: false,
       session_url: '',
       exercise_url: '',
-      homework_url: ''
+      homework_url: '',
+      session_url_1: '',
+      session_url_2: '',
+      session_url_3: '',
+      session_url_4: '',
+      session_name_1: '',
+      session_name_2: '',
+      session_name_3: '',
+      session_name_4: '',
+      session_name: ''
     });
     setShowChapterModal(true);
   };
 
   const handleDeleteChapter = async (chapterId: string, title: string) => {
-    if (!window.confirm(`Are you sure you want to delete chapter "${title}"?`)) {
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, `courses/${selectedCourseId}/chapters`, chapterId));
-      showToast('success', `Chapter "${title}" removed.`);
-      fetchChaptersForCourse(selectedCourseId);
-    } catch (err: any) {
-      console.error('Delete chapter error:', err);
-      showToast('error', 'Failed to drop chapter.');
-    }
+    askConfirmation(
+      'Delete Chapter',
+      `Are you absolutely sure you want to permanently delete chapter "${title}"?`,
+      async () => {
+        try {
+          // 1. Delete from subcollection
+          await deleteDoc(doc(db, `courses/${selectedCourseId}/chapters`, chapterId));
+
+          // 2. Clear from custom inner chapters array inside parent course doc if any exists
+          const courseRef = doc(db, 'courses', selectedCourseId);
+          const courseSnap = await getDoc(courseRef);
+          if (courseSnap.exists()) {
+            const courseData = courseSnap.data();
+            if (Array.isArray(courseData.chapters)) {
+              const updatedChapters = courseData.chapters.filter((ch: any, idx: number) => {
+                if (ch.id === chapterId) return false;
+                if (`seeded_${idx}` === chapterId) return false;
+                if (`seeded_${idx + 1}` === chapterId) return false;
+                if (ch.title === title) return false;
+                return true;
+              });
+              await updateDoc(courseRef, { chapters: updatedChapters });
+            }
+          }
+
+          showToast('success', `Chapter "${title}" removed successfully.`);
+          await fetchCourses(); // Crucial: reload courses state to sync updated inner arrays
+          fetchChaptersForCourse(selectedCourseId);
+        } catch (err: any) {
+          console.error('Delete chapter error:', err);
+          showToast('error', err.message || 'Failed to remove chapter from database.');
+        }
+      },
+      'Delete Chapter',
+      true
+    );
   };
 
   const handleUpdateChapterPosition = async (chapter: any, newPos: number) => {
@@ -470,32 +580,42 @@ export default function AdminPanel() {
   // STUDENTS
   const handleToggleUserRole = async (targetUser: any) => {
     const nextRole = targetUser.role === 'admin' ? 'student' : 'admin';
-    if (!window.confirm(`Are you sure you want to change role of ${targetUser.displayName || targetUser.email} to "${nextRole}"?`)) {
-      return;
-    }
-    try {
-      await setDoc(doc(db, 'users', targetUser.id), {
-        role: nextRole
-      }, { merge: true });
-      showToast('success', `Role for ${targetUser.displayName || targetUser.email} is now ${nextRole}.`);
-      fetchUsers();
-    } catch (err: any) {
-      console.error('Toggle role failed:', err);
-      showToast('error', 'Permissions error updating database role.');
-    }
+    askConfirmation(
+      'Change User Role',
+      `Are you sure you want to change role of ${targetUser.displayName || targetUser.email} to "${nextRole}"?`,
+      async () => {
+        try {
+          await setDoc(doc(db, 'users', targetUser.id), {
+            role: nextRole
+          }, { merge: true });
+          showToast('success', `Role for ${targetUser.displayName || targetUser.email} is now ${nextRole}.`);
+          fetchUsers();
+        } catch (err: any) {
+          console.error('Toggle role failed:', err);
+          showToast('error', 'Permissions error updating database role.');
+        }
+      },
+      'Change Role',
+      false
+    );
   };
 
   const handleDeleteUserDoc = async (targetUser: any) => {
-    if (!window.confirm(`CRITICAL WARNING: This will delete the user document for ${targetUser.displayName || targetUser.email} from Firestore. This will wipe their course progress database indexes. Proceed?`)) {
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, 'users', targetUser.id));
-      showToast('success', 'User profile discarded.');
-      fetchUsers();
-    } catch (err: any) {
-      showToast('error', 'Error discarding user registry document.');
-    }
+    askConfirmation(
+      'Delete User Registry',
+      `CRITICAL WARNING: This will delete the user document for ${targetUser.displayName || targetUser.email} from Firestore. This will wipe their course progress database indexes. Proceed?`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'users', targetUser.id));
+          showToast('success', 'User profile discarded.');
+          fetchUsers();
+        } catch (err: any) {
+          showToast('error', 'Error discarding user registry document.');
+        }
+      },
+      'Delete User',
+      true
+    );
   };
 
 
@@ -514,16 +634,21 @@ export default function AdminPanel() {
   };
 
   const handleDeleteWork = async (workId: string, studentName: string) => {
-    if (!window.confirm(`Confirm deleting student artwork for "${studentName}" from the museum showcase?`)) {
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, 'student_works', workId));
-      showToast('success', 'Showcase discarded.');
-      fetchStudentWorks();
-    } catch (err: any) {
-      showToast('error', 'Unable to delete database showcase.');
-    }
+    askConfirmation(
+      'Delete Showcase Work',
+      `Confirm deleting student artwork for "${studentName}" from the museum showcase?`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'student_works', workId));
+          showToast('success', 'Showcase discarded.');
+          fetchStudentWorks();
+        } catch (err: any) {
+          showToast('error', 'Unable to delete database showcase.');
+        }
+      },
+      'Delete Artwork',
+      true
+    );
   };
 
   const handleApproveWork = async (work: any) => {
@@ -1395,36 +1520,180 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video Handout URL (YouTube / Direct)</label>
-                  <input
-                    type="url"
-                    value={chapterForm.session_url}
-                    onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                    placeholder="https://youtube.com/watch?v=..."
-                  />
-                </div>
+                {(() => {
+                  const currentCourse = courses.find((c: any) => c.id === chapterForm.courseId);
+                  const isVideoEditingCourse = chapterForm.courseId === '1' || (currentCourse && (
+                    currentCourse.title?.toLowerCase().includes('video editing') ||
+                    currentCourse.title?.toLowerCase().includes('video-editing') ||
+                    currentCourse.title?.toLowerCase().includes('مونتاج') ||
+                    currentCourse.title?.toLowerCase().includes('cinematic')
+                  ));
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Assets & Practice File URL</label>
-                  <input
-                    type="url"
-                    value={chapterForm.exercise_url}
-                    onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                  />
-                </div>
+                  if (isVideoEditingCourse) {
+                    const posVal = parseInt(chapterForm.position || '1') || 1;
+                    const startS = (posVal - 1) * 4 + 1;
+                    return (
+                      <div className="space-y-4">
+                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS} Video URL (YouTube / Direct)</label>
+                              <input
+                                type="url"
+                                value={chapterForm.session_url_1}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_1: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS} Name / Topic</label>
+                              <input
+                                type="text"
+                                value={chapterForm.session_name_1}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_1: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder={`e.g. Session ${startS}: {name}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Homework Assignment Submission Drive Link</label>
-                  <input
-                    type="url"
-                    value={chapterForm.homework_url}
-                    onChange={(e) => setChapterForm({ ...chapterForm, homework_url: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                  />
-                </div>
+                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 1} Video URL (YouTube / Direct)</label>
+                              <input
+                                type="url"
+                                value={chapterForm.session_url_2}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_2: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 1} Name / Topic</label>
+                              <input
+                                type="text"
+                                value={chapterForm.session_name_2}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_2: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder={`e.g. Session ${startS + 1}: {name}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 2} Video URL (YouTube / Direct)</label>
+                              <input
+                                type="url"
+                                value={chapterForm.session_url_3}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_3: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 2} Name / Topic</label>
+                              <input
+                                type="text"
+                                value={chapterForm.session_name_3}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_3: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder={`e.g. Session ${startS + 2}: {name}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 3} Video URL (YouTube / Direct)</label>
+                              <input
+                                type="url"
+                                value={chapterForm.session_url_4}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_4: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 3} Name / Topic</label>
+                              <input
+                                type="text"
+                                value={chapterForm.session_name_4}
+                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_4: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                                placeholder={`e.g. Session ${startS + 3}: {name}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Chapter {posVal} Practice Exercise Video URL</label>
+                          <input
+                            type="url"
+                            value={chapterForm.exercise_url}
+                            onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                            placeholder="Practice exercise assignment video or source URLs"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video Handout URL (YouTube / Direct)</label>
+                          <input
+                            type="url"
+                            value={chapterForm.session_url}
+                            onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                            placeholder="https://youtube.com/watch?v=..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video Topic / Name</label>
+                          <input
+                            type="text"
+                            value={chapterForm.session_name}
+                            onChange={(e) => setChapterForm({ ...chapterForm, session_name: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                            placeholder="e.g. Introduction to Figma"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Assets & Practice File URL</label>
+                          <input
+                            type="url"
+                            value={chapterForm.exercise_url}
+                            onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Homework Assignment Submission Drive Link</label>
+                          <input
+                            type="url"
+                            value={chapterForm.homework_url}
+                            onChange={(e) => setChapterForm({ ...chapterForm, homework_url: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
 
                 <button
                   type="submit"
@@ -1433,6 +1702,56 @@ export default function AdminPanel() {
                   Save Curriculum Mapping
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CUSTOM CONFIRMATION DIALOG MODAL */}
+      <AnimatePresence>
+        {confirmDialog.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div 
+              className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" 
+              onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} 
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2rem] p-8 w-full max-w-md shadow-2xl overflow-hidden z-10 text-left"
+            >
+              <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
+                {confirmDialog.title}
+              </h3>
+              <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                {confirmDialog.message}
+              </p>
+              
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                  className="px-5 py-2.5 rounded-xl bg-zinc-900 border border-white/5 text-gray-300 hover:text-white hover:bg-zinc-800 text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                    await confirmDialog.onConfirm();
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                    confirmDialog.isDanger 
+                      ? 'bg-red-600 hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.2)]' 
+                      : 'bg-purple-600 hover:bg-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.2)]'
+                  }`}
+                >
+                  {confirmDialog.confirmText || 'Confirm'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

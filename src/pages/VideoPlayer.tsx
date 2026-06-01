@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare } from 'lucide-react';
@@ -9,6 +9,29 @@ import { useLanguage } from '../context/LanguageContext';
 const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => {
   if (!course) return '';
   
+  const isVideoEditing = course.id === '1' ||
+    course.title?.toLowerCase().includes('video editing') ||
+    course.title?.toLowerCase().includes('video-editing') ||
+    course.title?.toLowerCase().includes('مونتاج') ||
+    course.title?.toLowerCase().includes('cinematic');
+
+  if (isVideoEditing && course.chapters && Array.isArray(course.chapters)) {
+    if (typeStr === 'exercise') {
+      const chapNum = parseInt(chapterStr);
+      const ch = course.chapters.find((c: any) => parseInt(c.position || '0') === chapNum || c.position === chapNum);
+      return ch?.exercise_url || '';
+    } else {
+      // Session
+      const sNum = parseInt(chapterStr);
+      const chapIdx = Math.floor((sNum - 1) / 4);
+      const sIdx = ((sNum - 1) % 4) + 1;
+      const ch = course.chapters[chapIdx];
+      if (ch) {
+        return ch[`session_url_${sIdx}`] || (sIdx === 1 ? ch.session_url : '') || '';
+      }
+    }
+  }
+
   // 1. Try to find in flat lessons array (e.g. { chapter: 1, type: 'session', video_url: '...' })
   if (course.lessons && Array.isArray(course.lessons)) {
     const lesson = course.lessons.find((l: any) => 
@@ -61,19 +84,93 @@ export default function VideoPlayer() {
   const [commentInput, setCommentInput] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  const isVideoEditingCourse = course && (
+    course.id === '1' ||
+    course.title?.toLowerCase().includes('video editing') ||
+    course.title?.toLowerCase().includes('video-editing') ||
+    course.title?.toLowerCase().includes('مونتاج') ||
+    course.title?.toLowerCase().includes('cinematic')
+  );
+
+  const orderedLessons = useMemo(() => {
+    if (!isVideoEditingCourse || !course || !course.chapters) return [];
+    
+    const list: Array<{ chapter: string; type: string; title: string }> = [];
+    course.chapters.forEach((ch: any, cIdx: number) => {
+      // Add each session that exists
+      if (ch.session_url_1 || (cIdx === 0 && ch.session_url)) {
+        const sName = ch.session_name_1 || '';
+        list.push({ 
+          chapter: String(cIdx * 4 + 1), 
+          type: 'session', 
+          title: sName ? `Session ${cIdx * 4 + 1}: ${sName}` : `Session ${cIdx * 4 + 1}` 
+        });
+      }
+      if (ch.session_url_2) {
+        const sName = ch.session_name_2 || '';
+        list.push({ 
+          chapter: String(cIdx * 4 + 2), 
+          type: 'session', 
+          title: sName ? `Session ${cIdx * 4 + 2}: ${sName}` : `Session ${cIdx * 4 + 2}` 
+        });
+      }
+      if (ch.session_url_3) {
+        const sName = ch.session_name_3 || '';
+        list.push({ 
+          chapter: String(cIdx * 4 + 3), 
+          type: 'session', 
+          title: sName ? `Session ${cIdx * 4 + 3}: ${sName}` : `Session ${cIdx * 4 + 3}` 
+        });
+      }
+      if (ch.session_url_4) {
+        const sName = ch.session_name_4 || '';
+        list.push({ 
+          chapter: String(cIdx * 4 + 4), 
+          type: 'session', 
+          title: sName ? `Session ${cIdx * 4 + 4}: ${sName}` : `Session ${cIdx * 4 + 4}` 
+        });
+      }
+      
+      // Add exercise if it exists
+      if (ch.exercise_url) {
+        list.push({ chapter: String(ch.position || cIdx + 1), type: 'exercise', title: `Chapter ${ch.position || cIdx + 1} Exercise` });
+      }
+    });
+    return list;
+  }, [isVideoEditingCourse, course]);
+
   const homework = course?.homeworks?.find((h: any) => h.chapter === parseInt(chapter || '0'));
-  const isFirstSession = parseInt(chapter || '0') === 1 && type === 'session';
+  const isFirstSession = isVideoEditingCourse 
+    ? (chapter === '1' && type === 'session')
+    : (parseInt(chapter || '0') === 1 && type === 'session');
   const totalChapters = course ? (course.chapters?.length || course.lessons?.length || 12) : 12;
   const types = ['session', 'exercise', 'homework'];
-  
+
+  const currentChapter = parseInt(chapter || '1');
+  const currentType = type || 'session';
+
+  // Compute indices for ordered queue if video editing
+  const currentLessonIdx = useMemo(() => {
+    if (!isVideoEditingCourse) return -1;
+    return orderedLessons.findIndex(l => l.chapter === chapter && l.type === type);
+  }, [isVideoEditingCourse, orderedLessons, chapter, type]);
+
   const getNextLessonLink = () => {
-    const currentChapter = parseInt(chapter || '1');
+    if (isVideoEditingCourse) {
+      if (currentLessonIdx !== -1 && currentLessonIdx < orderedLessons.length - 1) {
+        const nextL = orderedLessons[currentLessonIdx + 1];
+        return `/courses/${id}/video/${nextL.chapter}/${nextL.type}`;
+      }
+      return '/dashboard';
+    }
+
+    const currentChapterNum = parseInt(chapter || '1');
     const currentTypeIndex = types.indexOf(type || 'session');
     
     if (currentTypeIndex < types.length - 1) {
-      return `/courses/${id}/video/${currentChapter}/${types[currentTypeIndex + 1]}`;
-    } else if (currentChapter < totalChapters) {
-      return `/courses/${id}/video/${currentChapter + 1}/session`;
+      return `/courses/${id}/video/${currentChapterNum}/${types[currentTypeIndex + 1]}`;
+    } else if (currentChapterNum < totalChapters) {
+      return `/courses/${id}/video/${currentChapterNum + 1}/session`;
     } else {
       return '/dashboard';
     }
@@ -82,19 +179,37 @@ export default function VideoPlayer() {
   const nextLink = getNextLessonLink();
   const isLastLesson = nextLink === '/dashboard';
 
-  const currentChapter = parseInt(chapter || '1');
-  const currentType = type || 'session';
-  
   const prevType = currentType === 'homework' ? 'exercise' : currentType === 'exercise' ? 'session' : null;
   const nextType = currentType === 'session' ? 'exercise' : currentType === 'exercise' ? 'homework' : null;
 
-  const prevLessonUrl = prevType ? `/courses/${id}/video/${currentChapter}/${prevType}` : null;
-  const nextLessonUrl = nextType ? `/courses/${id}/video/${currentChapter}/${nextType}` : null;
+  const prevLessonUrl = isVideoEditingCourse
+    ? (currentLessonIdx > 0 ? `/courses/${id}/video/${orderedLessons[currentLessonIdx - 1].chapter}/${orderedLessons[currentLessonIdx - 1].type}` : null)
+    : (prevType ? `/courses/${id}/video/${currentChapter}/${prevType}` : null);
+
+  const nextLessonUrl = isVideoEditingCourse
+    ? (currentLessonIdx !== -1 && currentLessonIdx < orderedLessons.length - 1 ? `/courses/${id}/video/${orderedLessons[currentLessonIdx + 1].chapter}/${orderedLessons[currentLessonIdx + 1].type}` : null)
+    : (nextType ? `/courses/${id}/video/${currentChapter}/${nextType}` : null);
   
-  const prevChapterUrl = currentChapter > 1 ? `/courses/${id}/video/${currentChapter - 1}/session` : null;
-  const nextChapterUrl = currentChapter < totalChapters ? `/courses/${id}/video/${currentChapter + 1}/session` : null;
+  const prevChapterUrl = isVideoEditingCourse ? null : (currentChapter > 1 ? `/courses/${id}/video/${currentChapter - 1}/session` : null);
+  const nextChapterUrl = isVideoEditingCourse ? null : (currentChapter < totalChapters ? `/courses/${id}/video/${currentChapter + 1}/session` : null);
 
   const getPrevLessonText = () => {
+    if (isVideoEditingCourse) {
+      if (currentLessonIdx > 0) {
+        const prevL = orderedLessons[currentLessonIdx - 1];
+        if (prevL.type === 'exercise') {
+          if (language === 'ar') return `تمرين الفصل ${prevL.chapter}`;
+          if (language === 'fr') return `Exercice Ch. ${prevL.chapter}`;
+          return `Chapter ${prevL.chapter} Exercise`;
+        } else {
+          if (language === 'ar') return `الحصة ${prevL.chapter}`;
+          if (language === 'fr') return `Session ${prevL.chapter}`;
+          return `Session ${prevL.chapter}`;
+        }
+      }
+      return '';
+    }
+
     if (currentType === 'exercise') {
       if (language === 'ar') return 'الرجوع إلى الحصة';
       if (language === 'fr') return 'Retour à la Session';
@@ -109,6 +224,22 @@ export default function VideoPlayer() {
   };
 
   const getNextLessonText = () => {
+    if (isVideoEditingCourse) {
+      if (currentLessonIdx !== -1 && currentLessonIdx < orderedLessons.length - 1) {
+        const nextL = orderedLessons[currentLessonIdx + 1];
+        if (nextL.type === 'exercise') {
+          if (language === 'ar') return `تمرين الفصل ${nextL.chapter}`;
+          if (language === 'fr') return `Exercice Ch. ${nextL.chapter}`;
+          return `Chapter ${nextL.chapter} Exercise`;
+        } else {
+          if (language === 'ar') return `الحصة ${nextL.chapter}`;
+          if (language === 'fr') return `Session ${nextL.chapter}`;
+          return `Session ${nextL.chapter}`;
+        }
+      }
+      return '';
+    }
+
     if (currentType === 'session') {
       if (language === 'ar') return 'الذهاب للتمرين';
       if (language === 'fr') return 'Aller à l’Exercice';
@@ -215,21 +346,19 @@ export default function VideoPlayer() {
           const chaptersSnap = await getDocs(chaptersQuery);
           let chaptersData = [];
 
-          if (!chaptersSnap.empty) {
-            chaptersData = chaptersSnap.docs.map(docSnap => {
-              const ch = docSnap.data();
-              return {
-                id: docSnap.id,
-                title: ch.title,
-                position: ch.position,
-                is_preview: ch.is_preview,
-                lessons: [
-                  { id: "session", type: "session", title: "Session Video", video_url: ch.session_url || "" },
-                  { id: "exercise", type: "exercise", title: "Exercise Video", video_url: ch.exercise_url || "" },
-                  { id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url || "" }
-                ]
-              };
-            }).sort((a, b) => (a.position || 0) - (b.position || 0));
+            if (!chaptersSnap.empty) {
+              chaptersData = chaptersSnap.docs.map(docSnap => {
+                const ch = docSnap.data();
+                return {
+                  id: docSnap.id,
+                  ...ch,
+                  lessons: [
+                    { id: "session", type: "session", title: ch.session_name ? `Session ${ch.position || '1'}: ${ch.session_name}` : "Session Video", video_url: ch.session_url || "" },
+                    { id: "exercise", type: "exercise", title: "Exercise Video", video_url: ch.exercise_url || "" },
+                    { id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url || "" }
+                  ]
+                };
+              }).sort((a, b) => (a.position || 0) - (b.position || 0));
           } else {
             chaptersData = data.chapters || [];
           }
@@ -556,7 +685,15 @@ export default function VideoPlayer() {
                 <div>
                   <h1 className="text-2xl md:text-3xl font-black mb-1 flex items-center gap-3">
                     <Icon className="w-8 h-8 text-purple-500 shrink-0" />
-                    Chapter {chapter}: {typeLabels[type || 'session']}
+                    {isVideoEditingCourse ? (
+                      type === 'exercise' ? (
+                        language === 'ar' ? `تمرين تطبيق الفصل ${chapter}` : language === 'fr' ? `Exercice Pratique Ch. ${chapter}` : `Chapter ${chapter} Practice Exercise`
+                      ) : (
+                        orderedLessons.find(l => l.chapter === chapter && l.type === 'session')?.title || `Session ${chapter}`
+                      )
+                    ) : (
+                      `Chapter ${chapter}: ${typeLabels[type || 'session']}`
+                    )}
                   </h1>
                   <p className="text-gray-400 text-sm">{course.title}</p>
                 </div>

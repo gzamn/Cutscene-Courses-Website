@@ -43,6 +43,14 @@ export default function CourseDetail() {
     return `/courses/${id}/video/1/session`;
   };
 
+  const isVideoEditingCourse = course && (
+    course.id === '1' ||
+    course.title?.toLowerCase().includes('video editing') ||
+    course.title?.toLowerCase().includes('video-editing') ||
+    course.title?.toLowerCase().includes('مونتاج') ||
+    course.title?.toLowerCase().includes('cinematic')
+  );
+
   useEffect(() => {
     if (!id) return;
     const qEnrollments = query(collection(db, 'enrollments'), where('courseId', '==', id));
@@ -74,11 +82,9 @@ export default function CourseDetail() {
               const ch = docSnap.data();
               return {
                 id: docSnap.id,
-                title: ch.title,
-                position: ch.position,
-                is_preview: ch.is_preview,
+                ...ch,
                 lessons: [
-                  { id: "session", type: "session", title: "Session Video", video_url: ch.session_url || "" },
+                  { id: "session", type: "session", title: ch.session_name ? `Session ${ch.position || '1'}: ${ch.session_name}` : "Session Video", video_url: ch.session_url || "" },
                   { id: "exercise", type: "exercise", title: "Exercise Video", video_url: ch.exercise_url || "" },
                   { id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url || "" }
                 ]
@@ -353,178 +359,339 @@ export default function CourseDetail() {
                   {t('course.curriculum')}
                 </h2>
                 <div className="space-y-4">
-                  {course.chapters && course.chapters.length > 0 ? (
-                    course.chapters.map((chapter: any, index: number) => (
-                      <div key={chapter._id || index} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
-                        <button 
-                          onClick={() => setExpandedChapter(expandedChapter === index + 1 ? null : index + 1)}
-                          className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
-                              {index + 1}
+                  {isVideoEditingCourse ? (
+                    <div className="flex flex-col gap-10">
+                      {course.chapters && course.chapters.map((ch: any, cIdx: number) => {
+                        const sessions = [
+                          { url: ch.session_url_1 || (cIdx === 0 && !ch.session_url_1 ? ch.session_url : ""), sIdx: 0 },
+                          { url: ch.session_url_2, sIdx: 1 },
+                          { url: ch.session_url_3, sIdx: 2 },
+                          { url: ch.session_url_4, sIdx: 3 }
+                        ].filter(s => s.url);
+
+                        const hasExercise = !!ch.exercise_url;
+
+                        return (
+                          <div key={ch.id || cIdx} className="space-y-4">
+                            <div className="border-l-4 border-purple-500 bg-zinc-950/90 px-6 py-5 rounded-r-2xl flex items-center gap-3 shadow-lg">
+                              <span className="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.8)] shrink-0 animate-pulse" />
+                              <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                                {ch.title || `Chapter ${ch.position || cIdx + 1}`}
+                              </h3>
                             </div>
-                            <span className="text-lg font-bold">{chapter.title}</span>
+                            <div className="flex flex-col gap-3">
+                              {sessions.map((s) => {
+                                const sNum = cIdx * 4 + (s.sIdx + 1);
+                                const isFirstSession = sNum === 1;
+                                const isLocked = !isEnrolled && !isFirstSession;
+                                const isLessonCompleted = completedLessons.has(`${sNum}-session`);
+ 
+                                const getSessionLabel = (num: number, sIdx: number) => {
+                                  const sName = ch[`session_name_${sIdx + 1}`] || '';
+                                  if (sName) {
+                                    if (language === 'ar') return `الحصة ${num}: ${sName}`;
+                                    if (language === 'fr') return `Session ${num}: ${sName}`;
+                                    return `Session ${num}: ${sName}`;
+                                  }
+                                  if (language === 'ar') return `الحصة ${num}`;
+                                  if (language === 'fr') return `Session ${num}`;
+                                  return `Session ${num}`;
+                                };
+ 
+                                return (
+                                  <Link
+                                    key={sNum}
+                                    to={isLocked ? '#' : `/courses/${course.id}/video/${sNum}/session`}
+                                    onClick={(e) => {
+                                      if (isLocked) {
+                                        e.preventDefault();
+                                        alert(t('course.locked'));
+                                        navigate(`/payment?courseId=${course.id}`);
+                                      }
+                                    }}
+                                    className={`flex items-center gap-4 p-4 bg-zinc-950/40 border border-purple-900/10 rounded-2xl transition-all group ${
+                                      isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/40 hover:bg-zinc-900/30'
+                                    }`}
+                                  >
+                                    <div className="relative w-24 aspect-video bg-zinc-950 rounded-xl overflow-hidden shrink-0 border border-purple-900/20">
+                                      <img
+                                        src={`https://picsum.photos/seed/${course.id}-${sNum}-session/200/120`}
+                                        alt={getSessionLabel(sNum, s.sIdx)}
+                                        className={`w-full h-full object-cover transition-opacity ${
+                                          isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'
+                                        }`}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        {isLocked ? (
+                                          <Lock className="w-5 h-5 text-gray-600" />
+                                        ) : isLessonCompleted ? (
+                                          <CheckCircle2 className="w-6 h-6 text-green-500" />
+                                        ) : (
+                                          <Play className="w-5 h-5 text-purple-500" />
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className={`font-bold transition-colors ${
+                                        isLocked ? 'text-gray-500' : 'text-gray-305 group-hover:text-purple-400'
+                                      }`}>
+                                        {getSessionLabel(sNum, s.sIdx)}
+                                      </span>
+                                      {isFirstSession && !isEnrolled && (
+                                        <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1">
+                                          Free Trial
+                                        </span>
+                                      )}
+                                    </div>
+                                    {isLocked ? (
+                                      <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                    ) : isLessonCompleted && (
+                                      <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
+                                    )}
+                                  </Link>
+                                );
+                              })}
+
+                              {hasExercise && (() => {
+                                const chapPos = ch.position || cIdx + 1;
+                                const isLocked = !isEnrolled;
+                                const isExerciseCompleted = completedLessons.has(`${chapPos}-exercise`);
+
+                                const getExerciseLabel = () => {
+                                  if (language === 'ar') return `تمرين الفصل ${chapPos}`;
+                                  if (language === 'fr') return `Exercice du Chapitre ${chapPos}`;
+                                  return `Chapter ${chapPos} Practice Exercise`;
+                                };
+
+                                return (
+                                  <Link
+                                    key={`ex-${chapPos}`}
+                                    to={isLocked ? '#' : `/courses/${course.id}/video/${chapPos}/exercise`}
+                                    onClick={(e) => {
+                                      if (isLocked) {
+                                        e.preventDefault();
+                                        alert(t('course.locked'));
+                                        navigate(`/payment?courseId=${course.id}`);
+                                      }
+                                    }}
+                                    className={`flex items-center gap-4 p-4 bg-purple-950/10 border border-purple-500/25 rounded-2xl transition-all group ${
+                                      isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/40 hover:bg-purple-950/20'
+                                    }`}
+                                  >
+                                    <div className="relative w-24 aspect-video bg-zinc-950 rounded-xl overflow-hidden shrink-0 border border-purple-500/20">
+                                      <img
+                                        src={`https://picsum.photos/seed/${course.id}-${chapPos}-exercise/200/120`}
+                                        alt={getExerciseLabel()}
+                                        className={`w-full h-full object-cover transition-opacity ${
+                                          isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'
+                                        }`}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center bg-purple-950/20">
+                                        {isLocked ? (
+                                          <Lock className="w-5 h-5 text-gray-600" />
+                                        ) : isExerciseCompleted ? (
+                                          <CheckCircle2 className="w-6 h-6 text-green-500" />
+                                        ) : (
+                                          <Dumbbell className="w-5 h-5 text-purple-400" />
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className={`font-bold transition-colors ${
+                                        isLocked ? 'text-gray-500' : 'text-purple-300 group-hover:text-purple-400'
+                                      }`}>
+                                        {getExerciseLabel()}
+                                      </span>
+                                    </div>
+                                    {isLocked ? (
+                                      <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                    ) : isExerciseCompleted && (
+                                      <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
+                                    )}
+                                  </Link>
+                                );
+                              })()}
+                            </div>
                           </div>
-                          {expandedChapter === index + 1 ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
-                        </button>
-                        
-                        <AnimatePresence>
-                          {expandedChapter === index + 1 && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="p-6 pt-0 flex flex-col gap-3">
-                                  {chapter.lessons && chapter.lessons.map((lesson: any, lIdx: number) => {
-                                    const isFirstSession = index === 0 && lIdx === 0;
-                                    const isGraphicDesignRecorded = course.id === '4' && lesson.type !== 'session' && lesson.type !== 'live';
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    course.chapters && course.chapters.length > 0 ? (
+                      course.chapters.map((chapter: any, index: number) => (
+                        <div key={chapter._id || index} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
+                          <button 
+                            onClick={() => setExpandedChapter(expandedChapter === index + 1 ? null : index + 1)}
+                            className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-full bg-purple-600/25 flex items-center justify-center text-purple-300 font-extrabold text-base border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
+                                {index + 1}
+                              </div>
+                              <span className="text-xl md:text-2xl font-black text-purple-100 tracking-tight">{chapter.title}</span>
+                            </div>
+                            {expandedChapter === index + 1 ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+                          </button>
+                          
+                          <AnimatePresence>
+                            {expandedChapter === index + 1 && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-6 pt-0 flex flex-col gap-3">
+                                    {chapter.lessons && chapter.lessons.map((lesson: any, lIdx: number) => {
+                                      const isFirstSession = index === 0 && lIdx === 0;
+                                      const isGraphicDesignRecorded = course.id === '4' && lesson.type !== 'session' && lesson.type !== 'live';
+                                      const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
+                                      const isLessonCompleted = completedLessons.has(`${index + 1}-${lesson.type || 'session'}`);
+                                      
+                                      return (
+                                      <Link 
+                                        key={lesson._id || lIdx}
+                                        to={isLocked ? '#' : `/courses/${course.id}/video/${index + 1}/${lesson.type || 'session'}`}
+                                        onClick={(e) => {
+                                          if (isLocked) {
+                                            e.preventDefault();
+                                            alert(t('course.locked'));
+                                            navigate(`/payment?courseId=${course.id}`);
+                                          }
+                                        }}
+                                        className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
+                                      >
+                                        <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
+                                          <img 
+                                            src={`https://picsum.photos/seed/${course.id}-${index}-${lIdx}/200/120`}
+                                            alt={lesson.title}
+                                            className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
+                                            referrerPolicy="no-referrer"
+                                          />
+                                          <div className="absolute inset-0 flex items-center justify-center">
+                                            {isLocked ? (
+                                              <Lock className="w-5 h-5 text-gray-600" />
+                                            ) : isLessonCompleted ? (
+                                              <CheckCircle2 className="w-6 h-6 text-green-500" />
+                                            ) : (
+                                              <Play className="w-5 h-5 text-purple-500" />
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col">
+                                          <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
+                                            {lesson.title}
+                                          </span>
+                                          {isFirstSession && !isEnrolled && (
+                                            <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
+                                          )}
+                                        </div>
+                                        {isLocked ? (
+                                          <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                        ) : isLessonCompleted && (
+                                          <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
+                                        )}
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ))
+                    ) : (
+                      Array.from({ 
+                        length: course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '4' ? 12 : 24 
+                      }, (_, i) => i + 1).map((chapter) => (
+                        <div key={chapter} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
+                          <button 
+                            onClick={() => setExpandedChapter(expandedChapter === chapter ? null : chapter)}
+                            className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
+                                {chapter}
+                              </div>
+                              <span className="text-lg font-bold">Chapter {chapter}: Master the Basics</span>
+                            </div>
+                            {expandedChapter === chapter ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+                          </button>
+                          
+                          <AnimatePresence>
+                            {expandedChapter === chapter && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-6 pt-0 flex flex-col gap-3">
+                                  {[
+                                    { type: 'session', label: 'Session', icon: Play },
+                                    { type: 'exercise', label: 'Exercise', icon: Dumbbell },
+                                    { type: 'homework', label: 'Homework', icon: FileText }
+                                  ].map((item) => {
+                                    const isFirstSession = chapter === 1 && item.type === 'session';
+                                    const isGraphicDesignRecorded = course.id === '4' && item.type !== 'session' && item.type !== 'live';
                                     const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
-                                    const isLessonCompleted = completedLessons.has(`${index + 1}-${lesson.type || 'session'}`);
+                                    const isLessonCompleted = completedLessons.has(`${chapter}-${item.type}`);
                                     
                                     return (
-                                    <Link 
-                                      key={lesson._id || lIdx}
-                                      to={isLocked ? '#' : `/courses/${course.id}/video/${index + 1}/${lesson.type || 'session'}`}
-                                      onClick={(e) => {
-                                        if (isLocked) {
-                                          e.preventDefault();
-                                          alert(t('course.locked'));
-                                          navigate(`/payment?courseId=${course.id}`);
-                                        }
-                                      }}
-                                      className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
-                                    >
-                                      <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
-                                        <img 
-                                          src={`https://picsum.photos/seed/${course.id}-${index}-${lIdx}/200/120`}
-                                          alt={lesson.title}
-                                          className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
-                                          referrerPolicy="no-referrer"
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          {isLocked ? (
-                                            <Lock className="w-5 h-5 text-gray-600" />
-                                          ) : isLessonCompleted ? (
-                                            <CheckCircle2 className="w-6 h-6 text-green-500" />
-                                          ) : (
-                                            <Play className="w-5 h-5 text-purple-500" />
+                                      <Link 
+                                        key={item.type}
+                                        to={isLocked ? '#' : `/courses/${course.id}/video/${chapter}/${item.type}`}
+                                        onClick={(e) => {
+                                          if (isLocked) {
+                                            e.preventDefault();
+                                            alert(t('course.locked'));
+                                            navigate(`/payment?courseId=${course.id}`);
+                                          }
+                                        }}
+                                        className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
+                                      >
+                                        <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
+                                          <img 
+                                            src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
+                                            alt={item.label}
+                                            className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
+                                            referrerPolicy="no-referrer"
+                                          />
+                                          <div className="absolute inset-0 flex items-center justify-center">
+                                            {isLocked ? (
+                                              <Lock className="w-5 h-5 text-gray-600" />
+                                            ) : isLessonCompleted ? (
+                                              <CheckCircle2 className="w-6 h-6 text-green-500" />
+                                            ) : (
+                                              <item.icon className="w-5 h-5 text-purple-500" />
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col">
+                                          <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
+                                            {item.label}
+                                          </span>
+                                          {isFirstSession && !isEnrolled && (
+                                            <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
                                           )}
                                         </div>
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
-                                          {lesson.title}
-                                        </span>
-                                        {isFirstSession && !isEnrolled && (
-                                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
+                                        {isLocked ? (
+                                          <Lock className="w-4 h-4 text-gray-700 ml-auto" />
+                                        ) : isLessonCompleted && (
+                                          <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
                                         )}
-                                      </div>
-                                      {isLocked ? (
-                                        <Lock className="w-4 h-4 text-gray-700 ml-auto" />
-                                      ) : isLessonCompleted && (
-                                        <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
-                                      )}
-                                    </Link>
-                                  );
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ))
-                  ) : (
-                    Array.from({ 
-                      length: course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '4' ? 12 : 24 
-                    }, (_, i) => i + 1).map((chapter) => (
-                      <div key={chapter} className="border border-purple-900/20 rounded-2xl overflow-hidden bg-zinc-900/30">
-                        <button 
-                          onClick={() => setExpandedChapter(expandedChapter === chapter ? null : chapter)}
-                          className="w-full p-6 flex items-center justify-between hover:bg-purple-900/10 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-bold">
-                              {chapter}
-                            </div>
-                            <span className="text-lg font-bold">Chapter {chapter}: Master the Basics</span>
-                          </div>
-                          {expandedChapter === chapter ? <ChevronUp className="w-5 h-5 text-purple-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
-                        </button>
-                        
-                        <AnimatePresence>
-                          {expandedChapter === chapter && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="p-6 pt-0 flex flex-col gap-3">
-                                {[
-                                  { type: 'session', label: 'Session', icon: Play },
-                                  { type: 'exercise', label: 'Exercise', icon: Dumbbell },
-                                  { type: 'homework', label: 'Homework', icon: FileText }
-                                ].map((item) => {
-                                  const isFirstSession = chapter === 1 && item.type === 'session';
-                                  const isGraphicDesignRecorded = course.id === '4' && item.type !== 'session' && item.type !== 'live';
-                                  const isLocked = (!isEnrolled && !isFirstSession) || isGraphicDesignRecorded;
-                                  const isLessonCompleted = completedLessons.has(`${chapter}-${item.type}`);
-                                  
-                                  return (
-                                    <Link 
-                                      key={item.type}
-                                      to={isLocked ? '#' : `/courses/${course.id}/video/${chapter}/${item.type}`}
-                                      onClick={(e) => {
-                                        if (isLocked) {
-                                          e.preventDefault();
-                                          alert(t('course.locked'));
-                                          navigate(`/payment?courseId=${course.id}`);
-                                        }
-                                      }}
-                                      className={`flex items-center gap-4 p-3 bg-zinc-950/50 border border-purple-900/10 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-60' : 'hover:border-purple-500/50'}`}
-                                    >
-                                      <div className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20">
-                                        <img 
-                                          src={`https://picsum.photos/seed/${course.id}-${chapter}-${item.type}/200/120`}
-                                          alt={item.label}
-                                          className={`w-full h-full object-cover transition-opacity ${isLocked ? 'opacity-20' : 'opacity-60 group-hover:opacity-100'}`}
-                                          referrerPolicy="no-referrer"
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          {isLocked ? (
-                                            <Lock className="w-5 h-5 text-gray-600" />
-                                          ) : isLessonCompleted ? (
-                                            <CheckCircle2 className="w-6 h-6 text-green-500" />
-                                          ) : (
-                                            <item.icon className="w-5 h-5 text-purple-500" />
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <span className={`font-bold transition-colors ${isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-purple-400'}`}>
-                                          {item.label}
-                                        </span>
-                                        {isFirstSession && !isEnrolled && (
-                                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Free Trial</span>
-                                        )}
-                                      </div>
-                                      {isLocked ? (
-                                        <Lock className="w-4 h-4 text-gray-700 ml-auto" />
-                                      ) : isLessonCompleted && (
-                                        <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
-                                      )}
-                                    </Link>
-                                  );
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ))
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ))
+                    )
                   )}
                 </div>
               </div>
