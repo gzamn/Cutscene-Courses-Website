@@ -80,6 +80,12 @@ export default function VideoPlayer() {
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
   const [isWindowFocused, setIsWindowFocused] = useState(true);
 
+  // BunnyCDN upload states
+  const [bunnyUploading, setBunnyUploading] = useState(false);
+  const [bunnyUploadProgress, setBunnyUploadProgress] = useState(0);
+  const [exerciseUploads, setExerciseUploads] = useState<any[]>([]);
+  const bunnyFileInputRef = useRef<HTMLInputElement>(null);
+
   // Comments State
   const [comments, setComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
@@ -460,6 +466,93 @@ export default function VideoPlayer() {
     return () => unsubComments();
   }, [id, chapter]);
 
+  // Exercise submissions subscription
+  useEffect(() => {
+    if (!user || !id || !chapter) return;
+
+    const qSubmissions = query(
+      collection(db, 'exercise_submissions'),
+      where('uid', '==', user.uid),
+      where('courseId', '==', id),
+      where('chapter', '==', parseInt(chapter))
+    );
+
+    const unsubSubmissions = onSnapshot(qSubmissions, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const sorted = list.sort((a: any, b: any) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      setExerciseUploads(sorted);
+    }, (error) => {
+      console.error("Exercise submissions subscription error:", error);
+    });
+
+    return () => unsubSubmissions();
+  }, [user, id, chapter]);
+
+  const handleBunnyFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+
+    setBunnyUploading(true);
+    setBunnyUploadProgress(10);
+    try {
+      setBunnyUploadProgress(20);
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename: file.name })
+      });
+
+      if (!signRes.ok) {
+        throw new Error('Failed to obtain upload authorization details from server.');
+      }
+      const signData = await signRes.json();
+      setBunnyUploadProgress(45);
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(errText || 'Failed to transfer file to Bunny.');
+      }
+
+      const uploadResult = await uploadRes.json();
+      setBunnyUploadProgress(80);
+
+      if (user && id && chapter) {
+        await addDoc(collection(db, 'exercise_submissions'), {
+          uid: user.uid,
+          courseId: id,
+          chapter: parseInt(chapter),
+          name: file.name,
+          downloadUrl: uploadResult.publicUrl,
+          uploadedAt: new Date().toISOString()
+        });
+      }
+
+      setBunnyUploadProgress(100);
+      setTimeout(() => {
+        setBunnyUploadProgress(0);
+        setBunnyUploading(false);
+      }, 1000);
+
+      alert(`"${file.name}" uploaded successfully! It is registered in your exercise submissions.`);
+    } catch (err: any) {
+      console.error('Bunny upload failed:', err);
+      alert(`Upload failed: ${err.message || err}`);
+      setBunnyUploading(false);
+      setBunnyUploadProgress(0);
+    }
+  };
+
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !id || !chapter || !commentInput.trim()) return;
@@ -811,6 +904,23 @@ export default function VideoPlayer() {
                 )}
               </div>
 
+              {type === 'exercise' && (
+                <div className="pt-6 border-t border-purple-900/20">
+                  <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
+                    <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
+                    <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
+                      {t('course.helpDesc')}
+                    </p>
+                    <Link 
+                      to="/support"
+                      className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
+                    >
+                      {t('course.contactSupport')}
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               {type === 'homework' && (
                 <div className="pt-6 border-t border-purple-900/20">
                   <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -984,18 +1094,82 @@ export default function VideoPlayer() {
               </div>
             </div>
 
-            <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
-              <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
-              <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
-                {t('course.helpDesc')}
-              </p>
-              <Link 
-                to="/support"
-                className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
-              >
-                {t('course.contactSupport')}
-              </Link>
-            </div>
+            {type === 'exercise' ? (
+              <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
+                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-purple-400" />
+                  Upload Exercise Submission
+                </h3>
+                <p className="text-sm text-gray-400 mb-4">
+                  Submit your completed design project draft or video reference file to your cloud workspace portfolio.
+                </p>
+
+                <input 
+                  type="file" 
+                  ref={bunnyFileInputRef} 
+                  className="hidden" 
+                  onChange={handleBunnyFileUpload} 
+                />
+
+                {exerciseUploads && exerciseUploads.length > 0 ? (
+                  <div className="space-y-3 mb-4">
+                    {exerciseUploads.map((item: any) => (
+                      <div key={item.id} className="bg-black/40 border border-purple-900/25 p-4 rounded-xl flex flex-col justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center shrink-0">
+                            <FileText className="w-5 h-5 text-purple-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-sm text-white truncate max-w-[140px]" title={item.name}>{item.name}</div>
+                            <div className="text-[10px] text-gray-550">Uploaded on {new Date(item.uploadedAt).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                        <a 
+                          href={item.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full text-center bg-purple-900/10 hover:bg-purple-900/20 border border-purple-900/40 text-purple-300 font-bold text-xs px-3 py-2 rounded-lg transition-colors"
+                        >
+                          View Submission
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  disabled={bunnyUploading}
+                  onClick={() => bunnyFileInputRef.current?.click()}
+                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                >
+                  {bunnyUploading ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Uploading {bunnyUploadProgress}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>upload homework</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
+                <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
+                <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
+                  {t('course.helpDesc')}
+                </p>
+                <Link 
+                  to="/support"
+                  className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
+                >
+                  {t('course.contactSupport')}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>

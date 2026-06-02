@@ -24,6 +24,17 @@ export default function Dashboard() {
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(false);
   const [libraryFilter, setLibraryFilter] = useState('All');
   const [libraryQuery, setLibraryQuery] = useState('');
+  const [bunnyUploading, setBunnyUploading] = useState(false);
+  const [bunnyUploadProgress, setBunnyUploadProgress] = useState(0);
+  const [bunnySuccessText, setBunnySuccessText] = useState<string | null>(null);
+  const bunnyFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Direct video upload states
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [videoSuccessText, setVideoSuccessText] = useState<string | null>(null);
+  const videoFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Listen to courses collection
   useEffect(() => {
@@ -227,27 +238,157 @@ export default function Dashboard() {
     link.click();
   };
 
-  const handleVideoLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !uploadTitle.trim() || !uploadUrl.trim()) return;
-
-    setUploading(true);
+  const handleBunnyFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    
+    setBunnyUploading(true);
+    setBunnyUploadProgress(10);
+    setBunnySuccessText(null);
     try {
+      setBunnyUploadProgress(20);
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename: file.name })
+      });
+
+      if (!signRes.ok) {
+        throw new Error('Failed to obtain upload authorization details from server.');
+      }
+      const signData = await signRes.json();
+      setBunnyUploadProgress(45);
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(errText || 'Failed to transfer file to Bunny proxy.');
+      }
+
+      const uploadResult = await uploadRes.json();
+      setBunnyUploadProgress(80);
+
+      let category = 'Documents';
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (['mp4', 'mov', 'avi', 'mkv'].includes(extension || '')) {
+        category = 'Videos';
+      } else if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension || '')) {
+        category = 'Images';
+      } else if (['mp3', 'wav', 'ogg', 'aac'].includes(extension || '')) {
+        category = 'Music';
+      } else if (['exe', 'dmg', 'pkg', 'zip', 'rar'].includes(extension || '')) {
+        category = 'Softwares';
+      }
+
+      if (user) {
+        await addDoc(collection(db, 'user_downloads'), {
+          uid: user.uid,
+          downloadableId: `bunny-${Date.now()}`,
+          name: file.name,
+          category: category,
+          imageUrl: category === 'Images' ? uploadResult.publicUrl : '',
+          downloadUrl: uploadResult.publicUrl,
+          description: `Secure file uploaded via BunnyCDN on ${new Date().toLocaleDateString()}`,
+          savedAt: new Date().toISOString()
+        });
+      }
+
+      setBunnyUploadProgress(100);
+      setBunnySuccessText(`"${file.name}" uploaded successfully! Added to your library.`);
+      setTimeout(() => {
+        setBunnyUploadProgress(0);
+        setBunnyUploading(false);
+      }, 1000);
+      setTimeout(() => {
+        setBunnySuccessText(null);
+      }, 4000);
+
+    } catch (err: any) {
+      console.error('Bunny upload failed:', err);
+      alert(`Upload failed: ${err.message || err}`);
+      setBunnyUploading(false);
+      setBunnyUploadProgress(0);
+      setBunnySuccessText(null);
+    }
+  };
+
+  const handleVideoDirectUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !videoFile || !uploadTitle.trim()) return;
+
+    setVideoUploading(true);
+    setVideoUploadProgress(10);
+    setVideoSuccessText(null);
+    try {
+      setVideoUploadProgress(20);
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename: videoFile.name })
+      });
+
+      if (!signRes.ok) {
+        throw new Error('Failed to obtain upload authorization details from server.');
+      }
+      const signData = await signRes.json();
+      setVideoUploadProgress(45);
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': videoFile.type || 'application/octet-stream'
+        },
+        body: videoFile
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(errText || 'Failed to transfer video to Bunny.');
+      }
+
+      const uploadResult = await uploadRes.json();
+      setVideoUploadProgress(80);
+
       await addDoc(collection(db, 'videos'), {
         uid: user.uid,
         title: uploadTitle.trim(),
-        url: uploadUrl.trim(),
+        url: uploadResult.publicUrl,
         createdAt: new Date().toISOString()
       });
 
+      setVideoUploadProgress(100);
+      setVideoSuccessText(`"${uploadTitle}" uploaded successfully!`);
+      
+      // Clear inputs
+      setVideoFile(null);
       setUploadTitle('');
-      setUploadUrl('');
-      alert('Video link submitted successfully!');
-    } catch (error) {
-      console.error('Submit link failed:', error);
-      alert('Submit link failed. Please try again.');
-    } finally {
-      setUploading(false);
+      
+      setTimeout(() => {
+        setVideoUploadProgress(0);
+        setVideoUploading(false);
+      }, 1000);
+      setTimeout(() => {
+        setVideoSuccessText(null);
+      }, 4000);
+
+    } catch (err: any) {
+      console.error('Video direct upload failed:', err);
+      alert(`Video upload failed: ${err.message || err}`);
+      setVideoUploading(false);
+      setVideoUploadProgress(0);
+      setVideoSuccessText(null);
     }
   };
 
@@ -423,18 +564,85 @@ export default function Dashboard() {
                   <FolderOpen className="w-6 h-6 text-purple-500" />
                   My Library
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setIsLibraryExpanded(true)}
-                  className="text-purple-400 font-bold hover:underline text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
-                >
-                  See all
-                  <ExternalLink className="w-4 h-4 ml-0.5" />
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input 
+                    type="file" 
+                    ref={bunnyFileInputRef} 
+                    className="hidden" 
+                    onChange={handleBunnyFileUpload} 
+                  />
+                  
+                  <button
+                    type="button"
+                    disabled={bunnyUploading}
+                    onClick={() => {
+                      setBunnySuccessText(null);
+                      bunnyFileInputRef.current?.click();
+                    }}
+                    className="overflow-hidden px-4 py-2 text-xs font-bold uppercase tracking-widest text-white bg-purple-600 hover:bg-purple-500 rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-purple-900/20"
+                  >
+                    {bunnyUploading ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Uploading {bunnyUploadProgress}%</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload File</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsLibraryExpanded(true)}
+                    className="text-purple-400 font-bold hover:underline text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
+                  >
+                    See all
+                    <ExternalLink className="w-4 h-4 ml-0.5" />
+                  </button>
+                </div>
               </div>
 
-              {userDownloads.length > 0 ? (
+              {userDownloads.length > 0 || bunnyUploading || bunnySuccessText ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Realtime Uploading Placeholder */}
+                  {bunnyUploading && (
+                    <div className="bg-purple-900/10 border border-purple-500/25 p-5 rounded-2xl flex flex-col justify-between animate-pulse">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-450 bg-purple-500/20 px-2 py-0.5 rounded-md">
+                            Uploading
+                          </span>
+                        </div>
+                        <h3 className="font-extrabold text-sm text-purple-300">File is transferring to cloud workspace...</h3>
+                        <div className="w-full bg-zinc-90 w-full bg-zinc-900 rounded-full h-1.5 mt-3 overflow-hidden">
+                          <div 
+                            className="bg-purple-500 h-1.5 rounded-full transition-all duration-300" 
+                            style={{ width: `${bunnyUploadProgress}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-gray-400 mt-2 block font-mono">{bunnyUploadProgress}% completed</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Realtime Upload Success Badge */}
+                  {bunnySuccessText && (
+                    <div className="bg-green-950/40 border border-green-500/20 p-5 rounded-2xl flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5 rounded-md">
+                            Success
+                          </span>
+                        </div>
+                        <h3 className="font-extrabold text-sm text-green-450">Save Complete!</h3>
+                        <p className="text-xs text-gray-300 mt-1">{bunnySuccessText}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {userDownloads.slice(0, 4).map((item) => (
                     <div 
                       key={item.id} 
@@ -501,51 +709,132 @@ export default function Dashboard() {
                 {t('dashboard.uploadTitle')}
               </h2>
               <div className="space-y-6">
-                <form onSubmit={handleVideoLinkSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <input 
-                    type="text" 
-                    required
-                    placeholder={t('dashboard.uploadPlaceholder') || "Video Title"}
-                    value={uploadTitle}
-                    onChange={(e) => setUploadTitle(e.target.value)}
-                    className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                  />
-                  <input 
-                    type="url" 
-                    required
-                    placeholder="Paste project/video URL link"
-                    value={uploadUrl}
-                    onChange={(e) => setUploadUrl(e.target.value)}
-                    className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                  />
+                <form onSubmit={handleVideoDirectUpload} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input 
+                      type="text" 
+                      required
+                      placeholder={t('dashboard.uploadPlaceholder') || "Video Title"}
+                      value={uploadTitle}
+                      onChange={(e) => setUploadTitle(e.target.value)}
+                      className="bg-black border border-purple-900/30 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm text-white"
+                    />
+
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="video/*"
+                        ref={videoFileInputRef}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            const file = e.target.files[0];
+                            setVideoFile(file);
+                            // Auto-set title if it's empty
+                            if (!uploadTitle.trim()) {
+                              setUploadTitle(file.name.substring(0, file.name.lastIndexOf('.')) || file.name);
+                            }
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVideoSuccessText(null);
+                          videoFileInputRef.current?.click();
+                        }}
+                        className="w-full bg-black border border-purple-900/30 rounded-2xl px-6 py-4 text-left text-sm text-gray-400 hover:border-purple-500/50 transition-colors flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="truncate max-w-[85%]">
+                          {videoFile ? videoFile.name : "Select Project Video File"}
+                        </span>
+                        <PlayCircle className="w-5 h-5 text-purple-500 shrink-0" />
+                      </button>
+                    </div>
+                  </div>
+
                   <button 
                     type="submit"
-                    disabled={uploading || !uploadTitle.trim() || !uploadUrl.trim()}
-                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded-2xl flex items-center justify-center gap-3 px-6 py-4 transition-colors cursor-pointer"
+                    disabled={videoUploading || !uploadTitle.trim() || !videoFile}
+                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:hover:bg-purple-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 px-6 py-4 transition-colors cursor-pointer"
                   >
-                    {uploading ? <Clock className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                    <span className="font-bold">{uploading ? 'Submitting...' : 'Submit Link'}</span>
+                    {videoUploading ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Uploading {videoUploadProgress}%</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5" />
+                        <span>Upload Project Video</span>
+                      </>
+                    )}
                   </button>
                 </form>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {videoUploading && (
+                    <div className="bg-purple-900/10 border border-purple-500/25 p-4 rounded-2xl flex items-center justify-between animate-pulse">
+                      <div className="flex items-center gap-4 overflow-hidden w-full">
+                        <div className="w-12 h-12 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0">
+                          <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <div className="font-bold text-sm text-purple-300 truncate">Uploading video: {uploadTitle || "New Video"}</div>
+                          <div className="w-full bg-zinc-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div 
+                              className="bg-purple-500 h-1.5 rounded-full transition-all duration-300" 
+                              style={{ width: `${videoUploadProgress}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-gray-400 mt-1 block font-mono">{videoUploadProgress}% completed</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {videoSuccessText && (
+                    <div className="bg-green-950/45 border border-green-500/25 p-4 rounded-2xl flex items-center justify-between">
+                      <div className="flex items-center gap-4 overflow-hidden">
+                        <div className="w-12 h-12 bg-green-600/25 rounded-lg flex items-center justify-center shrink-0 text-green-400 text-lg font-bold">
+                          ✓
+                        </div>
+                        <div className="truncate text-left">
+                          <div className="font-bold text-sm text-green-400">Success</div>
+                          <div className="text-xs text-gray-300 truncate max-w-[200px]" title={videoSuccessText}>{videoSuccessText}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {userVideos.map((video) => (
                     <div key={video.id} className="bg-black border border-purple-900/20 p-4 rounded-2xl flex items-center justify-between group">
                       <div className="flex items-center gap-4 overflow-hidden">
                         <div className="w-12 h-12 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0">
                           <PlayCircle className="w-6 h-6 text-purple-500" />
                         </div>
-                        <div className="truncate">
-                          <div className="font-bold truncate">{video.title}</div>
+                        <div className="truncate text-left">
+                          <div className="font-bold truncate text-gray-100">{video.title}</div>
                           <div className="text-xs text-gray-500">{new Date(video.createdAt).toLocaleDateString()}</div>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => deleteVideo(video.id)}
-                        className="p-2 text-gray-500 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <a 
+                          href={video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 text-purple-400 hover:text-purple-300 transition-colors"
+                          title="View Uploaded Video"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <button 
+                          onClick={() => deleteVideo(video.id)}
+                          className="p-2 text-gray-500 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

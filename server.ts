@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import axios from "axios";
+import crypto from "crypto";
 import "dotenv/config";
 
 async function startServer() {
@@ -46,6 +47,102 @@ async function startServer() {
     } catch (error: any) {
       console.error("Chargily Error:", error.response?.data || error.message);
       res.status(500).json({ error: "Failed to create checkout session." });
+    }
+  });
+
+  const SIGNING_SECRET = "bunny-custom-signing-secret-123456";
+
+  // Endpoint to issue a secure, signed upload URL/parameters
+  app.post("/api/bunny-upload-signed-url", async (req, res) => {
+    try {
+      const { filename } = req.body;
+      if (!filename) {
+        return res.status(400).json({ error: "Filename is required" });
+      }
+
+      // Generate sanitized unique filename
+      const timestamp = Date.now();
+      const sanitizedName = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const uniqueFilename = `${timestamp}-${sanitizedName}`;
+      
+      const expires = Math.floor(Date.now() / 1000) + 1200; // valid for 20 minutes
+      
+      // Sign the filename and expiration to prevent URL tampering
+      const signature = crypto
+        .createHmac("sha256", SIGNING_SECRET)
+        .update(`${uniqueFilename}:${expires}`)
+        .digest("hex");
+
+      const uploadUrl = `/api/bunny-upload?filename=${encodeURIComponent(uniqueFilename)}&expires=${expires}&signature=${signature}`;
+
+      res.json({
+        uploadUrl,
+        uniqueFilename,
+        expires
+      });
+    } catch (error: any) {
+      console.error("Error generating signed upload parameters:", error);
+      res.status(500).json({ error: "Failed to generate upload signature." });
+    }
+  });
+
+  // Proxy endpoint carrying out the actual secure upload stream
+  app.put("/api/bunny-upload", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
+    try {
+      const { filename, expires, signature } = req.query;
+
+      if (!filename || !expires || !signature) {
+        return res.status(400).json({ error: "Missing required parameters." });
+      }
+
+      // 1. Verify expiration
+      if (Math.floor(Date.now() / 1000) > parseInt(expires as string, 10)) {
+        return res.status(403).json({ error: "Temporary upload URL has expired." });
+      }
+
+      // 2. Cryptographically verify signature
+      const expectedSignature = crypto
+        .createHmac("sha256", SIGNING_SECRET)
+        .update(`${filename}:${expires}`)
+        .digest("hex");
+
+      if (signature !== expectedSignature) {
+        return res.status(403).json({ error: "Invalid signature authorization." });
+      }
+
+      // 3. Securely proxy the payload to BunnyCDN Storage API
+      const fileBuffer = req.body;
+      if (!fileBuffer || fileBuffer.length === 0) {
+        return res.status(400).json({ error: "No payload stream provided." });
+      }
+
+      const bunnyStorageZone = "cutscenedocuments";
+      const bunnyAccessKey = "8a3acd40-3ec5-46a4-a3d281fc6d40-9ec4-4e8a";
+      const targetUrl = `https://storage.bunnycdn.com/${bunnyStorageZone}/${filename}`;
+
+      console.log(`Secured signed upload incoming: Proxying ${filename} to BunnyCDN Storage...`);
+
+      const response = await axios.put(targetUrl, fileBuffer, {
+        headers: {
+          AccessKey: bunnyAccessKey,
+          "Content-Type": "application/octet-stream"
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      });
+
+      console.log(`BunnyCDN response code: ${response.status}`);
+
+      const publicUrl = `https://cutscenedocuments.b-cdn.net/${filename}`;
+
+      res.json({
+        success: true,
+        filename,
+        publicUrl
+      });
+    } catch (error: any) {
+      console.error("BunnyCDN Edge Upload error:", error.response?.data || error.message);
+      res.status(500).json({ error: "Failed to deliver file to BunnyCDN Storage API." });
     }
   });
 

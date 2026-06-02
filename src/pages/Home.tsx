@@ -159,17 +159,21 @@ export default function Home() {
     if (!embedUrl) return '';
     if (embedUrl.includes('player.mediadelivery.net')) {
       let finalUrl = embedUrl;
-      // To loop and autoplay perfectly as the background, we toggle autoplay to true
-      finalUrl = finalUrl.replace('autoplay=false', 'autoplay=true');
+      // Force autoplay to false, and muted to false
+      finalUrl = finalUrl.replace('autoplay=true', 'autoplay=false');
+      finalUrl = finalUrl.replace('muted=true', 'muted=false');
       if (!finalUrl.includes('autoplay=')) {
-        finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'autoplay=true';
+        finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'autoplay=false';
+      }
+      if (!finalUrl.includes('muted=')) {
+        finalUrl += '&muted=false';
       }
       return finalUrl;
     }
     if (embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be')) {
       const videoId = embedUrl.includes('embed/') ? embedUrl.split('embed/')[1]?.split('?')[0] : '';
       const separator = embedUrl.includes('?') ? '&' : '?';
-      return `${embedUrl}${separator}autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&rel=0`;
+      return `${embedUrl}${separator}autoplay=0&mute=0&controls=1&loop=1&playlist=${videoId}&rel=0`;
     }
     return embedUrl;
   };
@@ -202,17 +206,16 @@ export default function Home() {
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
         </div>
  
-        {/* Centered Video Container. Made a bit smaller with elegant rounded corners, completely non-interactive, and without mute button */}
+        {/* Centered Video Container. Made interactive so users can control play, pause, fullscreen, and volume */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 w-full mb-8 flex flex-col items-center">
-          <div className="relative aspect-video overflow-hidden group bg-zinc-950 rounded-2xl md:rounded-[2rem] border border-purple-500/10 shadow-[0_10px_40px_rgba(147,51,234,0.15)] pointer-events-none w-full">
+          <div className="relative aspect-video overflow-hidden group bg-zinc-950 rounded-2xl md:rounded-[2rem] border border-purple-500/10 shadow-[0_10px_40px_rgba(147,51,234,0.15)] w-full">
             
             {isDirectVideo(heroVideoUrl) ? (
               <video
                 key={heroVideoUrl}
-                className="w-full h-full object-cover pointer-events-none"
-                autoPlay
+                className="w-full h-full object-cover"
+                controls
                 loop
-                muted={isMuted}
                 playsInline
               >
                 <source src={heroVideoUrl} type="video/mp4" />
@@ -224,9 +227,9 @@ export default function Home() {
               <iframe
                 key={heroVideoUrl}
                 title="Hero Background Video"
-                className="w-full h-full absolute inset-0 border-0 z-0 pointer-events-none"
+                className="w-full h-full absolute inset-0 border-0 z-0"
                 src={getHeroIframeSrc(heroVideoUrl)}
-                allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allow="encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowFullScreen
               />
             )}
