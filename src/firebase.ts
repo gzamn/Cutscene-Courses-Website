@@ -295,14 +295,14 @@ export const DEFAULT_COURSES = [
   {
     id: "1",
     title: "Video Editing 101",
-    description: "Master professional cinematic video editing, color grading, sound design, and industry-standard workflows.",
-    detailedDescription: "Go from beginner to pro editor. Learn advanced montage techniques, cinematic pacing, color workflows, and sound editing.",
+    description: "Master professional cinematic video editing using Adobe Premiere Pro and Adobe After Effects. Learn color grading, sound design, and industry-standard workflows.",
+    detailedDescription: "Go from beginner to pro editor. Learn advanced montage techniques, cinematic pacing, color workflows, and sound editing with Adobe Premiere Pro and Adobe After Effects.",
     price: 15000,
     currency: "DA",
     image: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=800&q=80",
     duration: "12 weeks",
     level: "Beginner to Pro",
-    requirements: ["A computer capable of video editing", "Editing software of choice (Premiere Pro, DaVinci, or CapCut)", "No prior experience required"],
+    requirements: ["A computer capable of video editing", "Adobe Premiere Pro & Adobe After Effects installed", "No prior experience required"],
     learningOutcomes: ["Master professional video editing techniques", "Incorporate advanced color grading and cinematic sound design", "Optimize editing efficiency and delivery workflows", "Structure stories with premium pacing"],
     instructor: {
       name: "Amine Rouabhia",
