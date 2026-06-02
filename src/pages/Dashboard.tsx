@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen } from 'lucide-react';
@@ -20,6 +20,10 @@ export default function Dashboard() {
   const [chaptersCountMap, setChaptersCountMap] = useState<{ [courseId: string]: number }>({});
   const [downloadables, setDownloadables] = useState<any[]>([]);
   const [hasDownloadAccess, setHasDownloadAccess] = useState(false);
+  const [userDownloads, setUserDownloads] = useState<any[]>([]);
+  const [isLibraryExpanded, setIsLibraryExpanded] = useState(false);
+  const [libraryFilter, setLibraryFilter] = useState('All');
+  const [libraryQuery, setLibraryQuery] = useState('');
 
   // Listen to courses collection
   useEffect(() => {
@@ -112,7 +116,7 @@ export default function Dashboard() {
                 courseTitle: course?.title || 'Unknown Course',
                 userName: userProfile?.displayName || 'Student',
                 issuedAt: new Date().toISOString(),
-                certificateUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${courseId}-${user.uid}&backgroundColor=9333ea&fontFamily=Arial&fontWeight=700` // Mock certificate URL
+                certificateUrl: course?.certificateUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${courseId}-${user.uid}&backgroundColor=9333ea&fontFamily=Arial&fontWeight=700` // Mock certificate URL
               });
               console.log(`Certificate generated for course ${courseId}`);
             } catch (error) {
@@ -173,11 +177,49 @@ export default function Dashboard() {
     return () => unsubDownloadables();
   }, []);
 
-  const handleDownload = (item: any) => {
+  // Listen to user downloaded/saved files
+  useEffect(() => {
+    if (!user) return;
+    const qDownloads = query(collection(db, 'user_downloads'), where('uid', '==', user.uid));
+    const unsubDownloads = onSnapshot(qDownloads, (snapshot) => {
+      setUserDownloads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error("Error listening to user downloads:", error));
+    
+    return () => unsubDownloads();
+  }, [user]);
+
+  const handleDownload = async (item: any) => {
     if (!hasDownloadAccess) {
       alert('This downloadable asset is locked! Kindly upgrade your plan to unlock downloads.');
       return;
     }
+
+    // Add record of this download in user library if downloaded here & not present
+    try {
+      if (user) {
+        const qExist = query(
+          collection(db, 'user_downloads'),
+          where('uid', '==', user.uid),
+          where('downloadableId', '==', item.downloadableId || item.id)
+        );
+        const existSnap = await getDocs(qExist);
+        if (existSnap.empty) {
+          await addDoc(collection(db, 'user_downloads'), {
+            uid: user.uid,
+            downloadableId: item.downloadableId || item.id,
+            name: item.name,
+            category: item.category,
+            imageUrl: item.imageUrl || '',
+            downloadUrl: item.downloadUrl,
+            description: item.description || '',
+            savedAt: new Date().toISOString()
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to register saved asset:', err);
+    }
+
     const link = document.createElement('a');
     link.href = item.downloadUrl;
     link.target = '_blank';
@@ -381,18 +423,19 @@ export default function Dashboard() {
                   <FolderOpen className="w-6 h-6 text-purple-500" />
                   My Library
                 </h2>
-                <Link 
-                  to="/downloadables" 
-                  className="text-purple-400 font-bold hover:underline text-sm flex items-center gap-1.5"
+                <button
+                  type="button"
+                  onClick={() => setIsLibraryExpanded(true)}
+                  className="text-purple-400 font-bold hover:underline text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
                 >
-                  See All Downloadables
+                  See all
                   <ExternalLink className="w-4 h-4 ml-0.5" />
-                </Link>
+                </button>
               </div>
 
-              {downloadables.length > 0 ? (
+              {userDownloads.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {downloadables.slice(0, 4).map((item) => (
+                  {userDownloads.slice(0, 4).map((item) => (
                     <div 
                       key={item.id} 
                       className="bg-black border border-purple-900/10 p-5 rounded-2xl flex flex-col justify-between hover:border-purple-500/25 transition-all group"
@@ -408,37 +451,45 @@ export default function Dashboard() {
                       </div>
 
                       <div className="mt-4 pt-3 border-t border-purple-900/10 flex items-center justify-between">
-                        <span className="text-[9px] font-mono text-gray-405 uppercase tracking-wider">
-                          {hasDownloadAccess ? 'Unlocked' : 'Requires Premium Plan'}
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">
+                          Saved File
                         </span>
                         
-                        <button
-                          onClick={() => handleDownload(item)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                            hasDownloadAccess 
-                              ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md'
-                              : 'bg-zinc-900 border border-white/5 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          {hasDownloadAccess ? (
-                            <>
-                              <Download className="w-3.5 h-3.5" />
-                              Download
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="w-3.5 h-3.5 text-gray-500" />
-                              Unlock
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await deleteDoc(doc(db, 'user_downloads', item.id));
+                              } catch (err) {
+                                console.error('Failed to remove saved asset:', err);
+                              }
+                            }}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                            title="Remove from Library"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDownload(item)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            Download
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="bg-black/40 border border-dashed border-purple-900/25 p-8 rounded-2xl text-center">
-                  <p className="text-gray-500 text-sm">No downloadables found in your asset catalog.</p>
+                <div className="bg-black/40 border border-dashed border-purple-900/25 p-12 rounded-2xl text-center">
+                  <FolderOpen className="w-10 h-10 text-gray-650 mx-auto mb-3" />
+                  <p className="text-gray-450 font-bold mb-2 text-sm text-gray-200">Your library is currently empty</p>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed">Choose and download premium assets to populate your library feed.</p>
+                  <Link to="/downloadables" className="text-purple-400 font-extrabold hover:underline text-xs tracking-wider uppercase">
+                    Browse Premium Hub
+                  </Link>
                 </div>
               )}
             </section>
@@ -628,6 +679,181 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* FULL-SCREEN EXPANDED MY LIBRARY MODAL */}
+      <AnimatePresence>
+        {isLibraryExpanded && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col overflow-hidden"
+          >
+            {/* Soft Ambient Background Glows */}
+            <div className="absolute top-[10%] left-[20%] w-[50%] h-[40%] bg-purple-900/10 rounded-full blur-[140px] pointer-events-none" />
+            <div className="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] bg-purple-650/5 rounded-full blur-[120px] pointer-events-none" />
+
+            {/* Header Content */}
+            <div className="relative z-10 border-b border-purple-900/10 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-7xl mx-auto w-full shrink-0">
+              <div>
+                <div className="flex items-center gap-2 text-purple-400 font-extrabold text-[10px] uppercase tracking-widest mb-1">
+                  <FolderOpen className="w-3.5 h-3.5 animate-pulse" />
+                  Your Customized Repository
+                </div>
+                <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                  MY SAVED LIBRARY
+                </h1>
+                <p className="text-xs text-gray-450 mt-1">
+                  Access and instantly re-download any of the {userDownloads.length} assets you previously saved from the hub
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Link
+                  to="/downloadables"
+                  onClick={() => setIsLibraryExpanded(false)}
+                  className="px-5 py-2.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-405 font-bold rounded-2xl border border-purple-500/15 text-xs uppercase tracking-wider transition-all"
+                >
+                  Explore Catalog
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setIsLibraryExpanded(false)}
+                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl border border-white/5 transition-all text-xs font-bold font-mono cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Search and Categories bar inside fullscreen library */}
+            <div className="relative z-10 p-4 md:px-8 border-b border-purple-900/5 max-w-7xl mx-auto w-full shrink-0 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="relative w-full md:max-w-md">
+                <input
+                  type="text"
+                  placeholder="Filter through your saved files..."
+                  value={libraryQuery}
+                  onChange={(e) => setLibraryQuery(e.target.value)}
+                  className="w-full bg-zinc-950/85 border border-purple-900/20 rounded-2xl pl-4 pr-4 py-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/30 transition-all"
+                />
+              </div>
+
+              {/* Tag Carousel */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto scrollbar-none justify-start pb-1">
+                {['All', 'Softwares', 'Videos', 'Images', 'Music', 'Sound Effects'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setLibraryFilter(cat)}
+                    className={`px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider shrink-0 transition-all border ${
+                      libraryFilter === cat
+                        ? 'bg-purple-600 text-white border-purple-505 shadow-md'
+                        : 'bg-zinc-950/40 text-gray-400 hover:text-white border-white/5 hover:bg-zinc-900'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable Container */}
+            <div className="relative z-10 flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl mx-auto w-full">
+              {(() => {
+                const filteredLibraryItems = userDownloads.filter(item => {
+                  const matchesSearch = item.name.toLowerCase().includes(libraryQuery.toLowerCase()) || 
+                                        (item.description && item.description.toLowerCase().includes(libraryQuery.toLowerCase()));
+                  const matchesCategory = libraryFilter === 'All' || item.category === libraryFilter;
+                  return matchesSearch && matchesCategory;
+                });
+
+                if (filteredLibraryItems.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto h-full">
+                      <div className="w-16 h-16 rounded-3xl bg-zinc-900/50 border border-white/5 flex items-center justify-center text-gray-505 mb-6">
+                        <FolderOpen className="w-8 h-8" />
+                      </div>
+                      <h3 className="font-bold text-lg text-gray-200">No matching library assets found</h3>
+                      <p className="text-xs text-gray-450 mt-2 leading-relaxed">
+                        {userDownloads.length === 0 
+                          ? "You haven't saved or downloaded any premium source files or software presets yet."
+                          : "Try checking spelling or choosing another Category selection filter above."}
+                      </p>
+                      <Link
+                        to="/downloadables"
+                        onClick={() => setIsLibraryExpanded(false)}
+                        className="mt-6 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-2xl text-xs uppercase tracking-wider transition-all inline-block"
+                      >
+                        Browse Premium Downloads
+                      </Link>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredLibraryItems.map((item) => (
+                      <div 
+                        key={item.id}
+                        className="bg-zinc-950 border border-purple-900/10 rounded-3xl overflow-hidden group hover:border-purple-500/20 transition-all flex flex-col h-full relative"
+                      >
+                        <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/80 border border-white/5 text-[10px] text-gray-300 font-extrabold uppercase shadow-md animate-fade-in">
+                          {item.category}
+                        </div>
+
+                        {/* Cover Thumbnail */}
+                        <div className="h-36 overflow-hidden relative bg-zinc-900 shrink-0">
+                          <img 
+                            src={item.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=500&q=80'} 
+                            alt={item.name || 'Creative File'} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/10 to-transparent pointer-events-none" />
+                        </div>
+
+                        <div className="p-5 text-left flex-1 flex flex-col justify-between">
+                          <div>
+                            <h3 className="font-bold text-sm text-gray-100 group-hover:text-purple-400 transition-colors line-clamp-1">
+                              {item.name}
+                            </h3>
+                            <p className="text-xs text-gray-400 leading-relaxed mt-1.5 line-clamp-2">
+                              {item.description || 'Premium asset download saved inside your active CUTSCENE workspace.'}
+                            </p>
+                          </div>
+
+                          <div className="pt-4 mt-4 border-t border-purple-900/10 flex items-center justify-between gap-3">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await deleteDoc(doc(db, 'user_downloads', item.id));
+                                } catch (err) {
+                                  console.error('Failed to remove saved asset:', err);
+                                }
+                              }}
+                              className="text-[10px] text-gray-400 hover:text-red-400 transition-colors py-1 px-2 hover:bg-red-500/10 rounded-lg flex items-center gap-1.5 shrink-0"
+                              title="Remove file from my library representation"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Remove
+                            </button>
+
+                            <button
+                              onClick={() => handleDownload(item)}
+                              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shrink-0"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Download File
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

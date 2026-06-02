@@ -503,3 +503,37 @@ export const ensureDefaultStudentWorksSeeded = async () => {
     console.warn("Could not seed starter student works:", error);
   }
 };
+
+export const DEFAULT_HERO_VIDEOS = [
+  { 
+    id: 'hero1', 
+    title: 'CUTSCENE Academy Intro Video', 
+    videoUrl: 'https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true', 
+    isActive: true, 
+    createdAt: new Date().toISOString() 
+  },
+  { 
+    id: 'hero2', 
+    title: 'Starter Cinematic Background', 
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cinematic-intro-of-a-video-editor-at-work-43750-large.mp4', 
+    isActive: false, 
+    createdAt: new Date().toISOString() 
+  }
+];
+
+export const ensureDefaultHeroVideosSeeded = async () => {
+  try {
+    const heroRef = fbCollection(db, 'hero_videos');
+    const snap = await fbGetDocs(heroRef);
+    if (snap.empty) {
+      console.log("Empty Firestore hero_videos collection detected. Seeding fallback hero videos...");
+      for (const hero of DEFAULT_HERO_VIDEOS) {
+        await fbSetDoc(fbDoc(db, 'hero_videos', hero.id), hero);
+      }
+      console.log("Starter hero videos database seeding completed successfully.");
+    }
+  } catch (error) {
+    console.warn("Could not seed starter hero videos:", error);
+  }
+};
+

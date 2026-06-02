@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock } from 'lucide-react';
+import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock, Volume2, VolumeX } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useState, useEffect } from 'react';
-import { db, collection, getDocs, ensureDefaultStudentWorksSeeded } from '../firebase';
+import { db, collection, getDocs, ensureDefaultStudentWorksSeeded, ensureDefaultHeroVideosSeeded } from '../firebase';
 
 export default function Home() {
   const { t, language } = useLanguage();
@@ -11,6 +11,8 @@ export default function Home() {
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const [heroVideoUrl, setHeroVideoUrl] = useState<string>('https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
 
   const [wordIdx, setWordIdx] = useState(0);
   const animatedWords = [
@@ -34,6 +36,40 @@ export default function Home() {
         const snap = await getDocs(collection(db, 'courses'));
         const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).slice(0, 3);
         setCourses(list);
+
+        // Fetch hero background video
+        try {
+          let heroSnap = await getDocs(collection(db, 'hero_videos'));
+          if (heroSnap.empty) {
+            await ensureDefaultHeroVideosSeeded();
+            heroSnap = await getDocs(collection(db, 'hero_videos'));
+          }
+          let heroList = heroSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+          
+          // Let's check if the old mixkit video is still marked as active, or if hero_videos is outdated.
+          // We upgrade the database's hero1 record to the requested mediadelivery iframe video.
+          const oldHero1 = heroList.find(h => h.id === 'hero1');
+          if (oldHero1 && oldHero1.videoUrl && oldHero1.videoUrl.includes('mixkit.co')) {
+            console.log("Upgrading database hero1 document to the requested mediadelivery player link...");
+            const { doc, setDoc } = await import('../firebase');
+            await setDoc(doc(db, 'hero_videos', 'hero1'), {
+              title: 'CUTSCENE Academy Intro Video',
+              videoUrl: 'https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true',
+              isActive: true,
+              createdAt: new Date().toISOString()
+            }, { merge: true });
+            // Re-fetch list
+            heroSnap = await getDocs(collection(db, 'hero_videos'));
+            heroList = heroSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+          }
+
+          const activeHero = heroList.find(h => h.isActive) || heroList[0];
+          if (activeHero && activeHero.videoUrl) {
+            setHeroVideoUrl(activeHero.videoUrl);
+          }
+        } catch (heroErr) {
+          console.warn("Could not load hero video config from Firestore:", heroErr);
+        }
 
         // Fetch student works
         let worksSnap = await getDocs(collection(db, 'student_works'));
@@ -118,75 +154,187 @@ export default function Home() {
     }
   };
 
+  const getHeroIframeSrc = (url: string) => {
+    const embedUrl = getEmbedVideoUrl(url);
+    if (!embedUrl) return '';
+    if (embedUrl.includes('player.mediadelivery.net')) {
+      let finalUrl = embedUrl;
+      // To loop and autoplay perfectly as the background, we toggle autoplay to true
+      finalUrl = finalUrl.replace('autoplay=false', 'autoplay=true');
+      if (!finalUrl.includes('autoplay=')) {
+        finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'autoplay=true';
+      }
+      return finalUrl;
+    }
+    if (embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be')) {
+      const videoId = embedUrl.includes('embed/') ? embedUrl.split('embed/')[1]?.split('?')[0] : '';
+      const separator = embedUrl.includes('?') ? '&' : '?';
+      return `${embedUrl}${separator}autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&rel=0`;
+    }
+    return embedUrl;
+  };
+
+  const isDirectVideo = (url: string) => {
+    if (!url) return true;
+    const lower = url.toLowerCase();
+    return (
+      lower.includes('.mp4') || 
+      lower.includes('.webm') || 
+      lower.includes('.ogg') || 
+      lower.includes('vjs.zencdn.net') || 
+      lower.includes('mixkit.co')
+    ) && (
+      !lower.includes('player.mediadelivery.net') &&
+      !lower.includes('youtube.com') && 
+      !lower.includes('youtu.be') && 
+      !lower.includes('drive.google.com') && 
+      !lower.includes('vimeo.com')
+    );
+  };
+
   return (
     <div className="bg-black text-white">
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
-        <div className="absolute inset-0 z-0">
+      <section className="relative pt-20 pb-12 overflow-hidden w-full">
+        <div className="absolute inset-0 z-0 pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] animate-pulse" />
           <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
+        </div>
+ 
+        {/* Centered Video Container. Made a bit smaller with elegant rounded corners, completely non-interactive, and without mute button */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 w-full mb-8 flex flex-col items-center">
+          <div className="relative aspect-video overflow-hidden group bg-zinc-950 rounded-2xl md:rounded-[2rem] border border-purple-500/10 shadow-[0_10px_40px_rgba(147,51,234,0.15)] pointer-events-none w-full">
+            
+            {isDirectVideo(heroVideoUrl) ? (
+              <video
+                key={heroVideoUrl}
+                className="w-full h-full object-cover pointer-events-none"
+                autoPlay
+                loop
+                muted={isMuted}
+                playsInline
+              >
+                <source src={heroVideoUrl} type="video/mp4" />
+                {/* Fallback sources */}
+                <source src="https://assets.mixkit.co/videos/preview/mixkit-cinematic-intro-of-a-video-editor-at-work-43750-large.mp4" type="video/mp4" />
+                <source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4" />
+              </video>
+            ) : (
+              <iframe
+                key={heroVideoUrl}
+                title="Hero Background Video"
+                className="w-full h-full absolute inset-0 border-0 z-0 pointer-events-none"
+                src={getHeroIframeSrc(heroVideoUrl)}
+                allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowFullScreen
+              />
+            )}
+
+            {/* Subtle overlay gradient */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/35 pointer-events-none" />
+          </div>
+
+          {/* Website title text placed directly under the video with consistent spacing and glowing shadow */}
+          <div className="mt-8 text-center z-10 w-full animate-fade-in">
+            <div className="relative overflow-hidden bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-2xl px-8 py-5 rounded-3xl border border-white/[0.12] inline-block mx-auto max-w-[95%] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_8px_32px_rgba(0,0,0,0.5),0_12px_40px_rgba(147,51,234,0.22)]">
+              {/* Highlight flare effect at the top */}
+              <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-purple-400/55 to-transparent opacity-75 pointer-events-none" />
+              
+              {language === 'ar' ? (
+                <h1 className="text-xs xs:text-sm sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-extrabold tracking-tight leading-normal flex flex-wrap items-center justify-center gap-x-1 sm:gap-x-2 text-center">
+                  <span className="text-white">حاب تتعلم</span>
+                  <span className="text-purple-400 font-black inline-flex relative overflow-hidden h-[1.25em] items-center justify-start w-[140px] xs:w-[160px] sm:w-[210px] md:w-[260px] lg:w-[310px]">
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={wordIdx}
+                        initial={{ y: '80%', opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: '-80%', opacity: 0 }}
+                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                        className="whitespace-nowrap inline-block uppercase"
+                      >
+                        {animatedWords[wordIdx].ar}
+                      </motion.span>
+                    </AnimatePresence>
+                  </span>
+                  <span className="text-white">؟ Cutscene هنا!</span>
+                </h1>
+              ) : language === 'fr' ? (
+                <h1 className="text-xs xs:text-sm sm:text-lg md:text-xl lg:text-2.5xl xl:text-3xl font-extrabold tracking-tight leading-normal flex flex-wrap items-center justify-center gap-x-1 sm:gap-x-2 text-center">
+                  <span className="text-white">Vous voulez apprendre</span>
+                  <span className="text-purple-400 font-black inline-flex relative overflow-hidden h-[1.25em] items-center justify-start w-[170px] xs:w-[200px] sm:w-[260px] md:w-[330px] lg:w-[410px]">
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={wordIdx}
+                        initial={{ y: '80%', opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: '-80%', opacity: 0 }}
+                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                        className="whitespace-nowrap inline-block uppercase"
+                      >
+                        {animatedWords[wordIdx].fr}
+                      </motion.span>
+                    </AnimatePresence>
+                  </span>
+                  <span className="text-white">? CUTSCENE est là !</span>
+                </h1>
+              ) : (
+                <h1 className="text-xs xs:text-sm sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-extrabold tracking-tight leading-normal flex flex-wrap items-center justify-center gap-x-1 sm:gap-x-2 text-center">
+                  <span className="text-white">Want to learn</span>
+                  <span className="text-purple-400 font-black inline-flex relative overflow-hidden h-[1.25em] items-center justify-start w-[150px] xs:w-[175px] sm:w-[220px] md:w-[285px] lg:w-[350px]">
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={wordIdx}
+                        initial={{ y: '80%', opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: '-80%', opacity: 0 }}
+                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                        className="whitespace-nowrap inline-block uppercase"
+                      >
+                        {animatedWords[wordIdx].en}
+                      </motion.span>
+                    </AnimatePresence>
+                  </span>
+                  <span className="text-white">? CUTSCENE is here!</span>
+                </h1>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full animate-fade-in">
-          <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
+          
+          {/* Description follows on rest of the page */}
+          <div className="max-w-4xl mx-auto text-center mt-12 mb-6 px-4">
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="w-full text-center flex flex-col items-center pt-8"
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-base sm:text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed font-light"
             >
-              <h1 className="text-4xl xs:text-5xl sm:text-7xl md:text-8xl font-black mb-8 leading-[1.2] tracking-tighter uppercase w-full flex justify-center text-center">
-                <div className={`inline-flex flex-col items-stretch text-left relative ${language === 'ar' ? 'rtl text-right items-end' : ''}`}>
-                  <span className="text-white block whitespace-nowrap">
-                    {language === 'ar' ? 'حاب تتعلم' : t('hero.title1')}
-                  </span>
-                  
-                  <div className={`flex items-center justify-between w-full h-[1.15em] min-h-[1.15em] relative ${language === 'ar' ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <span className={`relative overflow-hidden h-full py-1 select-none flex-1 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
-                      <AnimatePresence mode="popLayout" initial={false}>
-                        <motion.span
-                          key={wordIdx}
-                          initial={{ y: "105%", opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          exit={{ y: "-105%", opacity: 0 }}
-                          transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-                          className="text-brand-gradient font-black whitespace-nowrap block"
-                        >
-                          {language === 'ar' ? animatedWords[wordIdx].ar : (language === 'fr' ? animatedWords[wordIdx].fr : animatedWords[wordIdx].en)}
-                        </motion.span>
-                      </AnimatePresence>
-                    </span>
-                    <span className={`text-white font-black shrink-0 relative ${language === 'ar' ? 'mr-3' : 'ml-3'}`}>
-                      {language === 'ar' ? '؟' : '?'}
-                    </span>
-                  </div>
-                  
-                  <span className="text-white block whitespace-nowrap">
-                    {language === 'ar' ? 'Cutscene هـنـا!' : (language === 'fr' ? 'CUTSCENE EST ICI !' : 'CUTSCENE IS HERE')}
-                  </span>
-                </div>
-              </h1>
-              
-              <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed font-light">
-                {t('hero.subtitle')}
-              </p>
-              
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full sm:w-auto">
-                <Link 
-                  to="/courses" 
-                  className="w-full sm:w-auto px-10 py-5 bg-brand-radial hover:scale-105 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group shadow-2xl shadow-purple-600/40"
-                >
-                  {t('hero.explore')}
-                  <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-                </Link>
-                <button 
-                  onClick={scrollToStudentsWork}
-                  className="w-full sm:w-auto px-10 py-5 glass-surface hover:bg-white/10 text-white rounded-2xl font-bold text-lg transition-all"
-                >
-                  {t('hero.studentsWork')}
-                </button>
-              </div>
+              {t('hero.subtitle')}
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mt-10 w-full sm:w-auto"
+            >
+              <Link 
+                to="/courses" 
+                className="w-full sm:w-auto px-10 py-5 bg-brand-radial hover:scale-105 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group shadow-2xl shadow-purple-600/40 cursor-pointer"
+              >
+                {t('hero.explore')}
+                <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+              </Link>
+              <button 
+                onClick={scrollToStudentsWork}
+                className="w-full sm:w-auto px-10 py-5 glass-surface hover:bg-white/10 text-white rounded-2xl font-bold text-lg transition-all cursor-pointer"
+              >
+                {t('hero.studentsWork')}
+              </button>
             </motion.div>
           </div>
 
@@ -195,7 +343,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-0 mt-32 border border-white/5 rounded-[2rem] overflow-hidden glass-surface-dark"
+            className="grid grid-cols-2 md:grid-cols-4 gap-0 mt-16 sm:mt-24 border border-white/5 rounded-[2rem] overflow-hidden glass-surface-dark"
           >
             {[
               { label: t('stats.students'), value: '330+', icon: Users },

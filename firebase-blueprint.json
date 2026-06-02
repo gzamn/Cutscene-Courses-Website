@@ -177,6 +177,19 @@
         "order": { "type": "number" }
       },
       "required": ["name", "price"]
+    },
+    "HeroVideo": {
+      "title": "Hero Video",
+      "description": "Homepage background hero/intro video references",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "videoUrl"]
     }
   },
   "firestore": {
@@ -227,6 +240,10 @@
     "plans/{planId}": {
       "schema": "Plan",
       "description": "Subscription and membership bundles"
+    },
+    "hero_videos/{videoId}": {
+      "schema": "HeroVideo",
+      "description": "Homepage background hero/intro video references"
     }
   }
 }

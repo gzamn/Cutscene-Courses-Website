@@ -18,11 +18,12 @@ import {
   doc, 
   deleteDoc, 
   updateDoc,
-  getDoc
+  getDoc,
+  ensureDefaultHeroVideosSeeded
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
-type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'student-works' | 'settings';
+type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'student-works' | 'hero-video' | 'settings';
 
 interface Toast {
   id: string;
@@ -48,6 +49,7 @@ export default function AdminPanel() {
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
   const [downloadables, setDownloadables] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [heroVideos, setHeroVideos] = useState<any[]>([]);
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
     contactEmail: 'contact@cutscene-academy.com',
@@ -100,6 +102,7 @@ export default function AdminPanel() {
   const [loadingWorks, setLoadingWorks] = useState(false);
   const [loadingDownloadables, setLoadingDownloadables] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(false);
+  const [loadingHeroVideos, setLoadingHeroVideos] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
 
   // Modal forms states
@@ -114,7 +117,8 @@ export default function AdminPanel() {
     instructor: '',
     price: '15000',
     level: 'Beginner',
-    duration: '8 weeks'
+    duration: '8 weeks',
+    certificateUrl: ''
   });
 
   const [showChapterModal, setShowChapterModal] = useState(false);
@@ -159,6 +163,14 @@ export default function AdminPanel() {
     order: '1'
   });
 
+  const [showHeroVideoModal, setShowHeroVideoModal] = useState(false);
+  const [editingHeroVideoId, setEditingHeroVideoId] = useState<string | null>(null);
+  const [heroVideoForm, setHeroVideoForm] = useState({
+    title: '',
+    videoUrl: '',
+    isActive: false
+  });
+
   // Toast Helper
   const showToast = (type: 'success' | 'error', message: string) => {
     const id = Date.now().toString();
@@ -188,6 +200,7 @@ export default function AdminPanel() {
       fetchStudentWorks();
       fetchDownloadables();
       fetchPlans();
+      fetchHeroVideos();
       fetchSettings();
     }
   }, [user, userProfile]);
@@ -365,6 +378,29 @@ export default function AdminPanel() {
     }
   };
 
+  const fetchHeroVideos = async () => {
+    setLoadingHeroVideos(true);
+    try {
+      const snap = await getDocs(collection(db, 'hero_videos'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort by active first, then created date desc
+      list.sort((a: any, b: any) => {
+        if (a.isActive && !b.isActive) return -1;
+        if (!a.isActive && b.isActive) return 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+      setHeroVideos(list);
+    } catch (err: any) {
+      console.error('Fetch hero videos error:', err);
+      showToast('error', 'Failed loading hero videos from database.');
+    } finally {
+      setLoadingHeroVideos(false);
+    }
+  };
+
   const fetchSettings = async () => {
     setLoadingSettings(true);
     try {
@@ -401,6 +437,7 @@ export default function AdminPanel() {
         instructorName: courseForm.instructor,
         level: courseForm.level,
         duration: courseForm.duration,
+        certificateUrl: courseForm.certificateUrl || '',
         updatedAt: serverTimestamp()
       };
 
@@ -431,7 +468,8 @@ export default function AdminPanel() {
         instructor: '',
         price: '15000',
         level: 'Beginner',
-        duration: '8 weeks'
+        duration: '8 weeks',
+        certificateUrl: ''
       });
       fetchCourses();
     } catch (err: any) {
@@ -451,7 +489,8 @@ export default function AdminPanel() {
       price: course.price || '15000',
       instructor: course.instructorName || '',
       level: course.level || 'Beginner',
-      duration: course.duration || '8 weeks'
+      duration: course.duration || '8 weeks',
+      certificateUrl: course.certificateUrl || ''
     });
     setShowCourseModal(true);
   };
@@ -880,6 +919,112 @@ export default function AdminPanel() {
   };
 
 
+  // HERO VIDEOS MUTATIONS
+  const handleHeroVideoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!heroVideoForm.title || !heroVideoForm.videoUrl) {
+      showToast('error', 'Fields title and videoUrl are required.');
+      return;
+    }
+
+    try {
+      setLoadingHeroVideos(true);
+      const isEditing = !!editingHeroVideoId;
+      const payload: any = {
+        title: heroVideoForm.title,
+        videoUrl: heroVideoForm.videoUrl,
+        isActive: heroVideoForm.isActive,
+        createdAt: isEditing ? (heroVideos.find((v: any) => v.id === editingHeroVideoId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+      };
+
+      // If making this one active, we should deactivate all other videos first!
+      if (payload.isActive) {
+        for (const item of heroVideos) {
+          if (item.id !== editingHeroVideoId && item.isActive) {
+            await updateDoc(doc(db, 'hero_videos', item.id), { isActive: false });
+          }
+        }
+      }
+
+      if (isEditing) {
+        await setDoc(doc(db, 'hero_videos', editingHeroVideoId!), payload, { merge: true });
+        showToast('success', 'Hero video details updated successfully!');
+      } else {
+        const customId = `video_${Date.now()}`;
+        await setDoc(doc(db, 'hero_videos', customId), payload);
+        showToast('success', 'New Hero video added successfully!');
+      }
+
+      setShowHeroVideoModal(false);
+      setEditingHeroVideoId(null);
+      setHeroVideoForm({ title: '', videoUrl: '', isActive: false });
+      await fetchHeroVideos();
+    } catch (err: any) {
+      console.error('Error saving hero video:', err);
+      showToast('error', 'Error occurred while saving hero video.');
+    } finally {
+      setLoadingHeroVideos(false);
+    }
+  };
+
+  const startEditHeroVideo = (video: any) => {
+    setEditingHeroVideoId(video.id);
+    setHeroVideoForm({
+      title: video.title || '',
+      videoUrl: video.videoUrl || '',
+      isActive: !!video.isActive
+    });
+    setShowHeroVideoModal(true);
+  };
+
+  const handleToggleHeroVideoActive = async (videoId: string, currentStatus: boolean) => {
+    try {
+      setLoadingHeroVideos(true);
+      // If toggling to active, deactivate others
+      if (!currentStatus) {
+        for (const item of heroVideos) {
+          if (item.id !== videoId && item.isActive) {
+            await updateDoc(doc(db, 'hero_videos', item.id), { isActive: false });
+          }
+        }
+      }
+      await updateDoc(doc(db, 'hero_videos', videoId), { isActive: !currentStatus });
+      showToast('success', `Video status toggled successfully.`);
+      await fetchHeroVideos();
+    } catch (err: any) {
+      console.error('Toggle video active error:', err);
+      showToast('error', 'Failed updating active video status.');
+    } finally {
+      setLoadingHeroVideos(false);
+    }
+  };
+
+  const handleDeleteHeroVideo = async (videoId: string) => {
+    const video = heroVideos.find((v: any) => v.id === videoId);
+    if (!video) return;
+
+    askConfirmation(
+      'Delete Hero Video Reference',
+      `Are you sure you would like to permanently delete the video reference "${video.title}" from your database collection?`,
+      async () => {
+        try {
+          setLoadingHeroVideos(true);
+          await deleteDoc(doc(db, 'hero_videos', videoId));
+          showToast('success', 'Hero video reference deleted successfully.');
+          await fetchHeroVideos();
+        } catch (err: any) {
+          console.error('Delete hero video error:', err);
+          showToast('error', 'Failed deleting hero video reference.');
+        } finally {
+          setLoadingHeroVideos(false);
+        }
+      },
+      'Delete Document',
+      true
+    );
+  };
+
+
   // WEBSITE SETTINGS
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -956,6 +1101,7 @@ export default function AdminPanel() {
               { id: 'plans', name: 'Membership Plans', icon: Award },
               { id: 'students', name: 'Students Ledger', icon: Users },
               { id: 'student-works', name: 'Showcase Gallery', icon: Film },
+              { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
               { id: 'settings', name: 'Console Settings', icon: Settings },
             ].map(tab => {
               const Icon = tab.icon;
@@ -1027,7 +1173,8 @@ export default function AdminPanel() {
                     instructor: userProfile?.fullName || 'Senior Instructor',
                     price: '15000',
                     level: 'Beginner',
-                    duration: '8 weeks'
+                    duration: '8 weeks',
+                    certificateUrl: ''
                   });
                   setShowCourseModal(true);
                 }}
@@ -1624,6 +1771,186 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* TAB 4.5: HOMEPAGE HERO BACKGROUND VIDEOS */}
+        {activeTab === 'hero-video' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Homepage Background Videos</h1>
+                <p className="text-gray-400 text-xs mt-1">Manage, toggle, and audit the immersive looped videos running on the academy's homepage hero board</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingHeroVideoId(null);
+                  setHeroVideoForm({ title: '', videoUrl: '', isActive: false });
+                  setShowHeroVideoModal(true);
+                }}
+                className="self-start px-5 py-3 bg-brand-radial hover:opacity-90 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/10"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Add Video Path</span>
+              </button>
+            </div>
+
+            {loadingHeroVideos && heroVideos.length === 0 ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+              </div>
+            ) : heroVideos.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-950/40 rounded-[2rem] border border-dashed border-purple-900/20 max-w-xl mx-auto px-6">
+                <Video className="w-12 h-12 text-purple-500/40 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">No background videos listed</h3>
+                <p className="text-gray-400 text-xs max-w-sm mx-auto mb-6">
+                  Create an independent Firestore document reference to direct the hero background layout dynamically to your own files or video assets.
+                </p>
+                <button
+                  onClick={async () => {
+                    await ensureDefaultHeroVideosSeeded();
+                    await fetchHeroVideos();
+                  }}
+                  className="px-5 py-3 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/10 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Seed Starter References
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Active Video Live Preview */}
+                <div className="lg:col-span-1 bg-zinc-950/60 border border-purple-950/20 p-6 rounded-[2rem] flex flex-col justify-between space-y-6">
+                  <div>
+                    <h3 className="text-sm font-bold text-purple-400 uppercase tracking-widest mb-1">Live Monitor</h3>
+                    <h2 className="text-xl font-black text-white">Active Background Video</h2>
+                    <p className="text-gray-400 text-[11px] leading-relaxed mt-1">
+                      This is the active video stream running live on the main hero background. Direct files loop and iframe streams embed perfectly.
+                    </p>
+                  </div>
+
+                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border border-purple-500/10 group shadow-md shadow-black/80">
+                    {(() => {
+                      const active = heroVideos.find((v: any) => v.isActive) || heroVideos[0];
+                      if (!active) return (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-xs">No active video</div>
+                      );
+
+                      const isDirect = active.videoUrl?.toLowerCase().includes('.mp4') || 
+                                       active.videoUrl?.toLowerCase().includes('.webm') || 
+                                       active.videoUrl?.toLowerCase().includes('.ogg') || 
+                                       active.videoUrl?.toLowerCase().includes('vjs.zencdn.net') || 
+                                       active.videoUrl?.toLowerCase().includes('mixkit.co') || 
+                                       (!active.videoUrl?.toLowerCase().includes('youtube.com') && 
+                                        !active.videoUrl?.toLowerCase().includes('youtu.be') && 
+                                        !active.videoUrl?.toLowerCase().includes('drive.google.com') && 
+                                        !active.videoUrl?.toLowerCase().includes('vimeo.com'));
+
+                      return (
+                        <>
+                          {isDirect ? (
+                            <video
+                              key={active.videoUrl}
+                              className="w-full h-full object-cover"
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                            >
+                              <source src={active.videoUrl} type="video/mp4" />
+                            </video>
+                          ) : (
+                            <iframe
+                              key={active.videoUrl}
+                              title="Live Admin Preview"
+                              className="w-full h-full pointer-events-none scale-[1.05]"
+                              src={`${getEmbedVideoUrl(active.videoUrl)}?autoplay=1&mute=1&controls=0&loop=1`}
+                              allow="autoplay; encrypted-media"
+                            />
+                          )}
+                          <div className="absolute bottom-2 left-2 bg-black/75 px-3 py-1 rounded-full text-[10px] font-bold border border-white/5 truncate max-w-[90%]">
+                            {active.title}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="bg-purple-950/10 border border-purple-500/10 p-4 rounded-2xl text-[11px] text-purple-300 leading-normal flex gap-2">
+                    <Activity className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                    <span>
+                      Admins can add any number of video references. Simply click the star button to make any video the main live background.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Video References List */}
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="bg-zinc-950/30 rounded-2xl border border-purple-950/15 overflow-hidden">
+                    <div className="grid grid-cols-12 px-6 py-4 border-b border-purple-950/15 text-[10px] uppercase tracking-wider text-gray-400 font-bold">
+                      <div className="col-span-6 sm:col-span-5">Video Profile</div>
+                      <div className="col-span-3 sm:col-span-3">Direct URL / Source</div>
+                      <div className="col-span-3 sm:col-span-2 text-center">Status</div>
+                      <div className="col-span-12 sm:col-span-2 text-right">Actions</div>
+                    </div>
+
+                    <div className="divide-y divide-purple-950/10">
+                      {heroVideos.map((video: any) => (
+                        <div key={video.id} className="grid grid-cols-12 items-center px-6 py-5 hover:bg-white/[0.01] transition-all gap-y-3 sm:gap-y-0">
+                          <div className="col-span-12 sm:col-span-5 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-purple-950/20 border border-purple-500/15 flex items-center justify-center text-purple-400 shrink-0">
+                              <Video className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-white truncate max-w-[220px]">{video.title}</h4>
+                              <p className="text-gray-400 text-[10px] mt-0.5">
+                                Added: {video.createdAt ? new Date(video.createdAt).toLocaleDateString() : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="col-span-12 sm:col-span-3 text-xs text-gray-300 font-mono truncate max-w-[240px] pr-2">
+                            <span className="text-[11px] truncate bg-zinc-900 px-2 py-1 rounded-md border border-white/5 inline-block">
+                              {video.videoUrl}
+                            </span>
+                          </div>
+
+                          <div className="col-span-6 sm:col-span-2 flex justify-center">
+                            <button
+                              onClick={() => handleToggleHeroVideoActive(video.id, video.isActive)}
+                              className={`px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 cursor-pointer border transition-all ${
+                                video.isActive
+                                  ? 'bg-purple-950/40 text-purple-400 border-purple-500/30'
+                                  : 'bg-zinc-900 text-gray-500 border-transparent hover:border-purple-500/20 hover:text-gray-300'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${video.isActive ? 'bg-purple-400 animate-pulse' : 'bg-gray-600'}`} />
+                              <span>{video.isActive ? 'Active' : 'Deploy'}</span>
+                            </button>
+                          </div>
+
+                          <div className="col-span-6 sm:col-span-2 flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => startEditHeroVideo(video)}
+                              className="p-2 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-300 cursor-pointer hover:bg-zinc-800"
+                              title="Edit reference"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteHeroVideo(video.id)}
+                              className="p-2 bg-red-950/10 hover:bg-red-950/20 text-red-500 hover:text-red-400 rounded-xl text-xs transition-colors cursor-pointer"
+                              title="Delete reference"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB 5: WEBSITE CONFIGURATION SETTINGS */}
         {activeTab === 'settings' && (
           <div className="space-y-8 animate-fade-in max-w-2xl">
@@ -1812,6 +2139,17 @@ export default function AdminPanel() {
                     value={courseForm.thumbnail_url}
                     onChange={(e) => setCourseForm({ ...courseForm, thumbnail_url: e.target.value })}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Custom Course Certificate URL (Optional / Image or PDF link)</label>
+                  <input
+                    type="url"
+                    value={courseForm.certificateUrl || ''}
+                    onChange={(e) => setCourseForm({ ...courseForm, certificateUrl: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="e.g. https://example.com/certificate-template.png"
                   />
                 </div>
 
@@ -2322,6 +2660,83 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
+      {/* MODAL 2.4: ADD / EDIT HOMEPAGE HERO VIDEO */}
+      <AnimatePresence>
+        {showHeroVideoModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowHeroVideoModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{editingHeroVideoId ? 'Edit Hero Video Path' : 'Add Hero Video Path'}</h2>
+                  <p className="text-gray-400 text-xs">Direct the homepage intro board immediately to any video stream</p>
+                </div>
+                <button onClick={() => setShowHeroVideoModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleHeroVideoSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Video Display Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={heroVideoForm.title}
+                    onChange={(e) => setHeroVideoForm({ ...heroVideoForm, title: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                    placeholder="e.g. Masterclass Intro Teaser"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Video stream URL / path</label>
+                  <input
+                    type="text"
+                    required
+                    value={heroVideoForm.videoUrl}
+                    onChange={(e) => setHeroVideoForm({ ...heroVideoForm, videoUrl: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none"
+                    placeholder="e.g. https://domain.com/my-intro-file.mp4"
+                  />
+                  <span className="text-[10px] text-gray-450 block mt-1 leading-normal">
+                    Accepts direct .mp4 / .webm video file URL, or standard YouTube, Vimeo, Google Drive preview links.
+                  </span>
+                </div>
+
+                <div className="pt-2">
+                  <label className="relative flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={heroVideoForm.isActive}
+                      onChange={(e) => setHeroVideoForm({ ...heroVideoForm, isActive: e.target.checked })}
+                      className="peer sr-only"
+                    />
+                    <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-450 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 peer-checked:after:bg-white relative" />
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">Actively deploy as live homepage video</span>
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loadingHeroVideos}
+                  className="w-full py-4 mt-4 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow flex items-center justify-center gap-2"
+                >
+                  {loadingHeroVideos && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Save Video Document</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* CUSTOM CONFIRMATION DIALOG MODAL */}
       <AnimatePresence>
         {confirmDialog.isOpen && (
@@ -2377,5 +2792,39 @@ export default function AdminPanel() {
 
   function setFormChapterAndTitle(val: string) {
     setChapterForm({ ...chapterForm, title: val });
+  }
+
+  function getEmbedVideoUrl(url: string) {
+    if (!url) return '';
+    try {
+      if (url.includes('youtu.be/')) {
+        const id = url.split('youtu.be/')[1]?.split('?')[0];
+        return `https://www.youtube.com/embed/${id}`;
+      }
+      if (url.includes('v=')) {
+        const id = url.split('v=')[1]?.split('&')[0];
+        return `https://www.youtube.com/embed/${id}`;
+      }
+      if (url.includes('drive.google.com/file/d/')) {
+        const parts = url.split('drive.google.com/file/d/');
+        if (parts[1]) {
+          const fileId = parts[1].split('/')[0];
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      if (url.includes('drive.google.com/open?id=')) {
+        const parts = url.split('drive.google.com/open?id=');
+        if (parts[1]) {
+          const fileId = parts[1].split('&')[0];
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      if (url.includes('embed/')) {
+        return url;
+      }
+      return url;
+    } catch {
+      return url;
+    }
   }
 }

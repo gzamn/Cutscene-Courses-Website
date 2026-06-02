@@ -213,7 +213,7 @@ export default function Downloadables() {
     checkUserAccess();
   }, [user, userProfile]);
 
-  const handleDownload = (item: any) => {
+  const handleDownload = async (item: any) => {
     if (!user) {
       navigate('/login');
       return;
@@ -222,7 +222,32 @@ export default function Downloadables() {
       setShowLockModal(true);
       return;
     }
-    // Perform simulated download / open original file
+    
+    // Add record of this download chosen by the student
+    try {
+      const qExist = query(
+        collection(db, 'user_downloads'),
+        where('uid', '==', user.uid),
+        where('downloadableId', '==', item.id)
+      );
+      const existSnap = await getDocs(qExist);
+      if (existSnap.empty) {
+        await addDoc(collection(db, 'user_downloads'), {
+          uid: user.uid,
+          downloadableId: item.id,
+          name: item.name,
+          category: item.category,
+          imageUrl: item.imageUrl || '',
+          downloadUrl: item.downloadUrl,
+          description: item.description || '',
+          savedAt: new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save to user library:', err);
+    }
+
+    // Perform actual file download
     const link = document.createElement('a');
     link.href = item.downloadUrl;
     link.target = '_blank';

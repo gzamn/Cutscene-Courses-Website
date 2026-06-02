@@ -115,6 +115,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Hero background videos collection
+    match /hero_videos/{videoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Config parameters
     match /config/{configId} {
       allow read: if true;
