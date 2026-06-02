@@ -70,6 +70,7 @@ export default function VideoPlayer() {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   
   // Homework State
   const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
@@ -516,7 +517,10 @@ export default function VideoPlayer() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      alert(t('course.markedComplete'));
+      setShowSuccessAlert(true);
+      setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 4500);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'progress');
     } finally {
@@ -995,6 +999,33 @@ export default function VideoPlayer() {
           </div>
         </div>
       </div>
+
+      {/* Animated Custom Success Toast */}
+      <AnimatePresence>
+        {showSuccessAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -25, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -25, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            className="fixed top-24 right-4 sm:right-8 z-50 max-w-sm w-full bg-zinc-950/95 backdrop-blur-md border-2 border-purple-500/30 rounded-2xl p-5 shadow-[0_20px_50px_rgba(147,51,234,0.3)] flex items-start gap-4 animate-in fade-in zoom-in-95"
+          >
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div className="flex-grow text-left">
+              <div className="font-extrabold text-sm text-white">Lesson Completed!</div>
+              <div className="text-xs text-gray-400 mt-1">Your chapter progress has been successfully updated. Continue on to build your legendary skill portfolio!</div>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="text-gray-500 hover:text-white transition-colors text-[10px] font-bold p-1 shrink-0"
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

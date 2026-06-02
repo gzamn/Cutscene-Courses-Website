@@ -147,6 +147,36 @@
         "courseTitle": { "type": "string" }
       },
       "required": ["studentName", "thumbnail", "courseId", "courseTitle"]
+    },
+    "Downloadable": {
+      "title": "Downloadable Asset",
+      "description": "Premium downloadable asset",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["Softwares", "Videos", "Images", "Music", "Sound Effects"] },
+        "imageUrl": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "category", "downloadUrl"]
+    },
+    "Plan": {
+      "title": "Membership Plan",
+      "description": "Membership bundles and subscription plans",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "string" },
+        "description": { "type": "string" },
+        "features": { "type": "array" },
+        "isPopular": { "type": "boolean" },
+        "order": { "type": "number" }
+      },
+      "required": ["name", "price"]
     }
   },
   "firestore": {
@@ -189,6 +219,14 @@
     "student_works/{workId}": {
       "schema": "StudentWork",
       "description": "Students' project showcase items"
+    },
+    "downloadables/{downloadableId}": {
+      "schema": "Downloadable",
+      "description": "Available downloadable assets for premium students"
+    },
+    "plans/{planId}": {
+      "schema": "Plan",
+      "description": "Subscription and membership bundles"
     }
   }
 }

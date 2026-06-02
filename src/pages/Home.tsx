@@ -12,6 +12,20 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
+  const [wordIdx, setWordIdx] = useState(0);
+  const animatedWords = [
+    { en: 'video editing', fr: 'montage vidéo', ar: 'مونتاج فيديو' },
+    { en: 'graphic design', fr: 'design graphique', ar: 'تصميم جرافيك' },
+    { en: 'motion design', fr: 'motion design', ar: 'موشن ديزاين' }
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWordIdx((prev) => (prev + 1) % animatedWords.length);
+    }, 2500); // 1.5s transition + 1.0s hold duration = 2.5s total per index step
+    return () => clearInterval(interval);
+  }, [animatedWords.length]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -122,20 +136,36 @@ export default function Home() {
               transition={{ duration: 0.8, ease: "easeOut" }}
               className="w-full text-center flex flex-col items-center pt-8"
             >
-              <h1 className="text-6xl md:text-8xl font-black mb-8 leading-[0.9] tracking-tighter uppercase">
-                {language === 'ar' ? (
-                  <>
-                    حاب تتعلم <br />
-                    <span className="text-white">مونتاج</span>؟ <br />
-                    <span className="text-brand-gradient">Cutscene هـنـا!</span>
-                  </>
-                ) : (
-                  <>
-                    {t('hero.title1')} <br />
-                    <span className="text-white">{t('hero.title2')}</span>? <br />
-                    <span className="text-brand-gradient">{language === 'fr' ? 'Cutscene est ICI !' : 'Cutscene is HERE'}</span>
-                  </>
-                )}
+              <h1 className="text-4xl xs:text-5xl sm:text-7xl md:text-8xl font-black mb-8 leading-[1.2] tracking-tighter uppercase w-full flex justify-center text-center">
+                <div className={`inline-flex flex-col items-stretch text-left relative ${language === 'ar' ? 'rtl text-right items-end' : ''}`}>
+                  <span className="text-white block whitespace-nowrap">
+                    {language === 'ar' ? 'حاب تتعلم' : t('hero.title1')}
+                  </span>
+                  
+                  <div className={`flex items-center justify-between w-full h-[1.15em] min-h-[1.15em] relative ${language === 'ar' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <span className={`relative overflow-hidden h-full py-1 select-none flex-1 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
+                      <AnimatePresence mode="popLayout" initial={false}>
+                        <motion.span
+                          key={wordIdx}
+                          initial={{ y: "105%", opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          exit={{ y: "-105%", opacity: 0 }}
+                          transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+                          className="text-brand-gradient font-black whitespace-nowrap block"
+                        >
+                          {language === 'ar' ? animatedWords[wordIdx].ar : (language === 'fr' ? animatedWords[wordIdx].fr : animatedWords[wordIdx].en)}
+                        </motion.span>
+                      </AnimatePresence>
+                    </span>
+                    <span className={`text-white font-black shrink-0 relative ${language === 'ar' ? 'mr-3' : 'ml-3'}`}>
+                      {language === 'ar' ? '؟' : '?'}
+                    </span>
+                  </div>
+                  
+                  <span className="text-white block whitespace-nowrap">
+                    {language === 'ar' ? 'Cutscene هـنـا!' : (language === 'fr' ? 'CUTSCENE EST ICI !' : 'CUTSCENE IS HERE')}
+                  </span>
+                </div>
               </h1>
               
               <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed font-light">
@@ -317,12 +347,21 @@ export default function Home() {
           <div className="space-y-20">
             {studentWorks.map((category, idx) => (
               <div key={category.courseId}>
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center">
-                    <Video className="w-6 h-6 text-purple-500" />
+                <div className="flex items-center justify-between gap-4 mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center shrink-0">
+                      <Video className="w-6 h-6 text-purple-500" />
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-bold">{category.courseTitle}</h3>
                   </div>
-                  <h3 className="text-2xl font-bold">{category.courseTitle}</h3>
-                  <div className="flex-grow h-px bg-purple-900/20 ml-4" />
+                  <div className="flex-grow h-px bg-purple-900/20" />
+                  <Link
+                    to="/student-work"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 text-purple-400 hover:text-purple-300 font-bold text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap cursor-pointer group shrink-0"
+                  >
+                    <span>See All</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

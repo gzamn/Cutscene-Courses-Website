@@ -13,6 +13,8 @@ const translations: Record<Language, Record<string, string>> = {
   en: {
     'nav.home': 'Home',
     'nav.courses': 'Courses',
+    'nav.downloadables': 'Downloadables',
+    'nav.plans': 'Our Plans',
     'nav.student_work': 'Student Work',
     'nav.contact': 'Contact',
     'nav.dashboard': 'Dashboard',
@@ -196,6 +198,8 @@ const translations: Record<Language, Record<string, string>> = {
   fr: {
     'nav.home': 'Accueil',
     'nav.courses': 'Cours',
+    'nav.downloadables': 'Ressources',
+    'nav.plans': 'Nos Tarifs',
     'nav.student_work': 'Travaux d\'Élèves',
     'nav.contact': 'Contact',
     'nav.dashboard': 'Tableau de bord',
@@ -379,6 +383,8 @@ const translations: Record<Language, Record<string, string>> = {
   ar: {
     'nav.home': 'الرئيسية',
     'nav.courses': 'الدورات',
+    'nav.downloadables': 'التحميلات',
+    'nav.plans': 'الأسعار والخطط',
     'nav.student_work': 'أعمال الطلاب',
     'nav.contact': 'اتصل بنا',
     'nav.dashboard': 'لوحة التحكم',

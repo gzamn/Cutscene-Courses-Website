@@ -103,6 +103,18 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isSignedIn() && resource.data.student_id == request.auth.uid);
     }
 
+    // Downloadables collection
+    match /downloadables/{downloadableId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Membership plans collection
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Config parameters
     match /config/{configId} {
       allow read: if true;

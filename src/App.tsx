@@ -13,6 +13,8 @@ import Profile from './pages/Profile';
 import StudioPage from './pages/Studio';
 import AdminPanel from './pages/Admin';
 import StudentWork from './pages/StudentWork';
+import Downloadables from './pages/Downloadables';
+import Plans from './pages/Plans';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -53,6 +55,8 @@ function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/courses" element={<Courses />} />
+                <Route path="/downloadables" element={<Downloadables />} />
+                <Route path="/plans" element={<Plans />} />
                 <Route path="/student-work" element={<StudentWork />} />
                 <Route path="/courses/:id" element={<CourseDetail />} />
                 <Route path="/support" element={<Support />} />

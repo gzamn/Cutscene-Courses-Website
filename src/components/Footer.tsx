@@ -57,8 +57,19 @@ export default function Footer() {
           </div>
         </div>
         
-        <div className="mt-12 pt-8 border-t border-gray-900 text-center text-gray-500 text-sm">
-          © {new Date().getFullYear()} Cutscene. All rights reserved.
+        <div className="mt-12 pt-8 border-t border-gray-900 flex flex-col items-center gap-6 md:flex-row md:justify-between text-gray-500 text-sm">
+          <div className="order-2 md:order-1">
+            © {new Date().getFullYear()} Cutscene. All rights reserved.
+          </div>
+          <div className="order-1 md:order-2">
+            <Link 
+              to="/support" 
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-purple-950/25 hover:bg-purple-900/30 text-gray-300 hover:text-white font-bold text-xs sm:text-sm rounded-full border border-purple-900/40 hover:border-purple-500/50 shadow-lg shadow-purple-950/50 backdrop-blur-xs transition-all uppercase tracking-wider"
+              id="footer-support-link"
+            >
+              Want help? Contact us.
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

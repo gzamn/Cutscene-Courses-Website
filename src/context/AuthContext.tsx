@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, FirebaseUser, onAuthStateChanged, doc, onSnapshot } from '../firebase';
+import { auth, db, FirebaseUser, onAuthStateChanged, doc, onSnapshot, setDoc } from '../firebase';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -34,17 +34,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (currUser) {
         const userRef = doc(db, 'users', currUser.uid);
-        unsubProfile = onSnapshot(userRef, (snap) => {
+        unsubProfile = onSnapshot(userRef, async (snap) => {
           if (snap.exists()) {
-            setUserProfile(snap.data());
+            const data = snap.data();
+            if (!data.activePlan) {
+              const updatedProfile = {
+                ...data,
+                activePlan: 'Free Plan',
+                activePlanPrice: '0 DA',
+                hasPlan: true,
+                subscribed: false,
+              };
+              setUserProfile(updatedProfile);
+              try {
+                await setDoc(userRef, {
+                  activePlan: 'Free Plan',
+                  activePlanPrice: '0 DA',
+                  hasPlan: true,
+                  subscribed: false,
+                }, { merge: true });
+              } catch (e) {
+                console.error("Failed to persist Free Plan to Firestore: ", e);
+              }
+            } else {
+              setUserProfile(data);
+            }
           } else {
             // Profile doc might not exist yet during sign-up
-            setUserProfile({
+            const defaultProfile = {
               uid: currUser.uid,
               email: currUser.email,
               displayName: currUser.displayName || '',
               role: 'student',
-            });
+              activePlan: 'Free Plan',
+              activePlanPrice: '0 DA',
+              hasPlan: true,
+              subscribed: false,
+            };
+            setUserProfile(defaultProfile);
+            try {
+              await setDoc(userRef, defaultProfile, { merge: true });
+            } catch (e) {
+              console.error("Failed to initialize profile in Firestore: ", e);
+            }
           }
           setLoading(false);
         }, (error) => {
@@ -55,6 +87,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: currUser.email,
             displayName: currUser.displayName || '',
             role: 'student',
+            activePlan: 'Free Plan',
+            activePlanPrice: '0 DA',
+            hasPlan: true,
+            subscribed: false,
           });
           setLoading(false);
         });

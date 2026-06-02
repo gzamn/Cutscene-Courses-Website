@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { LogOut, User, LayoutDashboard, Globe, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,27 @@ export default function Navbar() {
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -23,8 +44,8 @@ export default function Navbar() {
   const navLinks = [
     { name: t('nav.home'), path: '/' },
     { name: t('nav.courses'), path: '/courses' },
-    { name: t('nav.student_work'), path: '/student-work' },
-    { name: t('nav.contact'), path: '/support' },
+    { name: t('nav.downloadables'), path: '/downloadables' },
+    { name: t('nav.plans'), path: '/plans' },
   ];
 
   return (
@@ -61,72 +82,122 @@ export default function Navbar() {
                   {link.name}
                 </NavLink>
               ))}
-              {userProfile?.role === 'admin' && (
-                <NavLink
-                  to="/admin"
-                  className={({ isActive }) => 
-                    `transition-colors font-semibold whitespace-nowrap text-sm sm:text-base flex items-center gap-1 border border-purple-900/40 bg-purple-950/20 px-2.5 py-1 rounded-lg ${
-                      isActive ? 'text-purple-300 border-purple-500/50 bg-purple-900/40' : 'text-purple-400 hover:text-purple-300 hover:bg-purple-900/20'
-                    }`
-                  }
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-md shadow-purple-500/50 animate-pulse" />
-                  Admin
-                </NavLink>
-              )}
             </div>
           </div>
 
           {/* Desktop Auth Controls & Language Switcher */}
           <div className="hidden md:flex items-center gap-4">
-            {/* Language Switcher */}
-            <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-purple-900/20">
-              <Globe className="w-4 h-4 text-purple-500 mx-1" />
-              {(['en', 'fr', 'ar'] as const).map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => setLanguage(lang)}
-                  className={`px-2 py-1 text-xs font-bold rounded transition-all ${
-                    language === lang 
-                      ? 'bg-purple-600 text-white' 
-                      : 'text-gray-500 hover:text-gray-300'
-                  }`}
-                >
-                  {lang.toUpperCase()}
-                </button>
-              ))}
+            {/* Language Switcher Hamburger Dropdown */}
+            <div className="relative" ref={langMenuRef}>
+              <button 
+                onClick={() => setIsLangMenuOpen(!isLangMenuOpen)} 
+                className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-xl border border-purple-900/10 text-gray-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
+                title="Change Language"
+                aria-expanded={isLangMenuOpen}
+              >
+                <Globe className="w-4 h-4 text-purple-500" />
+                <span className="text-[10px] text-purple-400 font-extrabold tracking-wider bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/10 uppercase">
+                  {language}
+                </span>
+              </button>
+              
+              {isLangMenuOpen && (
+                <div className="absolute right-0 mt-2 py-1.5 px-2 w-28 bg-zinc-950/95 border border-purple-900/25 rounded-2xl shadow-2xl backdrop-blur-md z-50 flex flex-col gap-1 transition-all animate-fade-in">
+                  {(['en', 'fr', 'ar'] as const).map((lang) => (
+                    <button
+                      key={lang}
+                      onClick={() => {
+                        setLanguage(lang);
+                        setIsLangMenuOpen(false);
+                      }}
+                      className={`px-3 py-1.5 text-left text-xs font-bold rounded-lg transition-all flex items-center justify-between ${
+                        language === lang 
+                          ? 'bg-purple-650 text-white shadow-xs' 
+                          : 'text-gray-400 hover:text-gray-250 hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="uppercase">{lang}</span>
+                      {language === lang && <span className="w-1.5 h-1.5 rounded-full bg-white block animate-pulse" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {user ? (
-              <div className="flex items-center gap-4 ml-2 pl-4 border-l border-purple-900/30">
-                <NavLink
-                  to="/dashboard"
-                  className={({ isActive }) => 
-                    `flex items-center gap-2 transition-colors font-medium text-sm sm:text-base ${
-                      isActive ? 'text-purple-500' : 'text-gray-300 hover:text-purple-400'
-                    }`
-                  }
+              <div className="relative flex items-center ml-2 border-l border-purple-900/10 pl-4" ref={profileMenuRef}>
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 flex flex-col gap-1 bg-zinc-950/95 border border-purple-900/25 p-2 rounded-2xl shadow-2xl backdrop-blur-md z-50 transition-all animate-fade-in">
+                    <NavLink
+                      to="/dashboard"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className={({ isActive }) => 
+                        `flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all w-full text-left ${
+                          isActive ? 'text-purple-400 bg-white/5' : 'text-gray-300 hover:text-purple-400 hover:bg-white/5'
+                        }`
+                      }
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span>{t('nav.dashboard')}</span>
+                    </NavLink>
+                    
+                    <NavLink
+                      to="/profile"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className={({ isActive }) => 
+                        `flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all w-full text-left ${
+                          isActive ? 'text-purple-400 bg-white/5' : 'text-gray-300 hover:text-purple-400 hover:bg-white/5'
+                        }`
+                      }
+                    >
+                      <User className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span>{t('nav.profile')}</span>
+                    </NavLink>
+
+                    {userProfile?.role === 'admin' && (
+                      <NavLink
+                        to="/admin"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className={({ isActive }) => 
+                          `flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-purple-900/25 w-full text-left ${
+                            isActive ? 'text-white bg-purple-900/40 border-purple-500/50' : 'text-purple-400 bg-purple-950/20 hover:text-purple-300 hover:bg-purple-900/20'
+                          }`
+                        }
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-md shadow-purple-500/50 animate-pulse shrink-0" />
+                        <span>Admin</span>
+                      </NavLink>
+                    )}
+
+                    <div className="border-t border-purple-900/10 my-1 font-mono" />
+
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-red-400 hover:bg-red-500/10 transition-all w-full text-left cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{t('nav.logout')}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Profile Picture Trigger Theme (Hamburger Icon) */}
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="relative group transition-transform hover:scale-105 active:scale-95 focus:outline-none cursor-pointer shrink-0"
+                  title="Open Account Menu"
+                  aria-expanded={isUserMenuOpen}
                 >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t('nav.dashboard')}</span>
-                </NavLink>
-                <NavLink
-                  to="/profile"
-                  className={({ isActive }) => 
-                    `flex items-center gap-2 transition-colors font-medium text-sm sm:text-base ${
-                      isActive ? 'text-purple-500' : 'text-gray-300 hover:text-purple-400'
-                    }`
-                  }
-                >
-                  <User className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t('nav.profile')}</span>
-                </NavLink>
-                <button 
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 text-gray-300 hover:text-red-400 transition-colors font-medium text-sm sm:text-base"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t('nav.logout')}</span>
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-650 rounded-full opacity-60 blur-xs group-hover:opacity-100 transition duration-300" />
+                  <img
+                    src={userProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`}
+                    alt="Profile Avatar"
+                    className="relative w-9 h-9 rounded-full object-cover border border-white/10"
+                    referrerPolicy="no-referrer"
+                  />
                 </button>
               </div>
             ) : (

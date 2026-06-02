@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, ref, uploadBytes, getDownloadURL } from '../firebase';
-import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink } from 'lucide-react';
+import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -18,6 +18,8 @@ export default function Dashboard() {
   const [uploadUrl, setUploadUrl] = useState('');
   const [firestoreCourses, setFirestoreCourses] = useState<any[]>([]);
   const [chaptersCountMap, setChaptersCountMap] = useState<{ [courseId: string]: number }>({});
+  const [downloadables, setDownloadables] = useState<any[]>([]);
+  const [hasDownloadAccess, setHasDownloadAccess] = useState(false);
 
   // Listen to courses collection
   useEffect(() => {
@@ -123,6 +125,65 @@ export default function Dashboard() {
 
     checkAndGenerateCertificates();
   }, [user, enrollments, progress, certificates]);
+
+  // Check downloadables access
+  useEffect(() => {
+    const checkUserAccess = async () => {
+      if (!user) {
+        setHasDownloadAccess(false);
+        return;
+      }
+
+      // 1. Admin always has full access
+      if (userProfile?.role === 'admin') {
+        setHasDownloadAccess(true);
+        return;
+      }
+
+      // 2. Active plan/subscription check or explicitly subscribed
+      const hasPremiumPlan = userProfile?.activePlan && userProfile.activePlan !== 'Free Plan';
+      if (hasPremiumPlan || userProfile?.hasPlan || userProfile?.subscribed) {
+        setHasDownloadAccess(true);
+        return;
+      }
+
+      // 3. User bought a course check (enrollments collection)
+      try {
+        const qEnrollments = query(collection(db, 'enrollments'), where('uid', '==', user.uid));
+        const enrollSnap = await getDocs(qEnrollments);
+        if (!enrollSnap.empty) {
+          setHasDownloadAccess(true);
+        } else {
+          setHasDownloadAccess(false);
+        }
+      } catch (err) {
+        console.error('Error verifying enrollments:', err);
+        setHasDownloadAccess(false);
+      }
+    };
+
+    checkUserAccess();
+  }, [user, userProfile]);
+
+  // Load downloadables list
+  useEffect(() => {
+    const unsubDownloadables = onSnapshot(collection(db, 'downloadables'), (snapshot) => {
+      setDownloadables(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error("Error listening to downloadables:", error));
+    return () => unsubDownloadables();
+  }, []);
+
+  const handleDownload = (item: any) => {
+    if (!hasDownloadAccess) {
+      alert('This downloadable asset is locked! Kindly upgrade your plan to unlock downloads.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = item.downloadUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
+  };
 
   const handleVideoLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,6 +374,75 @@ export default function Dashboard() {
               </div>
             </section>
 
+            {/* My Library & Presets */}
+            <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
+                  <FolderOpen className="w-6 h-6 text-purple-500" />
+                  My Library
+                </h2>
+                <Link 
+                  to="/downloadables" 
+                  className="text-purple-400 font-bold hover:underline text-sm flex items-center gap-1.5"
+                >
+                  See All Downloadables
+                  <ExternalLink className="w-4 h-4 ml-0.5" />
+                </Link>
+              </div>
+
+              {downloadables.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {downloadables.slice(0, 4).map((item) => (
+                    <div 
+                      key={item.id} 
+                      className="bg-black border border-purple-900/10 p-5 rounded-2xl flex flex-col justify-between hover:border-purple-500/25 transition-all group"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md">
+                            {item.category}
+                          </span>
+                        </div>
+                        <h3 className="font-extrabold text-sm text-gray-100 group-hover:text-purple-400 transition-colors line-clamp-1">{item.name}</h3>
+                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-purple-900/10 flex items-center justify-between">
+                        <span className="text-[9px] font-mono text-gray-405 uppercase tracking-wider">
+                          {hasDownloadAccess ? 'Unlocked' : 'Requires Premium Plan'}
+                        </span>
+                        
+                        <button
+                          onClick={() => handleDownload(item)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            hasDownloadAccess 
+                              ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md'
+                              : 'bg-zinc-900 border border-white/5 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          {hasDownloadAccess ? (
+                            <>
+                              <Download className="w-3.5 h-3.5" />
+                              Download
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-3.5 h-3.5 text-gray-500" />
+                              Unlock
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-black/40 border border-dashed border-purple-900/25 p-8 rounded-2xl text-center">
+                  <p className="text-gray-500 text-sm">No downloadables found in your asset catalog.</p>
+                </div>
+              )}
+            </section>
+
             {/* Video Upload Section */}
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
@@ -374,6 +504,43 @@ export default function Dashboard() {
 
           {/* Sidebar: Certificates & Reviews */}
           <div className="space-y-8">
+            {/* Your Plan */}
+            <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
+              <h2 className="text-xl font-bold mb-6 flex items-center justify-between gap-3">
+                <span className="flex items-center gap-3">
+                  <Star className="w-6 h-6 text-purple-500" />
+                  Your Plan
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  userProfile?.activePlan === 'Free Plan' ? 'bg-zinc-900 border border-purple-950/40 text-purple-400' : 'bg-purple-650 border border-purple-400 text-white'
+                }`}>
+                  {userProfile?.activePlan === 'Free Plan' ? 'Free-Tier' : 'Active'}
+                </span>
+              </h2>
+              
+              <div className="bg-black/40 border border-purple-900/10 p-5 rounded-2xl space-y-4">
+                <div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Plan Name</div>
+                  <div className="text-base font-black text-white mt-1 break-words">{userProfile?.activePlan || 'Free Plan'}</div>
+                </div>
+                
+                <div className="pt-4 border-t border-purple-900/10 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Pricing / Rate</div>
+                    <div className="text-xs font-bold text-purple-400 mt-1">{userProfile?.activePlanPrice ? `${userProfile.activePlanPrice}/month` : '0 DA/month'}</div>
+                  </div>
+                  {userProfile?.activePlan === 'Free Plan' && (
+                    <Link
+                      to="/plans"
+                      className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-purple-600/20 shrink-0"
+                    >
+                      Upgrade
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </section>
+
             {/* Certificates */}
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">

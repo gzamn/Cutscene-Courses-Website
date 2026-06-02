@@ -22,7 +22,7 @@ import {
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
-type AdminTab = 'courses' | 'chapters' | 'students' | 'student-works' | 'settings';
+type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'student-works' | 'settings';
 
 interface Toast {
   id: string;
@@ -46,6 +46,8 @@ export default function AdminPanel() {
   const [chapters, setChapters] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
+  const [downloadables, setDownloadables] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
     contactEmail: 'contact@cutscene-academy.com',
@@ -96,6 +98,8 @@ export default function AdminPanel() {
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingWorks, setLoadingWorks] = useState(false);
+  const [loadingDownloadables, setLoadingDownloadables] = useState(false);
+  const [loadingPlans, setLoadingPlans] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
 
   // Modal forms states
@@ -134,6 +138,27 @@ export default function AdminPanel() {
     session_name: ''
   });
 
+  const [showDownloadableModal, setShowDownloadableModal] = useState(false);
+  const [editingDownloadableId, setEditingDownloadableId] = useState<string | null>(null);
+  const [downloadableForm, setDownloadableForm] = useState({
+    name: '',
+    category: 'Softwares',
+    imageUrl: '',
+    downloadUrl: '',
+    description: ''
+  });
+
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [planForm, setPlanForm] = useState({
+    name: '',
+    price: '',
+    description: '',
+    featuresText: '',
+    isPopular: false,
+    order: '1'
+  });
+
   // Toast Helper
   const showToast = (type: 'success' | 'error', message: string) => {
     const id = Date.now().toString();
@@ -161,6 +186,8 @@ export default function AdminPanel() {
       fetchCourses();
       fetchUsers();
       fetchStudentWorks();
+      fetchDownloadables();
+      fetchPlans();
       fetchSettings();
     }
   }, [user, userProfile]);
@@ -299,6 +326,42 @@ export default function AdminPanel() {
       console.error('Fetch student works error:', err);
     } finally {
       setLoadingWorks(false);
+    }
+  };
+
+  const fetchDownloadables = async () => {
+    setLoadingDownloadables(true);
+    try {
+      const snap = await getDocs(collection(db, 'downloadables'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setDownloadables(list);
+    } catch (err: any) {
+      console.error('Fetch downloadables error:', err);
+      showToast('error', 'Failed loading downloadables from database.');
+    } finally {
+      setLoadingDownloadables(false);
+    }
+  };
+
+  const fetchPlans = async () => {
+    setLoadingPlans(true);
+    try {
+      const snap = await getDocs(collection(db, 'plans'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort plans by 'order' or fallback to numeric position
+      list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      setPlans(list);
+    } catch (err: any) {
+      console.error('Fetch plans error:', err);
+      showToast('error', 'Failed loading subscription plans from database.');
+    } finally {
+      setLoadingPlans(false);
     }
   };
 
@@ -665,6 +728,158 @@ export default function AdminPanel() {
   };
 
 
+  // DOWNLOADABLES
+  const handleDownloadableSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: downloadableForm.name,
+        category: downloadableForm.category,
+        imageUrl: downloadableForm.imageUrl,
+        downloadUrl: downloadableForm.downloadUrl,
+        description: downloadableForm.description,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (editingDownloadableId) {
+        await setDoc(doc(db, 'downloadables', editingDownloadableId), {
+          ...payload,
+          id: editingDownloadableId
+        }, { merge: true });
+        showToast('success', `Download "${downloadableForm.name}" updated successfully.`);
+      } else {
+        const docRef = await addDoc(collection(db, 'downloadables'), payload);
+        await setDoc(docRef, { id: docRef.id }, { merge: true });
+        showToast('success', `Download "${downloadableForm.name}" created successfully.`);
+      }
+
+      setShowDownloadableModal(false);
+      setEditingDownloadableId(null);
+      setDownloadableForm({
+        name: '',
+        category: 'Softwares',
+        imageUrl: '',
+        downloadUrl: '',
+        description: ''
+      });
+      fetchDownloadables();
+    } catch (err: any) {
+      console.error('Downloadable save error:', err);
+      showToast('error', err.message || 'Error saving downloadable asset.');
+    }
+  };
+
+  const startEditDownloadable = (item: any) => {
+    setEditingDownloadableId(item.id);
+    setDownloadableForm({
+      name: item.name || '',
+      category: item.category || 'Softwares',
+      imageUrl: item.imageUrl || '',
+      downloadUrl: item.downloadUrl || '',
+      description: item.description || ''
+    });
+    setShowDownloadableModal(true);
+  };
+
+  const handleDeleteDownloadable = async (id: string, name: string) => {
+    askConfirmation(
+      'Delete Downloadable Asset',
+      `Are you sure you want to permanently delete the asset "${name}"? Users with full access will no longer be able to download it.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'downloadables', id));
+          showToast('success', 'Downloadable asset deleted successfully.');
+          fetchDownloadables();
+        } catch (err: any) {
+          console.error('Delete downloadable failed:', err);
+          showToast('error', 'Failed to delete asset.');
+        }
+      },
+      'Delete Asset',
+      true
+    );
+  };
+
+
+  // PLANS
+  const handlePlanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const features = planForm.featuresText
+        ? planForm.featuresText.split('\n').map(f => f.trim()).filter(Boolean)
+        : [];
+
+      const payload = {
+        name: planForm.name,
+        price: planForm.price,
+        description: planForm.description,
+        features,
+        isPopular: !!planForm.isPopular,
+        order: Number(planForm.order || 1),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (editingPlanId) {
+        await setDoc(doc(db, 'plans', editingPlanId), {
+          ...payload,
+          id: editingPlanId
+        }, { merge: true });
+        showToast('success', `Plan "${planForm.name}" updated successfully.`);
+      } else {
+        const docRef = await addDoc(collection(db, 'plans'), payload);
+        await setDoc(docRef, { id: docRef.id }, { merge: true });
+        showToast('success', `Plan "${planForm.name}" created successfully.`);
+      }
+
+      setShowPlanModal(false);
+      setEditingPlanId(null);
+      setPlanForm({
+        name: '',
+        price: '',
+        description: '',
+        featuresText: '',
+        isPopular: false,
+        order: '1'
+      });
+      fetchPlans();
+    } catch (err: any) {
+      console.error('Plan save error:', err);
+      showToast('error', err.message || 'Error saving membership plan.');
+    }
+  };
+
+  const startEditPlan = (plan: any) => {
+    setEditingPlanId(plan.id);
+    setPlanForm({
+      name: plan.name || '',
+      price: plan.price || '',
+      description: plan.description || '',
+      featuresText: Array.isArray(plan.features) ? plan.features.join('\n') : '',
+      isPopular: !!plan.isPopular,
+      order: String(plan.order || 1)
+    });
+    setShowPlanModal(true);
+  };
+
+  const handleDeletePlan = async (id: string, name: string) => {
+    askConfirmation(
+      'Delete Membership Plan',
+      `Are you sure you want to delete the plan "${name}"? This will remove it from the choice gallery page for the users.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'plans', id));
+          showToast('success', 'Plan deleted successfully.');
+          fetchPlans();
+        } catch (err) {
+          showToast('error', 'Failed to discard subscription plan.');
+        }
+      },
+      'Delete Plan',
+      true
+    );
+  };
+
+
   // WEBSITE SETTINGS
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -737,6 +952,8 @@ export default function AdminPanel() {
             {[
               { id: 'courses', name: 'Course Modules', icon: BookOpen },
               { id: 'chapters', name: 'Chapters & Tasks', icon: Layers },
+              { id: 'downloadables', name: 'Premium Assets', icon: Film },
+              { id: 'plans', name: 'Membership Plans', icon: Award },
               { id: 'students', name: 'Students Ledger', icon: Users },
               { id: 'student-works', name: 'Showcase Gallery', icon: Film },
               { id: 'settings', name: 'Console Settings', icon: Settings },
@@ -1212,6 +1429,196 @@ export default function AdminPanel() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4.1: PREMIUM ASSETS MANAGER */}
+        {activeTab === 'downloadables' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Premium Assets Library</h1>
+                <p className="text-gray-400 text-xs mt-1">Manage downloadable utilities, creative templates, softwares, and audio overlays</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingDownloadableId(null);
+                  setDownloadableForm({
+                    name: '',
+                    category: 'Softwares',
+                    imageUrl: '',
+                    downloadUrl: '',
+                    description: ''
+                  });
+                  setShowDownloadableModal(true);
+                }}
+                className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Add Premium Asset
+              </button>
+            </div>
+
+            {loadingDownloadables ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+              </div>
+            ) : downloadables.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                <PlusCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
+                <p className="text-gray-400 font-bold">No assets found in the premium database</p>
+                <p className="text-xs text-gray-650 mt-1">Click the top button to seed or list your first tool!</p>
+              </div>
+            ) : (
+              <div className="bg-zinc-950/40 border border-purple-950/20 rounded-[2.5rem] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-950/30 text-gray-400 text-[10px] uppercase font-bold tracking-widest bg-zinc-950/60">
+                        <th className="py-4 px-6">Image</th>
+                        <th className="py-4 px-6">Asset Name</th>
+                        <th className="py-4 px-6">Category</th>
+                        <th className="py-4 px-6">Source URL</th>
+                        <th className="py-4 px-6 text-right">Operations</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/15">
+                      {downloadables.map((item) => (
+                        <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-6">
+                            <img
+                              src={item.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80'}
+                              alt=""
+                              className="w-14 h-10 object-cover rounded-xl border border-purple-950"
+                              referrerPolicy="no-referrer"
+                            />
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-white text-sm line-clamp-1">{item.name}</div>
+                            <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{item.description || 'No description provided.'}</div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5 text-[10px] font-bold text-gray-300 uppercase">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="text-xs text-purple-400 truncate max-w-[200px]" title={item.downloadUrl}>
+                              {item.downloadUrl}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 text-right space-x-2 shrink-0">
+                            <button
+                              onClick={() => startEditDownloadable(item)}
+                              className="p-2 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Edit Asset"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDownloadable(item.id, item.name)}
+                              className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Delete Asset"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4.2: PLANS MANAGER */}
+        {activeTab === 'plans' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Academy Membership Plans</h1>
+                <p className="text-gray-400 text-xs mt-1">Configure pricing bundles, billing rates, features lists, and visual tags</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingPlanId(null);
+                  setPlanForm({
+                    name: '',
+                    price: '',
+                    description: '',
+                    featuresText: '',
+                    isPopular: false,
+                    order: String(plans.length + 1)
+                  });
+                  setShowPlanModal(true);
+                }}
+                className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Create Plan Bundle
+              </button>
+            </div>
+
+            {loadingPlans ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+              </div>
+            ) : plans.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                <PlusCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
+                <p className="text-gray-400 font-bold">No bundles defined in plans database</p>
+                <p className="text-xs text-gray-650 mt-1">Get started by compiling pricing bundles for academic members!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {plans.map((p) => (
+                  <div key={p.id} className="bg-zinc-950/60 p-6 rounded-[2rem] border border-purple-950/20 hover:border-purple-500/10 relative flex flex-col justify-between">
+                    {p.isPopular && (
+                      <span className="absolute top-4 right-4 bg-purple-600 text-white font-bold text-[9px] px-2.5 py-1 rounded-full uppercase tracking-widest shadow shadow-purple-500/50">
+                        Most Popular
+                      </span>
+                    )}
+                    <div>
+                      <div className="flex items-baseline gap-2 mb-4">
+                        <span className="text-2xl font-black text-white">{p.price}</span>
+                        <span className="text-[10px] text-gray-500 uppercase tracking-widest">Order: {p.order || '1'}</span>
+                      </div>
+                      <h4 className="text-lg font-bold text-white mb-1.5">{p.name}</h4>
+                      <p className="text-xs text-gray-400 leading-relaxed mb-4 line-clamp-2">{p.description}</p>
+                      
+                      <ul className="space-y-1 text-xs text-gray-500 mb-6">
+                        {Array.isArray(p.features) && p.features.slice(0, 3).map((f: string, fi: number) => (
+                          <li key={fi} className="truncate flex items-center gap-1.5">
+                            <span className="w-1 h-1 rounded-full bg-purple-400" />
+                            {f}
+                          </li>
+                        ))}
+                        {Array.isArray(p.features) && p.features.length > 3 && (
+                          <li className="italic text-[10px] mt-1 text-purple-450">+{p.features.length - 3} more advantages</li>
+                        )}
+                      </ul>
+                    </div>
+
+                    <div className="pt-4 border-t border-purple-950/20 flex justify-end gap-2">
+                      <button
+                        onClick={() => startEditPlan(p)}
+                        className="px-4 py-2 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-350 cursor-pointer hover:bg-zinc-800"
+                      >
+                        Edit Plan
+                      </button>
+                      <button
+                        onClick={() => handleDeletePlan(p.id, p.name)}
+                        className="px-3 py-2 bg-red-950/10 hover:bg-red-950/30 text-red-500 hover:text-red-400 rounded-xl text-xs transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1700,6 +2107,214 @@ export default function AdminPanel() {
                   className="w-full py-4 mt-2 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
                 >
                   Save Curriculum Mapping
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2.1: ADD / EDIT PREMIUM DOWNLOADABLE */}
+      <AnimatePresence>
+        {showDownloadableModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowDownloadableModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{editingDownloadableId ? 'Edit Asset Document' : 'Publish Asset Document'}</h2>
+                  <p className="text-gray-400 text-xs">Fill out file locations and download specs</p>
+                </div>
+                <button onClick={() => setShowDownloadableModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleDownloadableSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Asset File Name / Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={downloadableForm.name}
+                    onChange={(e) => setDownloadableForm({ ...downloadableForm, name: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                    placeholder="e.g. Cinematic Sound Effects Library"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Category Subsection</label>
+                    <select
+                      value={downloadableForm.category}
+                      onChange={(e) => setDownloadableForm({ ...downloadableForm, category: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-350 focus:outline-none"
+                    >
+                      <option value="Softwares">Softwares</option>
+                      <option value="Videos">Videos</option>
+                      <option value="Images">Images</option>
+                      <option value="Music">Music</option>
+                      <option value="Sound Effects">Sound Effects</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Cover Image URL</label>
+                    <input
+                      type="url"
+                      value={downloadableForm.imageUrl}
+                      onChange={(e) => setDownloadableForm({ ...downloadableForm, imageUrl: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                      placeholder="https://images.unsplash.com/..."
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Direct Download Asset URL</label>
+                  <input
+                    type="url"
+                    required
+                    value={downloadableForm.downloadUrl}
+                    onChange={(e) => setDownloadableForm({ ...downloadableForm, downloadUrl: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                    placeholder="https://..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Brief Description</label>
+                  <textarea
+                    rows={3}
+                    value={downloadableForm.description}
+                    onChange={(e) => setDownloadableForm({ ...downloadableForm, description: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                    placeholder="Provide context about what this pack contains..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow"
+                >
+                  Save Asset Document
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2.2: ADD / EDIT PLAN BUNDLE */}
+      <AnimatePresence>
+        {showPlanModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowPlanModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{editingPlanId ? 'Edit Membership Plan' : 'Create Membership Plan'}</h2>
+                  <p className="text-gray-400 text-xs">Fill out features, billing rates, and ordering indexes</p>
+                </div>
+                <button onClick={() => setShowPlanModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePlanSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Plan Name / Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={planForm.name}
+                      onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                      placeholder="e.g. Pro Creator Membership"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Price (e.g. DA)</label>
+                    <input
+                      type="text"
+                      required
+                      value={planForm.price}
+                      onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                      placeholder="e.g. 9,900 DA"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold font-bold">Brief Tagline Description</label>
+                  <input
+                    type="text"
+                    required
+                    value={planForm.description}
+                    onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                    placeholder="Short summary displayed under the name..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Ordering Sequence Position</label>
+                    <input
+                      type="number"
+                      required
+                      value={planForm.order}
+                      onChange={(e) => setPlanForm({ ...planForm, order: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                      placeholder="1"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-6">
+                    <input
+                      id="planIsPopular"
+                      type="checkbox"
+                      checked={planForm.isPopular}
+                      onChange={(e) => setPlanForm({ ...planForm, isPopular: e.target.checked })}
+                      className="w-5 h-5 rounded bg-black border border-purple-900/30 accent-purple-600 focus:outline-none"
+                    />
+                    <label htmlFor="planIsPopular" className="text-xs font-semibold text-gray-350 cursor-pointer font-mono select-none">Mark as &quot;Most Popular&quot;</label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Included Advantages (Line by Line)</label>
+                  <textarea
+                    rows={4}
+                    value={planForm.featuresText}
+                    onChange={(e) => setPlanForm({ ...planForm, featuresText: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                    placeholder="Access to Basic Softwares&#10;100+ Premium Stock Sound Effects&#10;Standard 1080p Overlay Stock"
+                  />
+                  <span className="text-[10px] text-gray-500 italic mt-1 block font-mono">Write each unique bundle reward on a brand new line.</span>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow"
+                >
+                  Save Membership Plan
                 </button>
               </form>
             </motion.div>
