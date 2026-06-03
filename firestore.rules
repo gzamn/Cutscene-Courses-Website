@@ -32,7 +32,7 @@ service cloud.firestore {
     // Users (Student/Instructor Profiles)
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) && request.resource.data.uid == userId;
+      allow write: if isAdmin() || (isOwner(userId) && request.resource.data.uid == userId);
     }
 
     // Courses Metadata
@@ -123,6 +123,12 @@ service cloud.firestore {
 
     // Config parameters
     match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Latest Updates & News Announcements
+    match /updates/{updateId} {
       allow read: if true;
       allow write: if isAdmin();
     }

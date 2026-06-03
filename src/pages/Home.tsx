@@ -159,13 +159,16 @@ export default function Home() {
     if (!embedUrl) return '';
     if (embedUrl.includes('player.mediadelivery.net')) {
       let finalUrl = embedUrl;
-      // Force autoplay to false, and muted to false
-      finalUrl = finalUrl.replace('autoplay=true', 'autoplay=false');
-      finalUrl = finalUrl.replace('muted=true', 'muted=false');
-      if (!finalUrl.includes('autoplay=')) {
+      // Force autoplay to false, and muted to false (case-insensitive and support digits)
+      finalUrl = finalUrl
+        .replace(/autoplay=true/i, 'autoplay=false')
+        .replace(/autoplay=1/i, 'autoplay=0')
+        .replace(/muted=true/i, 'muted=false')
+        .replace(/muted=1/i, 'muted=0');
+      if (!finalUrl.toLowerCase().includes('autoplay=')) {
         finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'autoplay=false';
       }
-      if (!finalUrl.includes('muted=')) {
+      if (!finalUrl.toLowerCase().includes('muted=')) {
         finalUrl += '&muted=false';
       }
       return finalUrl;

@@ -5,7 +5,7 @@ import {
   BookOpen, PlusCircle, Sparkles, Check, AlertCircle, ArrowLeft, 
   Layers, ChevronRight, Users, Film, Settings, Trash2, Edit2, 
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
-  Video, HelpCircle, Activity, UserCheck, Play, Loader2
+  Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -23,7 +23,7 @@ import {
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
-type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'student-works' | 'hero-video' | 'settings';
+type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'updates';
 
 interface Toast {
   id: string;
@@ -46,10 +46,21 @@ export default function AdminPanel() {
   const [courses, setCourses] = useState<any[]>([]);
   const [chapters, setChapters] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
   const [downloadables, setDownloadables] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [heroVideos, setHeroVideos] = useState<any[]>([]);
+  const [updatesList, setUpdatesList] = useState<any[]>([]);
+  const [loadingUpdates, setLoadingUpdates] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
+  const [updateForm, setUpdateForm] = useState({
+    title: '',
+    content: '',
+    category: 'Announcement',
+    pinned: false
+  });
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
     contactEmail: 'contact@cutscene-academy.com',
@@ -99,6 +110,7 @@ export default function AdminPanel() {
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [loadingWorks, setLoadingWorks] = useState(false);
   const [loadingDownloadables, setLoadingDownloadables] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(false);
@@ -108,6 +120,8 @@ export default function AdminPanel() {
   // Modal forms states
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [enlargedReceiptUrl, setEnlargedReceiptUrl] = useState<string | null>(null);
+  const [activeReceiptFilter, setActiveReceiptFilter] = useState<'all' | 'pending' | 'approved'>('pending');
   const [courseForm, setCourseForm] = useState({
     title: '',
     description: '',
@@ -198,10 +212,12 @@ export default function AdminPanel() {
       fetchCourses();
       fetchUsers();
       fetchStudentWorks();
+      fetchEnrollments();
       fetchDownloadables();
       fetchPlans();
       fetchHeroVideos();
       fetchSettings();
+      fetchUpdates();
     }
   }, [user, userProfile]);
 
@@ -342,6 +358,57 @@ export default function AdminPanel() {
     }
   };
 
+  const fetchEnrollments = async () => {
+    setLoadingEnrollments(true);
+    try {
+      const snap = await getDocs(collection(db, 'enrollments'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setEnrollments(list);
+    } catch (err: any) {
+      console.error('Fetch enrollments error:', err);
+      showToast('error', 'Failed loading enrollments receipts ledger.');
+    } finally {
+      setLoadingEnrollments(false);
+    }
+  };
+
+  const handleApproveEnrollment = async (enrollmentId: string) => {
+    try {
+      const docRef = doc(db, 'enrollments', enrollmentId);
+      await updateDoc(docRef, {
+        paid: true,
+        status: 'approved',
+        unlockedAt: new Date().toISOString()
+      });
+      showToast('success', 'Enrollment approved and course unlocked successfully!');
+      fetchEnrollments();
+    } catch (err: any) {
+      console.error('Error approving enrollment:', err);
+      showToast('error', 'Failed approving enrollment. Check permission rules.');
+    }
+  };
+
+  const handleRejectEnrollment = async (enrollmentId: string) => {
+    const feedback = prompt('Enter rejection reason (displayed to student or logged):') || 'Receipt invalid or illegible';
+    try {
+      const docRef = doc(db, 'enrollments', enrollmentId);
+      await updateDoc(docRef, {
+        paid: false,
+        status: 'rejected',
+        rejectionReason: feedback,
+        rejectedAt: new Date().toISOString()
+      });
+      showToast('success', 'Enrollment updated as rejected.');
+      fetchEnrollments();
+    } catch (err: any) {
+      console.error('Error rejecting enrollment:', err);
+      showToast('error', 'Failed updating status.');
+    }
+  };
+
   const fetchDownloadables = async () => {
     setLoadingDownloadables(true);
     try {
@@ -398,6 +465,29 @@ export default function AdminPanel() {
       showToast('error', 'Failed loading hero videos from database.');
     } finally {
       setLoadingHeroVideos(false);
+    }
+  };
+
+  const fetchUpdates = async () => {
+    setLoadingUpdates(true);
+    try {
+      const snap = await getDocs(collection(db, 'updates'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort pinned first, then by createdAt desc
+      list.sort((a: any, b: any) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+      setUpdatesList(list);
+    } catch (err: any) {
+      console.error('Fetch updates error:', err);
+      showToast('error', 'Failed loading updates from database.');
+    } finally {
+      setLoadingUpdates(false);
     }
   };
 
@@ -1025,6 +1115,97 @@ export default function AdminPanel() {
   };
 
 
+  // LATEST ANNOUNCEMENTS / UPDATES MUTATIONS
+  const startAddUpdate = () => {
+    setEditingUpdateId(null);
+    setUpdateForm({
+      title: '',
+      content: '',
+      category: 'Announcement',
+      pinned: false
+    });
+    setShowUpdateModal(true);
+  };
+
+  const startEditUpdate = (item: any) => {
+    setEditingUpdateId(item.id);
+    setUpdateForm({
+      title: item.title || '',
+      content: item.content || '',
+      category: item.category || 'Announcement',
+      pinned: !!item.pinned
+    });
+    setShowUpdateModal(true);
+  };
+
+  const handleUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!updateForm.title.trim() || !updateForm.content.trim()) {
+      showToast('error', 'Title and Content are required fields.');
+      return;
+    }
+
+    try {
+      setLoadingUpdates(true);
+      const payload: any = {
+        title: updateForm.title.trim(),
+        content: updateForm.content.trim(),
+        category: updateForm.category,
+        pinned: updateForm.pinned,
+        updatedAt: new Date().toISOString(),
+        createdBy: user?.email || 'admin'
+      };
+
+      if (editingUpdateId) {
+        await updateDoc(doc(db, 'updates', editingUpdateId), payload);
+        showToast('success', 'Academy update published details modified successfully!');
+      } else {
+        const createPayload = {
+          ...payload,
+          createdAt: new Date().toISOString()
+        };
+        await addDoc(collection(db, 'updates'), createPayload);
+        showToast('success', 'New academy announcement posted and updates feed synchronized!');
+      }
+
+      setShowUpdateModal(false);
+      setEditingUpdateId(null);
+      setUpdateForm({ title: '', content: '', category: 'Announcement', pinned: false });
+      await fetchUpdates();
+    } catch (err: any) {
+      console.error('Error saving academy update:', err);
+      showToast('error', 'Failed publishing update. Check logs.');
+    } finally {
+      setLoadingUpdates(false);
+    }
+  };
+
+  const handleDeleteUpdate = async (updateId: string) => {
+    const updateItem = updatesList.find((u: any) => u.id === updateId);
+    if (!updateItem) return;
+
+    askConfirmation(
+      'Remove Academy Announcement',
+      `Are you completely sure you want to permanently erase the update "${updateItem.title}"? Users will no longer see this in their feed.`,
+      async () => {
+        try {
+          setLoadingUpdates(true);
+          await deleteDoc(doc(db, 'updates', updateId));
+          showToast('success', 'Announcement discarded from the news feed.');
+          await fetchUpdates();
+        } catch (err: any) {
+          console.error('Delete update error:', err);
+          showToast('error', 'Failed discarding announcement from Firestore.');
+        } finally {
+          setLoadingUpdates(false);
+        }
+      },
+      'Delete Announcement',
+      true
+    );
+  };
+
+
   // WEBSITE SETTINGS
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1100,8 +1281,10 @@ export default function AdminPanel() {
               { id: 'downloadables', name: 'Premium Assets', icon: Film },
               { id: 'plans', name: 'Membership Plans', icon: Award },
               { id: 'students', name: 'Students Ledger', icon: Users },
+              { id: 'receipts', name: 'Receipt Verifications', icon: Receipt },
               { id: 'student-works', name: 'Showcase Gallery', icon: Film },
               { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
+              { id: 'updates', name: 'Latest Updates / News', icon: Bell },
               { id: 'settings', name: 'Console Settings', icon: Settings },
             ].map(tab => {
               const Icon = tab.icon;
@@ -1477,6 +1660,240 @@ export default function AdminPanel() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB: RECEIPTS VERIFICATION LEDGER */}
+        {activeTab === 'receipts' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Receipt Verifications</h1>
+                <p className="text-gray-400 text-xs mt-1">
+                  Inspect user uploaded payment receipts (CCP &amp; BaridiMob). Verify and unlock access immediately.
+                </p>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex bg-zinc-900/60 p-1 border border-white/5 rounded-2xl max-w-md shrink-0">
+                {(['pending', 'approved', 'all'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setActiveReceiptFilter(filter)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      activeReceiptFilter === filter
+                        ? 'bg-purple-600 text-white shadow-lg'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {filter === 'pending' && `Pending (${enrollments.filter(e => !e.paid || e.status === 'pending_verification').length})`}
+                    {filter === 'approved' && `Approved (${enrollments.filter(e => e.paid || e.status === 'approved').length})`}
+                    {filter === 'all' && `All (${enrollments.length})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loadingEnrollments ? (
+              <div className="py-24 flex justify-center">
+                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+              </div>
+            ) : (
+              (() => {
+                const filteredList = enrollments.filter((enrollment) => {
+                  if (activeReceiptFilter === 'pending') {
+                    return !enrollment.paid || enrollment.status === 'pending_verification';
+                  }
+                  if (activeReceiptFilter === 'approved') {
+                    return enrollment.paid || enrollment.status === 'approved';
+                  }
+                  return true;
+                });
+
+                if (filteredList.length === 0) {
+                  return (
+                    <div className="text-center py-20 text-gray-500 bg-zinc-900/10 border border-purple-950/10 rounded-[2rem] p-8">
+                      No matching receipt transactions found on Firestore database.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="bg-black/40 border border-purple-950/20 rounded-[2rem] overflow-hidden shadow-xl">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-zinc-950 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30 font-sans">
+                          <tr>
+                            <th className="py-4 px-6 font-sans">Student Account</th>
+                            <th className="py-4 px-6 font-sans">Course Material</th>
+                            <th className="py-4 px-6 font-sans">Amount Charged</th>
+                            <th className="py-4 px-6 font-sans">Submitted Info</th>
+                            <th className="py-4 px-6 font-sans">Voucher Document</th>
+                            <th className="py-4 px-6 font-sans">Status Details</th>
+                            <th className="py-4 px-6 text-right font-sans">Verification Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-purple-950/15 font-sans">
+                          {filteredList.map((enrollment) => {
+                            const student = usersList.find((u) => u.id === enrollment.uid);
+                            const course = courses.find((c) => c.id === enrollment.courseId);
+                            const isPending = !enrollment.paid || enrollment.status === 'pending_verification';
+                            const dateFormatted = enrollment.createdAt
+                              ? new Date(
+                                  enrollment.createdAt.seconds
+                                    ? enrollment.createdAt.seconds * 1000
+                                    : enrollment.createdAt
+                                ).toLocaleString()
+                              : 'No Timestamp';
+
+                            return (
+                              <tr key={enrollment.id} className="hover:bg-white/5 transition-colors">
+                                <td className="py-4 px-6 font-sans">
+                                  <div className="flex items-center gap-3">
+                                    <img
+                                      src={student?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100'}
+                                      alt=""
+                                      className="w-10 h-10 rounded-full object-cover border border-purple-950"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div>
+                                      <div className="font-bold text-white text-xs">{student?.name || student?.fullName || enrollment.fullName || 'Anonymous student'}</div>
+                                      <div className="text-[10px] text-gray-500 font-mono mt-0.5">{student?.email || 'N/A Email'}</div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-4 px-6 font-sans">
+                                  <div className="font-black text-xs text-white max-w-[200px] truncate">{course?.title || `Course ID: ${enrollment.courseId}`}</div>
+                                  <div className="text-[10px] text-purple-400 mt-0.5 font-bold uppercase tracking-wider">Recorded Session</div>
+                                </td>
+
+                                <td className="py-4 px-6 font-mono text-xs font-black text-white">
+                                  {enrollment.price || course?.price || '0'} DA
+                                </td>
+
+                                <td className="py-4 px-6 font-sans">
+                                  <div className="text-xs text-gray-300 font-bold">{enrollment.fullName || 'No Name Submitted'}</div>
+                                  <div className="text-[10.5px] text-gray-400 font-mono mt-1 flex flex-col gap-0.5">
+                                    <span>Method: <strong className="text-purple-400 uppercase">{enrollment.paymentMethod || 'CCP/Baridi'}</strong></span>
+                                    <span>RIP/Account: {enrollment.ccpRIP || 'N/A'}</span>
+                                  </div>
+                                </td>
+
+                                <td className="py-4 px-6 font-sans">
+                                  {enrollment.receiptUrl ? (
+                                    <div className="relative group/receipt w-14 h-14 bg-zinc-900 border border-white/5 rounded-xl overflow-hidden shadow-inner flex items-center justify-center">
+                                      <img
+                                        src={enrollment.receiptUrl}
+                                        alt="Receipt Doc"
+                                        className="w-full h-full object-cover group-hover/receipt:scale-110 transition-transform duration-300"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <button
+                                        onClick={() => setEnlargedReceiptUrl(enrollment.receiptUrl)}
+                                        className="absolute inset-0 bg-black/60 opacity-0 group-hover/receipt:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-black cursor-pointer uppercase tracking-widest"
+                                      >
+                                        ZOOM
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-500 italic">No receipt file uploaded</span>
+                                  )}
+                                </td>
+
+                                <td className="py-4 px-6 font-sans">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-gray-500 font-mono">{dateFormatted}</span>
+                                    <div>
+                                      {enrollment.status === 'approved' || enrollment.paid ? (
+                                        <span className="px-2 py-0.5 bg-green-950/40 text-green-400 border border-green-500/15 rounded text-[10px] uppercase font-bold tracking-wider inline-block">
+                                          Approved &amp; Active
+                                        </span>
+                                      ) : enrollment.status === 'rejected' ? (
+                                        <div className="flex flex-col gap-0.5">
+                                          <span className="px-2 py-0.5 bg-red-950/40 text-red-400 border border-red-500/15 rounded text-[10px] uppercase font-bold tracking-wider inline-block">
+                                            Receipt Rejected
+                                          </span>
+                                          <span className="text-[9px] text-gray-500 block leading-tight mt-1 max-w-[140px] truncate" title={enrollment.rejectionReason}>
+                                            Reason: {enrollment.rejectionReason}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-yellow-950/40 text-yellow-400 border border-yellow-500/15 rounded text-[10px] uppercase font-bold tracking-wider animate-pulse inline-block">
+                                          PENDING Verification
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-4 px-6 text-right font-sans">
+                                  {isPending ? (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => handleRejectEnrollment(enrollment.id)}
+                                        className="px-3 py-1.5 bg-zinc-900 hover:bg-red-950 border border-white/5 hover:border-red-500/20 text-red-400 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                                      >
+                                        Reject
+                                      </button>
+                                      <button
+                                        onClick={() => handleApproveEnrollment(enrollment.id)}
+                                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-purple-600/10 cursor-pointer flex items-center gap-1"
+                                      >
+                                        Approve &amp; Unlock
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider select-none">Access Granted</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+
+            {/* LIGHTBOX POPUP SPECIFIC */}
+            <AnimatePresence>
+              {enlargedReceiptUrl && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 md:p-8"
+                  onClick={() => setEnlargedReceiptUrl(null)}
+                >
+                  <button
+                    onClick={() => setEnlargedReceiptUrl(null)}
+                    className="absolute top-6 right-6 p-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-full border border-white/10 transition-all shadow-lg cursor-pointer"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                  <motion.div
+                    initial={{ scale: 0.9, y: 15 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 15 }}
+                    className="max-w-3xl max-h-[85vh] overflow-auto bg-zinc-950 border border-white/5 rounded-3xl p-2 shadow-2xl relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img
+                      src={enlargedReceiptUrl}
+                      alt="Enlarged Receipt Document"
+                      className="max-w-full max-h-[75vh] object-contain rounded-2xl mx-auto"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="p-4 text-center">
+                      <span className="text-xs text-gray-400 font-mono">User Submitted Receipt Voucher Document</span>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -1945,6 +2362,131 @@ export default function AdminPanel() {
                       ))}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ANNOUNCEMENTS AND ACADEMY UPDATES STREAM */}
+        {activeTab === 'updates' && (
+          <div className="space-y-8 animate-fade-in w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-2">
+                  <Bell className="w-8 h-8 text-purple-400" />
+                  <span>Updates & Announcements</span>
+                </h1>
+                <p className="text-gray-400 text-xs mt-1">Publish platform news, system updates, events, and releases directly to student streams</p>
+              </div>
+
+              <button
+                onClick={startAddUpdate}
+                className="self-start sm:self-auto flex items-center gap-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-xs font-bold uppercase tracking-wider py-3.5 px-6 rounded-xl text-white transition-all shadow-md cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Publish Announcement</span>
+              </button>
+            </div>
+
+            {loadingUpdates ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+              </div>
+            ) : updatesList.length === 0 ? (
+              <div className="bg-black/60 border border-purple-950/20 rounded-[2.5rem] p-12 text-center max-w-lg mx-auto space-y-5">
+                <div className="w-16 h-16 bg-purple-900/10 border border-purple-500/20 text-purple-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <Bell className="w-8 h-8 text-purple-400/80" />
+                </div>
+                <div className="space-y-1.5 animate-pulse">
+                  <h3 className="text-lg font-bold text-white uppercase tracking-tight">No announcements created</h3>
+                  <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    Broaden your outreach! Create your first announcement to let students know about your amazing system.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={startAddUpdate}
+                  className="px-5 py-2.5 rounded-xl border border-purple-500/30 hover:bg-purple-900/10 hover:text-white text-xs font-bold uppercase tracking-wider transition-all text-purple-400 cursor-pointer"
+                >
+                  Create Announcement
+                </button>
+              </div>
+            ) : (
+              <div className="bg-black/40 border border-purple-950/30 rounded-[2.5rem] overflow-hidden">
+                <div className="p-6 sm:p-8 border-b border-purple-950/20">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-400">Published updates list ({updatesList.length})</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[700px]">
+                    <thead>
+                      <tr className="border-b border-purple-950/20 bg-zinc-950/60">
+                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Status & Title</th>
+                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Category</th>
+                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Published Date</th>
+                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {updatesList.map((item) => (
+                        <tr key={item.id} className="border-b border-purple-950/10 hover:bg-white/[0.02] transition-colors">
+                          <td className="p-4 sm:p-5">
+                            <div className="flex items-start gap-3 max-w-md">
+                              {item.pinned ? (
+                                <div className="p-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg shrink-0 mt-0.5" title="Pinned Announcement">
+                                  <Pin className="w-3.5 h-3.5 fill-amber-500/10" />
+                                </div>
+                              ) : (
+                                <div className="p-1.5 bg-zinc-900 border border-white/5 text-gray-500 rounded-lg shrink-0 mt-0.5">
+                                  <Bell className="w-3.5 h-3.5" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="text-sm font-bold text-white block truncate hover:text-purple-400 transition-colors" title={item.title}>
+                                  {item.title}
+                                </span>
+                                <span className="text-[10px] text-gray-500 block truncate font-mono mt-0.5">
+                                  BY: {item.createdBy || 'SYSTEM_ADMIN'}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 sm:p-5">
+                            <span className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold uppercase tracking-widest ${
+                              item.category?.toLowerCase() === 'announcement' ? 'bg-purple-950/40 text-purple-400 border border-purple-500/20' :
+                              item.category?.toLowerCase() === 'feature' ? 'bg-blue-950/40 text-blue-400 border border-blue-500/20' :
+                              item.category?.toLowerCase() === 'news' ? 'bg-green-950/40 text-green-300 border border-green-500/20' :
+                              'bg-amber-950/40 text-amber-400 border border-amber-500/20'
+                            }`}>
+                              {item.category || 'Announcement'}
+                            </span>
+                          </td>
+                          <td className="p-4 sm:p-5 text-xs text-gray-400 font-mono">
+                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="p-4 sm:p-5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => startEditUpdate(item)}
+                                className="p-2.5 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-300 cursor-pointer hover:bg-zinc-800"
+                                title="Edit announcement content"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUpdate(item.id)}
+                                className="p-2.5 bg-red-950/15 hover:bg-red-950/30 hover:border-red-500/20 border border-transparent text-red-500 hover:text-red-400 rounded-xl text-xs transition-all cursor-pointer"
+                                title="Erase announcement"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -2730,6 +3272,96 @@ export default function AdminPanel() {
                 >
                   {loadingHeroVideos && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>Save Video Document</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2.5: CREATE / EDIT ACADEMY ANNOUNCEMENTS */}
+      <AnimatePresence>
+        {showUpdateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowUpdateModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{editingUpdateId ? 'Modify Announcement' : 'Publish Announcement'}</h2>
+                  <p className="text-gray-400 text-xs">Reach all students instantly at their updates and notifications pane</p>
+                </div>
+                <button onClick={() => setShowUpdateModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Announcement Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={updateForm.title}
+                    onChange={(e) => setUpdateForm({ ...updateForm, title: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-sans"
+                    placeholder="e.g. Platform Speed Optimization & Asset Releases"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Category</label>
+                    <select
+                      value={updateForm.category}
+                      onChange={(e) => setUpdateForm({ ...updateForm, category: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 appearance-none cursor-pointer"
+                    >
+                      <option value="Announcement">Announcement</option>
+                      <option value="Feature">Feature</option>
+                      <option value="News">News</option>
+                      <option value="Event">Event</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-end pb-2">
+                    <label className="relative flex items-center gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={updateForm.pinned}
+                        onChange={(e) => setUpdateForm({ ...updateForm, pinned: e.target.checked })}
+                        className="peer sr-only"
+                      />
+                      <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-450 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 peer-checked:after:bg-white relative" />
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Pin Announcement</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Content Body</label>
+                  <textarea
+                    required
+                    rows={5}
+                    value={updateForm.content}
+                    onChange={(e) => setUpdateForm({ ...updateForm, content: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-sans resize-none"
+                    placeholder="Provide description of announcement here..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loadingUpdates}
+                  className="w-full py-4 mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow flex items-center justify-center gap-2"
+                >
+                  {loadingUpdates && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{editingUpdateId ? 'Save Changes' : 'Publish Announcement'}</span>
                 </button>
               </form>
             </motion.div>

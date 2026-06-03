@@ -18,6 +18,7 @@ import {
   doc as fbDoc,
   query as fbQuery,
   where as fbWhere,
+  orderBy as fbOrderBy,
   getDoc as fbGetDoc,
   getDocFromServer as fbGetDocFromServer,
   setDoc as fbSetDoc,
@@ -121,6 +122,10 @@ export const query = (collectionRef: any, ...constraints: any[]) => {
 
 export const where = (field: string, op: any, val: any) => {
   return fbWhere(field, op, val);
+};
+
+export const orderBy = (field: string, direction?: 'asc' | 'desc') => {
+  return fbOrderBy(field, direction);
 };
 
 // Document Fetch Actions
@@ -310,7 +315,7 @@ export const DEFAULT_COURSES = [
       avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&q=80"
     },
     isComingSoon: false,
-    formatAvailability: ["recorded", "online"],
+    formatAvailability: ["recorded"],
   },
   {
     id: "2",
@@ -330,7 +335,7 @@ export const DEFAULT_COURSES = [
       avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=100&q=80"
     },
     isComingSoon: false,
-    formatAvailability: ["recorded", "online"],
+    formatAvailability: ["recorded"],
     chapters: [
       {
         title: "Web Standards & Coding Essentials",
@@ -368,7 +373,7 @@ export const DEFAULT_COURSES = [
       avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=100&q=80"
     },
     isComingSoon: false,
-    formatAvailability: ["recorded", "online"],
+    formatAvailability: ["recorded"],
     chapters: [
       {
         title: "Build Systems and Package Optimization",
@@ -398,7 +403,7 @@ export const DEFAULT_COURSES = [
       avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&q=80"
     },
     isComingSoon: false,
-    formatAvailability: ["recorded", "online"],
+    formatAvailability: ["recorded"],
     chapters: [
       {
         title: "Typography and Communication Formats",

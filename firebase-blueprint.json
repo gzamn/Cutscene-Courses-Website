@@ -190,6 +190,21 @@
         "createdAt": { "type": "string" }
       },
       "required": ["title", "videoUrl"]
+    },
+    "Update": {
+      "title": "Update or Announcement",
+      "description": "Latest announcements and news posted by admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "pinned": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["title", "content", "createdAt"]
     }
   },
   "firestore": {
@@ -244,6 +259,10 @@
     "hero_videos/{videoId}": {
       "schema": "HeroVideo",
       "description": "Homepage background hero/intro video references"
+    },
+    "updates/{updateId}": {
+      "schema": "Update",
+      "description": "Announcements and site news posted by admins"
     }
   }
 }

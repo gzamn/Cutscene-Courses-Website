@@ -429,6 +429,8 @@ export default function Dashboard() {
     return `/courses/${courseId}/video/1/session`;
   };
 
+  const validEnrollments = enrollments.filter(e => e.format !== 'plan' && (e.receiptUrl || e.paid || e.status === 'approved' || e.status === 'pending_verification'));
+
   const latestActivity = [...progress]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
@@ -446,7 +448,7 @@ export default function Dashboard() {
             <div className="bg-zinc-900/50 border border-purple-900/30 p-4 rounded-2xl flex items-center gap-3">
               <BookOpen className="w-6 h-6 text-purple-500" />
               <div>
-                <div className="text-2xl font-bold">{enrollments.length}</div>
+                <div className="text-2xl font-bold">{validEnrollments.length}</div>
                 <div className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard.enrolled')}</div>
               </div>
             </div>
@@ -470,7 +472,7 @@ export default function Dashboard() {
                 {t('dashboard.yourCourses')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {enrollments.length > 0 ? enrollments.map((enrollment) => {
+                {validEnrollments.length > 0 ? validEnrollments.map((enrollment) => {
                   const course = firestoreCourses.find(c => c.id === enrollment.courseId);
                   if (!course) return null;
                   const prog = getCourseProgress(course.id);
@@ -478,44 +480,60 @@ export default function Dashboard() {
                   
                   const totalChapters = course.chapters?.length || course.lessons?.length || 12;
                   
+                  const isLocked = !enrollment.paid || enrollment.status === 'pending_verification';
+                  
                   return (
                     <motion.div 
                       key={enrollment.id}
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      whileHover={{ y: -5 }}
-                      className="bg-zinc-950 border border-purple-900/20 rounded-3xl overflow-hidden group flex flex-col"
+                      whileHover={isLocked ? {} : { y: -5 }}
+                      className={`border rounded-3xl overflow-hidden group flex flex-col transition-all duration-300 ${isLocked ? 'bg-zinc-950/60 border-purple-900/10 grayscale-[35%]' : 'bg-zinc-950 border-purple-900/20'}`}
                     >
                       <div className="aspect-video relative overflow-hidden">
-                        <img src={course.image} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Link to={getContinueUrl(course.id)} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2">
-                            <PlayCircle className="w-5 h-5" />
-                            {t('dashboard.continue')}
-                          </Link>
-                        </div>
+                        <img src={course.image} alt={course.title} className="w-full h-full object-cover transition-transform duration-500" referrerPolicy="no-referrer" />
+                        
+                        {isLocked ? (
+                          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center select-none">
+                            <div className="w-10 h-10 rounded-full bg-purple-950/60 border border-purple-500/35 flex items-center justify-center mb-3">
+                              <Lock className="w-4 h-4 text-purple-400" />
+                            </div>
+                            <div className="px-3 py-1 bg-purple-900/30 border border-purple-500/20 rounded-full text-[10px] font-black uppercase tracking-wider text-purple-300 animate-pulse">
+                              payment confirmation in process
+                            </div>
+                            <p className="text-[9px] text-gray-500 mt-2 font-mono">Usually takes 4-6 hours</p>
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Link to={getContinueUrl(course.id)} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2">
+                              <PlayCircle className="w-5 h-5" />
+                              {t('dashboard.continue')}
+                            </Link>
+                          </div>
+                        )}
+
                         <div className="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest">
                           {course.level}
                         </div>
-                        {prog === 100 && (
+                        {prog === 100 && !isLocked && (
                           <div className="absolute top-4 left-4 px-3 py-1 bg-yellow-500 text-black rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                             <Trophy className="w-3 h-3" /> Completed
                           </div>
                         )}
                       </div>
                       <div className="p-6 flex-grow flex flex-col">
-                        <h3 className="font-bold text-lg mb-4 group-hover:text-purple-400 transition-colors">{course.title}</h3>
+                        <h3 className={`font-bold text-lg mb-4 transition-colors ${isLocked ? 'text-gray-400' : 'group-hover:text-purple-400'}`}>{course.title}</h3>
                         
                         <div className="space-y-4 mt-auto">
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm mb-1">
                               <span className="text-gray-400 font-medium">{t('dashboard.progress')}</span>
-                              <span className="text-purple-400 font-bold">{prog}%</span>
+                              <span className="text-purple-400 font-bold">{isLocked ? 0 : prog}%</span>
                             </div>
                             <div className="w-full bg-zinc-900 h-3 rounded-full overflow-hidden border border-purple-900/10 p-0.5">
                               <motion.div 
                                 initial={{ width: 0 }}
-                                animate={{ width: `${prog}%` }}
+                                animate={{ width: isLocked ? '0%' : `${prog}%` }}
                                 transition={{ duration: 1, ease: "easeOut" }}
                                 className="bg-brand-radial h-full rounded-full shadow-[0_0_10px_rgba(147,51,234,0.5)]" 
                               />

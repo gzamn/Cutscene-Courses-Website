@@ -15,6 +15,9 @@ import AdminPanel from './pages/Admin';
 import StudentWork from './pages/StudentWork';
 import Downloadables from './pages/Downloadables';
 import Plans from './pages/Plans';
+import Updates from './pages/Updates';
+import TermsAndConditions from './pages/TermsAndConditions';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -57,6 +60,7 @@ function App() {
                 <Route path="/courses" element={<Courses />} />
                 <Route path="/downloadables" element={<Downloadables />} />
                 <Route path="/plans" element={<Plans />} />
+                <Route path="/updates" element={<Updates />} />
                 <Route path="/student-work" element={<StudentWork />} />
                 <Route path="/courses/:id" element={<CourseDetail />} />
                 <Route path="/support" element={<Support />} />
@@ -66,6 +70,8 @@ function App() {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+                <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/studio/*" element={<StudioPage />} />
                 {/* Catch-all route to redirect back to home */}
                 <Route path="*" element={<Navigate to="/" replace />} />

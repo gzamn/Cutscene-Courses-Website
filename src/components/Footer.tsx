@@ -58,8 +58,14 @@ export default function Footer() {
         </div>
         
         <div className="mt-12 pt-8 border-t border-gray-900 flex flex-col items-center gap-6 md:flex-row md:justify-between text-gray-500 text-sm">
-          <div className="order-2 md:order-1">
-            © {new Date().getFullYear()} Cutscene. All rights reserved.
+          <div className="order-2 md:order-1 flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+            <span>© {new Date().getFullYear()} Cutscene. All rights reserved.</span>
+            <span className="hidden sm:inline text-gray-800">•</span>
+            <div className="flex gap-3 text-xs">
+              <Link to="/terms-and-conditions" className="hover:text-purple-400 text-gray-400 transition-colors">Terms & Conditions</Link>
+              <span className="text-gray-800">•</span>
+              <Link to="/privacy-policy" className="hover:text-purple-400 text-gray-400 transition-colors">Privacy & Refund Policy</Link>
+            </div>
           </div>
           <div className="order-1 md:order-2">
             <Link 

@@ -23,7 +23,7 @@ export interface Course {
   };
   homeworks?: Homework[];
   isComingSoon?: boolean;
-  formatAvailability?: ('recorded' | 'online')[];
+  formatAvailability?: ('recorded')[];
 }
 
 

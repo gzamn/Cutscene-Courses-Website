@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Check, 
   Sparkles, 
@@ -11,7 +11,9 @@ import {
   Lock, 
   Building2, 
   Send, 
-  Loader2 
+  Loader2,
+  Upload,
+  Landmark
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -23,7 +25,8 @@ import {
   addDoc, 
   doc, 
   setDoc,
-  query
+  query,
+  where
 } from '../firebase';
 
 const DEFAULT_PLANS = [
@@ -93,8 +96,42 @@ export default function Plans() {
   const [checkoutPlan, setCheckoutPlan] = useState<any | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'details' | 'process' | 'success'>('details');
   const [phone, setPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'baridimob'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'ccp' | 'baridimob'>('baridimob');
   const [processing, setProcessing] = useState(false);
+
+  // New billing & receipts states
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [ccpRIP, setCcpRIP] = useState('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [policyAgreed, setPolicyAgreed] = useState(false);
+
+  // Pre-fill user data when available
+  useEffect(() => {
+    if (userProfile) {
+      setFullName(userProfile.displayName || userProfile.fullName || '');
+      setPhone(userProfile.phone || '');
+    }
+    if (user) {
+      setEmail(user.email || '');
+    }
+  }, [userProfile, user]);
+
+  const handleFileChange = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Kindly choose or drop an image file of the payment receipt.');
+      return;
+    }
+    setReceiptFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setReceiptBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Fetch plans from Firestore
   useEffect(() => {
@@ -146,20 +183,106 @@ export default function Plans() {
     fetchPlans();
   }, []);
 
-  const handleChoosePlan = (plan: any) => {
+  const handleChoosePlan = async (plan: any) => {
     if (!user) {
       navigate('/login');
       return;
     }
+
+    // If Free Plan is chosen directly (price is '0 DA') and they don't have subscriptions
+    const isFree = plan.price === '0 DA' || plan.name?.toLowerCase().includes('free');
+    if (isFree) {
+      setProcessing(true);
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        await setDoc(userRef, {
+          activePlan: 'Free Plan',
+          activePlanPrice: '0 DA',
+          hasPlan: false,
+          subscribed: false,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        alert('Reverted to Free Plan successfully.');
+        window.location.reload();
+      } catch (err) {
+        console.error('Free plan assignment error:', err);
+      } finally {
+        setProcessing(false);
+      }
+      return;
+    }
+
     setCheckoutPlan(plan);
     setPhone(userProfile?.phone || '');
+    setReceiptFile(null);
+    setReceiptBase64(null);
+    setTermsAgreed(false);
+    setPolicyAgreed(false);
     setCheckoutStep('details');
+  };
+
+  const handleRevertFreePlan = () => {
+    const confirmCancel = window.confirm('Are you sure you want to cancel your current plan subscription?');
+    if (confirmCancel) {
+      alert('You will be contacted via phone number to finalize the process.');
+    }
   };
 
   const handleCompletePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone) {
-      alert('Kindly fill in your phone number for registration contact.');
+
+    // 1. Full name validation: must be filled and correct formatted text
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      alert('Full Name is required.');
+      return;
+    }
+    if (trimmedName.length < 3) {
+      alert('Your Full Name must contain at least 3 letters.');
+      return;
+    }
+    const nameRegex = /^[\p{L}\s.''-]+$/u;
+    if (!nameRegex.test(trimmedName)) {
+      alert('Please enter a correct full name (consisting only of letter characters, spaces, and hyphens).');
+      return;
+    }
+
+    // 2. Email validation: must be filled with a correct formatted email address
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      alert('Electronic Mail Address is required.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      alert('Please enter a correct email address format (e.g. yourname@domain.com).');
+      return;
+    }
+
+    // 3. Phone validation: must be filled with a correct formatted phone number
+    const trimmedPhone = phone.trim();
+    if (!trimmedPhone) {
+      alert('Phone Number is required.');
+      return;
+    }
+    const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
+    if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
+      alert('Please enter a correct phone number containing 9 to 15 digits (e.g., 0550123456).');
+      return;
+    }
+
+    // 4. Agreement state validation
+    if (!termsAgreed) {
+      alert('You must review and agree to the Terms & Conditions.');
+      return;
+    }
+    if (!policyAgreed) {
+      alert('You must review and agree to the Privacy & Refund Policy.');
+      return;
+    }
+
+    if (!receiptBase64) {
+      alert('Kindly upload or drop a photo of your transaction receipt to complete your purchase.');
       return;
     }
 
@@ -167,28 +290,50 @@ export default function Plans() {
     setCheckoutStep('process');
 
     try {
-      // 1. Save plan details and subscription status to the user's Firestore document
+      // 1. Create check-out confirmation entry in our enrollments ledger
+      const planId = 'plan_' + checkoutPlan.name.replace(/\s+/g, '_').toLowerCase();
+      const q = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', planId));
+      const snap = await getDocs(q);
+
+      const payload = {
+        uid: user.uid,
+        courseId: planId,
+        planName: checkoutPlan.name,
+        enrolledAt: new Date().toISOString(),
+        status: 'pending_verification',
+        fullName: fullName,
+        email: email,
+        phone: phone,
+        ccpRIP: ccpRIP,
+        format: 'plan',
+        totalPaid: checkoutPlan.price,
+        price: checkoutPlan.price,
+        paid: false,
+        receiptUrl: receiptBase64,
+        paymentMethod: paymentMethod,
+        submittedAt: new Date().toISOString()
+      };
+
+      if (snap.empty) {
+        await addDoc(collection(db, 'enrollments'), payload);
+      } else {
+        const docId = snap.docs[0].id;
+        await setDoc(doc(db, 'enrollments', docId), payload, { merge: true });
+      }
+
+      // Ensure billing phone gets updated on the user profile
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
-        activePlan: checkoutPlan.name,
-        activePlanPrice: checkoutPlan.price,
-        hasPlan: true,
-        subscribed: true,
         phone: phone,
-        planPurchasedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // 2. Clear state and show success confirmation screen
-      setTimeout(() => {
-        setProcessing(false);
-        setCheckoutStep('success');
-      }, 1500);
-
+      setCheckoutStep('success');
     } catch (err) {
       console.error('Checkout error:', err);
-      alert('There was an issue updating your subscription in the database.');
+      alert('Coult not save your transaction receipt. Kindly check your network and repeat.');
       setCheckoutStep('details');
+    } finally {
       setProcessing(false);
     }
   };
@@ -254,6 +399,9 @@ export default function Plans() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
             {plans.map((plan, idx) => {
               const matchesSelectedProfile = userProfile?.activePlan === plan.name;
+              const isPaidActive = userProfile?.activePlan && userProfile?.activePlan !== 'Free Plan';
+              const isFreeCard = plan.name === 'Free Plan' || plan.name?.toLowerCase().includes('free');
+              const canRevert = isPaidActive && isFreeCard;
               return (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -321,26 +469,35 @@ export default function Plans() {
                   </div>
 
                   {/* Actions purchase button */}
-                  <button
-                    onClick={() => handleChoosePlan(plan)}
-                    disabled={matchesSelectedProfile}
-                    className={`w-full py-4 rounded-[1.25rem] text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10 ${
-                      matchesSelectedProfile
-                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold cursor-not-allowed'
-                        : plan.isPopular
-                          ? 'bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 hover:scale-[1.02] active:scale-[0.98]'
-                          : 'bg-purple-950/20 hover:bg-purple-950/40 text-purple-300 hover:text-white border border-purple-900/40 hover:border-purple-500/50 hover:scale-[1.01]'
-                    }`}
-                  >
-                    {matchesSelectedProfile ? (
-                      'Your Active Plan'
-                    ) : (
-                      <>
-                        Choose Bundle
-                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                      </>
-                    )}
-                  </button>
+                  {canRevert ? (
+                    <button
+                      onClick={handleRevertFreePlan}
+                      className="w-full py-4 rounded-[1.25rem] text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10 bg-purple-950/20 hover:bg-purple-950/40 text-purple-300 hover:text-white border border-purple-900/40 hover:border-purple-500/50 hover:scale-[1.01]"
+                    >
+                      revert back to this plan
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleChoosePlan(plan)}
+                      disabled={matchesSelectedProfile}
+                      className={`w-full py-4 rounded-[1.25rem] text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10 ${
+                        matchesSelectedProfile
+                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold cursor-not-allowed'
+                          : plan.isPopular
+                            ? 'bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 hover:scale-[1.02] active:scale-[0.98]'
+                            : 'bg-purple-950/20 hover:bg-purple-950/40 text-purple-300 hover:text-white border border-purple-900/40 hover:border-purple-500/50 hover:scale-[1.01]'
+                      }`}
+                    >
+                      {matchesSelectedProfile ? (
+                        'Your Active Plan'
+                      ) : (
+                        <>
+                          Choose Bundle
+                          <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                        </>
+                      )}
+                    </button>
+                  )}
                 </motion.div>
               );
             })}
@@ -374,91 +531,266 @@ export default function Plans() {
                     Confirm your details to finalize your subscription to <span className="text-purple-400 font-bold">{checkoutPlan.name}</span> membership package.
                   </p>
 
-                  <form onSubmit={handleCompletePayment} className="space-y-5">
+                  <form onSubmit={handleCompletePayment} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 pb-2">
                     {/* User profile details review */}
-                    <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1.5">
-                        Account Details
-                      </label>
-                      <div className="bg-zinc-900/60 p-4 rounded-2xl border border-white/5 space-y-2">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Name:</span>
-                          <span className="font-semibold text-gray-200">{userProfile?.displayName || user?.displayName || 'Student Profile'}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Email:</span>
-                          <span className="font-semibold text-gray-200">{user?.email}</span>
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500/30 text-left"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
+                          Electronic Mail Address
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500/30 text-left"
+                        />
                       </div>
                     </div>
 
                     {/* Phone registration input */}
-                    <div>
-                      <label htmlFor="checkoutPhone" className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1.5">
-                        Registration Contact Phone Number
-                      </label>
-                      <input 
-                        id="checkoutPhone"
-                        type="text" 
-                        required
-                        placeholder="e.g. 0550 00 00 00"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white placeholder-gray-650 focus:outline-none focus:border-purple-500/30 transition-all"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
+                          Phone Number
+                        </label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="e.g. 0550 00 00 00"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white placeholder-gray-650 focus:outline-none focus:border-purple-500/30 text-left"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
+                          Your RIP / CCP Account (Optional)
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="To help associate payment"
+                          value={ccpRIP}
+                          onChange={(e) => setCcpRIP(e.target.value)}
+                          className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white placeholder-gray-650 focus:outline-none focus:border-purple-500/30 text-left"
+                        />
+                      </div>
                     </div>
 
                     {/* Choose Payment Method */}
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-2">
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
                         Select Payment System
                       </label>
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => setPaymentMethod('card')}
-                          className={`p-4 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
-                            paymentMethod === 'card' 
-                              ? 'border-purple-600 bg-purple-950/20 text-white' 
-                              : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          <CreditCard className="w-5 h-5 text-purple-400" />
-                          <span className="text-xs font-bold">Edahabia / CIB</span>
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => setPaymentMethod('baridimob')}
-                          className={`p-4 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
                             paymentMethod === 'baridimob' 
                               ? 'border-purple-600 bg-purple-950/20 text-white' 
                               : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
                           }`}
                         >
-                          <Building2 className="w-5 h-5 text-purple-400" />
-                          <span className="text-xs font-bold">BaridiMob Pay</span>
+                          <Building2 className="w-4 h-4 text-purple-400" />
+                          <span className="text-xs font-bold">BaridiMob</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('ccp')}
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
+                            paymentMethod === 'ccp' 
+                              ? 'border-purple-600 bg-purple-950/20 text-white' 
+                              : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <Landmark className="w-4 h-4 text-purple-400" />
+                          <span className="text-xs font-bold">CCP</span>
                         </button>
                       </div>
                     </div>
 
+                    {/* Account detailed card */}
+                    <div className="p-4 bg-black border border-purple-500/10 rounded-xl relative overflow-hidden text-xs">
+                      <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-1.5">
+                        {paymentMethod === 'baridimob' ? 'BaridiMob Wire details' : 'CCP Transaction Details'}
+                      </h4>
+
+                      {paymentMethod === 'baridimob' ? (
+                        <div className="space-y-1 bg-zinc-950 p-2.5 rounded-lg">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500">RIP Account:</span>
+                            <span className="font-mono text-purple-300 font-bold bg-purple-950/20 px-2 py-0.5 rounded select-all text-xs">
+                              00799999004164129502
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 font-mono text-[10px] bg-zinc-950 p-2.5 rounded-lg">
+                          <div className="flex justify-between items-center border-b border-white/5 pb-1">
+                            <span className="text-gray-500">Name:</span>
+                            <span className="text-white font-bold select-all">ROUABHIA AMINE</span>
+                          </div>
+                          <div className="flex justify-between items-center border-b border-white/5 pb-1">
+                            <span className="text-gray-500">Number:</span>
+                            <span className="text-white font-bold select-all">0041641295</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Key / Address:</span>
+                            <span className="text-white font-bold select-all">02 / BATNA</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Drag & Drop Box */}
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
+                        Upload Payment Receipt
+                      </label>
+                      <div 
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOver(false);
+                          if (e.dataTransfer.files?.[0]) handleFileChange(e.dataTransfer.files[0]);
+                        }}
+                        onClick={() => document.getElementById('plans-receipt-input')?.click()}
+                        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 relative overflow-hidden ${
+                          dragOver 
+                            ? 'border-purple-500 bg-purple-950/25' 
+                            : receiptFile 
+                              ? 'border-purple-650 bg-zinc-900/60' 
+                              : 'border-purple-900/20 bg-black/40 hover:border-purple-500/25'
+                        }`}
+                      >
+                        <input 
+                          id="plans-receipt-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handleFileChange(e.target.files[0])}
+                        />
+
+                        {receiptFile ? (
+                          <div className="w-full space-y-2">
+                            {receiptBase64 && (
+                              <img 
+                                src={receiptBase64} 
+                                alt="Receipt Preview" 
+                                className="max-h-24 mx-auto rounded-lg object-contain border border-white/10"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <div className="text-[10px] text-purple-300 font-bold truncate px-6">
+                              {receiptFile.name}
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="w-5 h-5 text-purple-400" />
+                            <div className="text-[10px] text-gray-400">
+                              <span className="text-purple-400 font-bold">Click to upload</span> or drag receipt photo
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Policies Agreement Checkboxes */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-start gap-2.5">
+                        <label htmlFor="agreeTermsPlans" className="relative flex items-center cursor-pointer mt-0.5 animate-none">
+                          <input
+                            id="agreeTermsPlans"
+                            type="checkbox"
+                            checked={termsAgreed}
+                            onChange={(e) => setTermsAgreed(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-all ${
+                            termsAgreed 
+                              ? 'bg-purple-600 border-purple-500 text-white' 
+                              : 'border-purple-900/40 bg-zinc-950 hover:border-purple-500/50'
+                          }`}>
+                            {termsAgreed && <Check className="w-3 h-3 font-black" />}
+                          </div>
+                        </label>
+                        <span className="text-xs text-gray-400 leading-normal">
+                          I hereby agree and consent to the{' '}
+                          <Link 
+                            to="/terms-and-conditions"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-400 font-bold hover:underline"
+                          >
+                            Terms & Conditions
+                          </Link>
+                        </span>
+                      </div>
+
+                      <div className="flex items-start gap-2.5">
+                        <label htmlFor="agreePolicyPlans" className="relative flex items-center cursor-pointer mt-0.5 animate-none">
+                          <input
+                            id="agreePolicyPlans"
+                            type="checkbox"
+                            checked={policyAgreed}
+                            onChange={(e) => setPolicyAgreed(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-all ${
+                            policyAgreed 
+                              ? 'bg-purple-600 border-purple-500 text-white' 
+                              : 'border-purple-900/40 bg-zinc-950 hover:border-purple-500/50'
+                          }`}>
+                            {policyAgreed && <Check className="w-3 h-3 font-black" />}
+                          </div>
+                        </label>
+                        <span className="text-xs text-gray-400 leading-normal">
+                          I certify that I accept the{' '}
+                          <Link 
+                            to="/privacy-policy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-400 font-bold hover:underline"
+                          >
+                            Privacy & Refund Policy
+                          </Link>
+                        </span>
+                      </div>
+                    </div>
+
                     {/* Summary row */}
-                    <div className="pt-2 border-t border-purple-900/10 flex items-center justify-between text-sm">
-                      <span className="text-gray-400 font-bold">Amount Due:</span>
-                      <span className="text-2xl font-black text-purple-400">{checkoutPlan.price}</span>
+                    <div className="pt-2 border-t border-purple-900/10 flex items-center justify-between text-xs">
+                      <span className="text-gray-400 font-bold">Bundle Price:</span>
+                      <span className="text-xl font-black text-purple-400">{checkoutPlan.price}</span>
                     </div>
 
                     {/* Call to actions */}
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex gap-3 pt-1">
                       <button
                         type="button"
                         onClick={() => setCheckoutPlan(null)}
-                        className="flex-1 py-3.5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-gray-300 font-bold text-xs uppercase tracking-wider"
+                        className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-gray-300 font-bold text-xs uppercase tracking-wider rounded-xl"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/20 flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/20 flex items-center justify-center gap-1.5"
                       >
                         <ShieldCheck className="w-4 h-4" />
                         Complete Order

@@ -78,7 +78,6 @@ export default function VideoPlayer() {
   const [homeworkLinkInput, setHomeworkLinkInput] = useState('');
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
-  const [isWindowFocused, setIsWindowFocused] = useState(true);
 
   // BunnyCDN upload states
   const [bunnyUploading, setBunnyUploading] = useState(false);
@@ -269,39 +268,6 @@ export default function VideoPlayer() {
       });
     }, 10000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Window focus detection
-  useEffect(() => {
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => {
-      // Delay slightly to evaluate the activeElement after focus shift is resolved
-      setTimeout(() => {
-        const activeEl = document.activeElement;
-        if (activeEl && activeEl.tagName === 'IFRAME') {
-          // Ignore if focus is inside the video stream iframe to keep actions like play/pause uninterrupted
-          return;
-        }
-        setIsWindowFocused(false);
-      }, 200);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setIsWindowFocused(false);
-      } else {
-        setIsWindowFocused(true);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, []);
 
   // Screenshot deterrents
@@ -716,7 +682,7 @@ export default function VideoPlayer() {
               className="relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8 select-none"
             >
               {/* Blur-bounded content wrapper */}
-              <div className={`w-full h-full transition-all duration-500 ${!isWindowFocused ? 'blur-2xl scale-98 pointer-events-none select-none opacity-40' : ''}`}>
+              <div className="w-full h-full transition-all duration-500">
                 
                 {/* Security Watermark when active */}
                 <AnimatePresence>
@@ -763,18 +729,6 @@ export default function VideoPlayer() {
                 )}
               </div>
 
-              {/* CRISP & UNBLURRED Security Warning Overlay on Blur */}
-              {!isWindowFocused && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
-                  <div className="text-center p-6 bg-zinc-950/90 border border-purple-500/20 rounded-3xl max-w-sm mx-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                    <ShieldAlert className="w-12 h-12 text-purple-400 mx-auto mb-4 animate-bounce" />
-                    <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-wider">Content Protected</h3>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Cutscene academy content is protected with live digital watermark security. Click anywhere on this page to continue playing.
-                    </p>
-                  </div>
-                </div>
-              )}
             </motion.div>
 
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 md:p-8 mb-8">
@@ -904,20 +858,67 @@ export default function VideoPlayer() {
                 )}
               </div>
 
-              {type === 'exercise' && (
+               {type === 'exercise' && (
                 <div className="pt-6 border-t border-purple-900/20">
-                  <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
-                    <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
-                    <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
-                      {t('course.helpDesc')}
-                    </p>
-                    <Link 
-                      to="/support"
-                      className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
-                    >
-                      {t('course.contactSupport')}
-                    </Link>
-                  </div>
+                  <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-white">
+                    <Upload className="w-5 h-5 text-purple-400" />
+                    Upload Exercise Submission
+                  </h3>
+                  <p className="text-sm text-gray-400 mb-6">
+                    Submit your completed design project draft or video reference file to your cloud workspace portfolio.
+                  </p>
+
+                  <input 
+                    type="file" 
+                    ref={bunnyFileInputRef} 
+                    className="hidden" 
+                    onChange={handleBunnyFileUpload} 
+                  />
+
+                  {exerciseUploads && exerciseUploads.length > 0 ? (
+                    <div className="space-y-3 mb-4">
+                      {exerciseUploads.map((item: any) => (
+                        <div key={item.id} className="bg-black/40 border border-purple-900/25 p-4 rounded-xl flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center shrink-0">
+                              <FileText className="w-5 h-5 text-purple-400" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm text-white truncate max-w-[140px]" title={item.name}>{item.name}</div>
+                              <div className="text-[10px] text-gray-500">Uploaded on {new Date(item.uploadedAt).toLocaleDateString()}</div>
+                            </div>
+                          </div>
+                          <a 
+                            href={item.downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-purple-900/10 hover:bg-purple-900/20 border border-purple-900/40 text-purple-300 font-bold text-xs px-3 py-2 rounded-lg transition-colors"
+                          >
+                            View Submission
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    disabled={bunnyUploading}
+                    onClick={() => bunnyFileInputRef.current?.click()}
+                    className="w-full px-6 py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-950/20"
+                  >
+                    {bunnyUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Uploading {bunnyUploadProgress}%</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        <span>upload homework</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
 
@@ -1094,82 +1095,18 @@ export default function VideoPlayer() {
               </div>
             </div>
 
-            {type === 'exercise' ? (
-              <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
-                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-purple-400" />
-                  Upload Exercise Submission
-                </h3>
-                <p className="text-sm text-gray-400 mb-4">
-                  Submit your completed design project draft or video reference file to your cloud workspace portfolio.
-                </p>
-
-                <input 
-                  type="file" 
-                  ref={bunnyFileInputRef} 
-                  className="hidden" 
-                  onChange={handleBunnyFileUpload} 
-                />
-
-                {exerciseUploads && exerciseUploads.length > 0 ? (
-                  <div className="space-y-3 mb-4">
-                    {exerciseUploads.map((item: any) => (
-                      <div key={item.id} className="bg-black/40 border border-purple-900/25 p-4 rounded-xl flex flex-col justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center shrink-0">
-                            <FileText className="w-5 h-5 text-purple-400" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-sm text-white truncate max-w-[140px]" title={item.name}>{item.name}</div>
-                            <div className="text-[10px] text-gray-550">Uploaded on {new Date(item.uploadedAt).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                        <a 
-                          href={item.downloadUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full text-center bg-purple-900/10 hover:bg-purple-900/20 border border-purple-900/40 text-purple-300 font-bold text-xs px-3 py-2 rounded-lg transition-colors"
-                        >
-                          View Submission
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                <button
-                  type="button"
-                  disabled={bunnyUploading}
-                  onClick={() => bunnyFileInputRef.current?.click()}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-                >
-                  {bunnyUploading ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Uploading {bunnyUploadProgress}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      <span>upload homework</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
-                <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
-                <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
-                  {t('course.helpDesc')}
-                </p>
-                <Link 
-                  to="/support"
-                  className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
-                >
-                  {t('course.contactSupport')}
-                </Link>
-              </div>
-            )}
+            <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
+              <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
+              <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
+                {t('course.helpDesc')}
+              </p>
+              <Link 
+                to="/support"
+                className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
+              >
+                {t('course.contactSupport')}
+              </Link>
+            </div>
           </div>
         </div>
       </div>

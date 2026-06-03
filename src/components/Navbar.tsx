@@ -46,6 +46,7 @@ export default function Navbar() {
     { name: t('nav.courses'), path: '/courses' },
     { name: t('nav.downloadables'), path: '/downloadables' },
     { name: t('nav.plans'), path: '/plans' },
+    { name: t('nav.updates'), path: '/updates' },
   ];
 
   return (
