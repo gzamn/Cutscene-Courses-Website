@@ -32,6 +32,7 @@ export default function Payment() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
 
   // Student Info State (format choice removed)
   const [formData, setFormData] = useState({
@@ -150,46 +151,50 @@ export default function Payment() {
 
   const handleInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: { [key: string]: string } = {};
 
     // 1. Full name validation: must be filled and correct formatted text
     const trimmedName = formData.fullName.trim();
     if (!trimmedName) {
-      alert('Full Name is required.');
-      return;
-    }
-    if (trimmedName.length < 3) {
-      alert('Your Full Name must contain at least 3 letters.');
-      return;
-    }
-    const nameRegex = /^[\p{L}\s.''-]+$/u;
-    if (!nameRegex.test(trimmedName)) {
-      alert('Please enter a correct full name (consisting only of letter characters, spaces, and hyphens).');
-      return;
+      errors.fullName = 'must be filled before continuing';
+    } else if (trimmedName.length < 3) {
+      errors.fullName = 'Your Full Name must contain at least 3 letters.';
+    } else {
+      const nameRegex = /^[\p{L}\s.''-]+$/u;
+      if (!nameRegex.test(trimmedName)) {
+        errors.fullName = 'Please enter a correct full name (consisting only of letter characters, spaces, and hyphens).';
+      }
     }
 
     // 2. Email validation: must be filled with a correct formatted email address
     const trimmedEmail = formData.email.trim();
     if (!trimmedEmail) {
-      alert('Electronic Mail Address is required.');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      alert('Please enter a correct email address format (e.g. yourname@domain.com).');
-      return;
+      errors.email = 'must be filled before continuing';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        errors.email = 'Please enter a correct email address format (e.g. yourname@domain.com).';
+      }
     }
 
     // 3. Phone validation: must be filled with a correct formatted phone number
     const trimmedPhone = formData.phone.trim();
     if (!trimmedPhone) {
-      alert('Phone Number is required.');
+      errors.phone = 'must be filled before continuing';
+    } else {
+      const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
+      if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
+        errors.phone = 'Please enter a correct phone number containing 9 to 15 digits (e.g., 0550123456).';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
       return;
     }
-    const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
-    if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
-      alert('Please enter a correct phone number containing 9 to 15 digits (e.g., 0550123456).');
-      return;
-    }
+
+    // Clear validation errors
+    setValidationErrors({});
 
     if (user && formData.phone && !userProfile?.phone) {
       try {
@@ -213,45 +218,54 @@ export default function Payment() {
       return;
     }
 
+    const errors: { [key: string]: string } = {};
+
     // Double check full profile data validation
     const trimmedName = formData.fullName.trim();
-    if (!trimmedName || trimmedName.length < 3 || !/^[\p{L}\s.''-]+$/u.test(trimmedName)) {
-      alert('Your Full Name must contain at least 3 letters and consist of normal name characters.');
-      setStep('info');
-      return;
+    if (!trimmedName) {
+      errors.fullName = 'must be filled before continuing';
+    } else if (trimmedName.length < 3 || !/^[\p{L}\s.''-]+$/u.test(trimmedName)) {
+      errors.fullName = 'Your Full Name must contain at least 3 letters and consist of normal name characters.';
     }
 
     const trimmedEmail = formData.email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
-      alert('Kindly verify your electronic mail address format.');
-      setStep('info');
-      return;
+    if (!trimmedEmail) {
+      errors.email = 'must be filled before continuing';
+    } else if (!emailRegex.test(trimmedEmail)) {
+      errors.email = 'Kindly verify your electronic mail address format.';
     }
 
     const trimmedPhone = formData.phone.trim();
     const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
-    if (!trimmedPhone || cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
-      alert('Please enter a correct phone number with 9 to 15 digits.');
-      setStep('info');
-      return;
+    if (!trimmedPhone) {
+      errors.phone = 'must be filled before continuing';
+    } else if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
+      errors.phone = 'Please enter a correct phone number with 9 to 15 digits.';
     }
 
     if (!termsAgreed) {
-      alert('You must review and agree to the Terms & Conditions.');
-      return;
+      errors.termsAgreed = 'must be filled before continuing';
     }
 
     if (!policyAgreed) {
-      alert('You must review and agree to the Privacy & Refund Policy.');
-      return;
+      errors.policyAgreed = 'must be filled before continuing';
     }
 
     if (!receiptBase64) {
-      alert('Kindly upload or drop a photo of your transaction receipt to complete your purchase.');
+      errors.receipt = 'must be filled before continuing';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      // In case we have student info errors, redirect to info step
+      if (errors.fullName || errors.email || errors.phone) {
+        setStep('info');
+      }
       return;
     }
 
+    setValidationErrors({});
     setProcessing(true);
     try {
       // 1. Create or overwrite a pending enrollment
@@ -445,17 +459,25 @@ export default function Payment() {
                   </div>
                   
                   <form onSubmit={handleInfoSubmit} className="space-y-6">
-                    <div className="space-y-2 text-left font-sans">
+                    <div className="space-y-2 text-left font-sans font-medium">
                       <label htmlFor="studentFullName" className="block text-sm font-semibold text-gray-300">Student Full Name</label>
                       <input 
                         id="studentFullName"
                         type="text"
                         required
                         value={formData.fullName}
-                        onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                        onChange={(e) => {
+                          setFormData({...formData, fullName: e.target.value});
+                          if (validationErrors.fullName) {
+                            setValidationErrors(prev => ({ ...prev, fullName: '' }));
+                          }
+                        }}
                         placeholder="e.g. amine rouabhia"
                         className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all font-sans"
                       />
+                      {validationErrors.fullName && (
+                        <p className="text-red-500 text-xs font-bold mt-1.5">{validationErrors.fullName}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2 text-left">
@@ -465,10 +487,18 @@ export default function Payment() {
                         type="tel"
                         required
                         value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        onChange={(e) => {
+                          setFormData({...formData, phone: e.target.value});
+                          if (validationErrors.phone) {
+                            setValidationErrors(prev => ({ ...prev, phone: '' }));
+                          }
+                        }}
                         placeholder="e.g. 0550 00 00 00"
                         className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all font-sans"
                       />
+                      {validationErrors.phone && (
+                        <p className="text-red-500 text-xs font-bold mt-1.5">{validationErrors.phone}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2 text-left">
@@ -607,7 +637,10 @@ export default function Payment() {
                       onDrop={(e) => {
                         e.preventDefault();
                         setDragOver(false);
-                        if (e.dataTransfer.files?.[0]) handleFileChange(e.dataTransfer.files[0]);
+                        if (e.dataTransfer.files?.[0]) {
+                          handleFileChange(e.dataTransfer.files[0]);
+                          setValidationErrors(prev => ({ ...prev, receipt: '' }));
+                        }
                       }}
                       onClick={() => document.getElementById('payment-receipt-input')?.click()}
                       className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-3 relative overflow-hidden ${
@@ -623,7 +656,12 @@ export default function Payment() {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(e) => e.target.files?.[0] && handleFileChange(e.target.files[0])}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleFileChange(e.target.files[0]);
+                            setValidationErrors(prev => ({ ...prev, receipt: '' }));
+                          }
+                        }}
                       />
 
                       {receiptFile ? (
@@ -655,68 +693,91 @@ export default function Payment() {
                         </>
                       )}
                     </div>
+                    {validationErrors.receipt && (
+                      <p className="text-red-500 text-xs font-bold mt-1.5">{validationErrors.receipt}</p>
+                    )}
                   </div>                   {/* Policies Agreement Checkboxes */}
                   <div className="space-y-4 mb-8">
-                    <div className="flex items-start gap-3">
-                      <label htmlFor="agreeTerms" className="relative flex items-center cursor-pointer mt-0.5">
-                        <input
-                          id="agreeTerms"
-                          type="checkbox"
-                          checked={termsAgreed}
-                          onChange={(e) => setTermsAgreed(e.target.checked)}
-                          className="sr-only"
-                        />
-                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                          termsAgreed 
-                            ? 'bg-purple-600 border-purple-500 text-white' 
-                            : 'border-purple-900/40 bg-black hover:border-purple-500/50'
-                        }`}>
-                          {termsAgreed && <Check className="w-3.5 h-3.5 font-bold" />}
-                        </div>
-                      </label>
-                      <span className="text-xs text-gray-400 leading-normal">
-                        I hereby agree and consent to the{' '}
-                        <Link 
-                          prev-state-check="terms"
-                          to="/terms-and-conditions"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-purple-400 font-bold hover:underline"
-                        >
-                          Terms & Conditions
-                        </Link>
-                      </span>
+                    <div>
+                      <div className="flex items-start gap-3">
+                        <label htmlFor="agreeTerms" className="relative flex items-center cursor-pointer mt-0.5">
+                          <input
+                            id="agreeTerms"
+                            type="checkbox"
+                            checked={termsAgreed}
+                            onChange={(e) => {
+                              setTermsAgreed(e.target.checked);
+                              if (validationErrors.termsAgreed) {
+                                setValidationErrors(prev => ({ ...prev, termsAgreed: '' }));
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                            termsAgreed 
+                              ? 'bg-purple-600 border-purple-500 text-white' 
+                              : 'border-purple-900/40 bg-black hover:border-purple-500/50'
+                          }`}>
+                            {termsAgreed && <Check className="w-3.5 h-3.5 font-bold" />}
+                          </div>
+                        </label>
+                        <span className="text-xs text-gray-400 leading-normal">
+                          I hereby agree and consent to the{' '}
+                          <Link 
+                            prev-state-check="terms"
+                            to="/terms-and-conditions"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-400 font-bold hover:underline"
+                          >
+                            Terms & Conditions
+                          </Link>
+                        </span>
+                      </div>
+                      {validationErrors.termsAgreed && (
+                        <p className="text-red-500 text-xs font-bold mt-1 ml-8">{validationErrors.termsAgreed}</p>
+                      )}
                     </div>
 
-                    <div className="flex items-start gap-3">
-                      <label htmlFor="agreePolicy" className="relative flex items-center cursor-pointer mt-0.5">
-                        <input
-                          id="agreePolicy"
-                          type="checkbox"
-                          checked={policyAgreed}
-                          onChange={(e) => setPolicyAgreed(e.target.checked)}
-                          className="sr-only"
-                        />
-                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                          policyAgreed 
-                            ? 'bg-purple-600 border-purple-500 text-white' 
-                            : 'border-purple-900/40 bg-black hover:border-purple-500/50'
-                        }`}>
-                          {policyAgreed && <Check className="w-3.5 h-3.5 font-bold" />}
-                        </div>
-                      </label>
-                      <span className="text-xs text-gray-400 leading-normal">
-                        I certify that I accept the{' '}
-                        <Link 
-                          prev-state-check="policy"
-                          to="/privacy-policy"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-purple-400 font-bold hover:underline"
-                        >
-                          Privacy & Refund Policy
-                        </Link>
-                      </span>
+                    <div>
+                      <div className="flex items-start gap-3">
+                        <label htmlFor="agreePolicy" className="relative flex items-center cursor-pointer mt-0.5">
+                          <input
+                            id="agreePolicy"
+                            type="checkbox"
+                            checked={policyAgreed}
+                            onChange={(e) => {
+                              setPolicyAgreed(e.target.checked);
+                              if (validationErrors.policyAgreed) {
+                                setValidationErrors(prev => ({ ...prev, policyAgreed: '' }));
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                            policyAgreed 
+                              ? 'bg-purple-600 border-purple-500 text-white' 
+                              : 'border-purple-900/40 bg-black hover:border-purple-500/50'
+                          }`}>
+                            {policyAgreed && <Check className="w-3.5 h-3.5 font-bold" />}
+                          </div>
+                        </label>
+                        <span className="text-xs text-gray-400 leading-normal">
+                          I certify that I accept the{' '}
+                          <Link 
+                            prev-state-check="policy"
+                            to="/privacy-policy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-400 font-bold hover:underline"
+                          >
+                            Privacy & Refund Policy
+                          </Link>
+                        </span>
+                      </div>
+                      {validationErrors.policyAgreed && (
+                        <p className="text-red-500 text-xs font-bold mt-1 ml-8">{validationErrors.policyAgreed}</p>
+                      )}
                     </div>
                   </div>
 

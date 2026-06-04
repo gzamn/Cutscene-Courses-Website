@@ -243,7 +243,7 @@ export default function Home() {
 
           {/* Website title text placed directly under the video with consistent spacing and glowing shadow */}
           <div className="mt-8 text-center z-10 w-full animate-fade-in">
-            <div className="relative overflow-hidden bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-2xl px-8 py-5 rounded-3xl border border-white/[0.12] inline-block mx-auto max-w-[95%] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_8px_32px_rgba(0,0,0,0.5),0_12px_40px_rgba(147,51,234,0.22)]">
+            <div className="liquid-glass px-8 py-5 rounded-3xl inline-block mx-auto max-w-[95%]">
               {/* Highlight flare effect at the top */}
               <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-purple-400/55 to-transparent opacity-75 pointer-events-none" />
               

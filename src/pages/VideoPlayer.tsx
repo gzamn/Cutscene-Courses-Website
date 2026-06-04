@@ -78,6 +78,7 @@ export default function VideoPlayer() {
   const [homeworkLinkInput, setHomeworkLinkInput] = useState('');
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
 
   // BunnyCDN upload states
   const [bunnyUploading, setBunnyUploading] = useState(false);
@@ -268,6 +269,43 @@ export default function VideoPlayer() {
       });
     }, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Window focus and tab switch detection for pausing playback
+  useEffect(() => {
+    const handleFocus = () => {
+      setIsWindowFocused(true);
+    };
+    
+    const handleBlur = () => {
+      // Delay slightly because document.activeElement might take a split second to update
+      setTimeout(() => {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.tagName === 'IFRAME') {
+          // If focus shifted to the video player iframe itself, do not pause content
+          return;
+        }
+        setIsWindowFocused(false);
+      }, 200);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsWindowFocused(false);
+      } else {
+        setIsWindowFocused(true);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // Screenshot deterrents
@@ -684,15 +722,29 @@ export default function VideoPlayer() {
               {/* Blur-bounded content wrapper */}
               <div className="w-full h-full transition-all duration-500">
                 
-                {/* Security Watermark when active */}
+                {/* Tiled Watermark Background */}
+                {(isEnrolled || isFirstSession) && (
+                  <div className="absolute inset-0 z-10 pointer-events-none select-none grid grid-cols-3 grid-rows-3 gap-2 p-4 overflow-hidden">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-center -rotate-12 opacity-[0.03] text-[9px] sm:text-xs font-mono text-white whitespace-nowrap">
+                        {user?.email || 'Student'} • {user?.uid?.slice(0, 8)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Security Floating Watermark Badge when active */}
                 <AnimatePresence>
-                  {isEnrolled || isFirstSession ? (
+                  {(isEnrolled || isFirstSession) ? (
                     <motion.div
                       animate={{ top: watermarkPos.top, left: watermarkPos.left }}
                       transition={{ duration: 2, ease: "easeInOut" }}
-                      className="absolute z-30 pointer-events-none select-none opacity-20 text-[10px] font-mono text-white whitespace-nowrap bg-black/20 px-2 py-1 rounded-md border border-white/5"
+                      className="absolute z-35 pointer-events-none select-none opacity-25 text-[10px] font-mono text-white whitespace-nowrap bg-black/30 backdrop-blur-xs px-2.5 py-1 rounded-md border border-white/10 flex items-center gap-1.5 shadow"
                     >
-                      {user?.email} • {user?.uid.slice(0, 8)} • PROTECTED CONTENT
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                      <span>{user?.email}</span>
+                      <span className="text-gray-500 font-bold">•</span>
+                      <span>SECURED STREAM</span>
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
@@ -717,17 +769,53 @@ export default function VideoPlayer() {
                   </div>
                 ) : (
                   <div className="absolute inset-0 w-full h-full bg-black">
-                    <iframe
-                      src={getLessonVideoUrl(course, chapter || '1', type || 'session')}
-                      title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      className="w-full h-full"
-                    ></iframe>
+                    {isWindowFocused ? (
+                      <iframe
+                        src={getLessonVideoUrl(course, chapter || '1', type || 'session')}
+                        title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="w-full h-full"
+                      ></iframe>
+                    ) : (
+                      <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-6 text-center select-none">
+                        <ShieldAlert className="w-10 h-10 text-purple-500 animate-pulse mb-3" />
+                        <p className="text-xs font-black text-white uppercase tracking-widest">Playback Paused</p>
+                        <p className="text-[10px] text-gray-500 mt-1 max-w-xs leading-normal">
+                          Focus on the web browser window or click below to resume video content.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Autopause Protection Overlay Modal */}
+              <AnimatePresence>
+                {!isWindowFocused && (isEnrolled || isFirstSession) && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="text-center p-8 bg-zinc-950 border border-purple-500/20 rounded-[2rem] max-w-sm mx-auto shadow-2xl relative"
+                    >
+                      <ShieldAlert className="w-12 h-12 text-purple-400 mx-auto mb-4 animate-bounce shrink-0" />
+                      <h3 className="text-lg font-black text-white mb-2 uppercase tracking-wider">Playback Paused</h3>
+                      <p className="text-xs text-gray-400 leading-relaxed mb-6">
+                        Course content protection active. Video playback is auto-paused when you toggle tabs or switch applications.
+                      </p>
+                      <button
+                        onClick={() => setIsWindowFocused(true)}
+                        className="w-full py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg hover:shadow-purple-600/10 cursor-pointer"
+                      >
+                        Resume Lesson
+                      </button>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
 
             </motion.div>
 
