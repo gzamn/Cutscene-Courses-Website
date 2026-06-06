@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock, Volume2, VolumeX } from 'lucide-react';
+import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock, Volume2, VolumeX, Compass, Film, Sparkles, Trophy, Award, CheckCircle2, Check, Layers } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useState, useEffect } from 'react';
 import { db, collection, getDocs, ensureDefaultStudentWorksSeeded, ensureDefaultHeroVideosSeeded } from '../firebase';
@@ -13,6 +13,82 @@ export default function Home() {
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string>('https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
+
+  const [completedModules, setCompletedModules] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('cutscene_roadmap_completed');
+      return saved ? JSON.parse(saved) : ['module-1', 'module-2'];
+    } catch {
+      return ['module-1', 'module-2'];
+    }
+  });
+
+  const toggleModuleCompletion = (moduleId: string) => {
+    setCompletedModules(prev => {
+      const updated = prev.includes(moduleId)
+        ? prev.filter(id => id !== moduleId)
+        : [...prev, moduleId];
+      localStorage.setItem('cutscene_roadmap_completed', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const roadmapModules = [
+    {
+      id: 'module-1',
+      title: 'Foundations & Cinematic Vision',
+      subtitle: 'Introduction to editing software, workspace layout, ingestion, and cinematic pacing concepts.',
+      duration: 'Week 1-2',
+      tasksCount: 4,
+      skills: ['Premiere / Resolve Basics', 'Timeline Ingesting', 'A/B cutting', 'Intro to storyboarding'],
+      icon: Compass
+    },
+    {
+      id: 'module-2',
+      title: 'Creative Storytelling & Cuts',
+      subtitle: 'Mastering dynamic transitions, pacing, matching action, jump-cuts, and psychological scene setups.',
+      duration: 'Week 3-4',
+      tasksCount: 6,
+      skills: ['Narrative Tension', 'Matching action', 'Invisible cut techniques', 'Rhythmic timing'],
+      icon: Film
+    },
+    {
+      id: 'module-3',
+      title: 'Sound Design & Acoustics',
+      subtitle: 'Advanced layering, sound scaping, foley effects, equalization, keyframing volume, and mixing master tracks.',
+      duration: 'Week 5-6',
+      tasksCount: 5,
+      skills: ['Acoustic environments', 'Sub-mix control', 'Foley overlay', 'EQ & Dynamics matching'],
+      icon: Volume2
+    },
+    {
+      id: 'module-4',
+      title: 'Visual Effects & Compositing',
+      subtitle: 'Keyframing graphics, working with standard stock overlays, mask tracking, and rendering complex composite plans.',
+      duration: 'Week 7-8',
+      tasksCount: 7,
+      skills: ['Motion typography', 'Luma / Chroma keying', 'Target spatial tracking', 'Overlay blend modes'],
+      icon: Layers
+    },
+    {
+      id: 'module-5',
+      title: 'LUTs & Fine Color Grading',
+      subtitle: 'Color theory, matching different cameras, vectorscopes, curve modifications, and exporting cinematic visuals.',
+      duration: 'Week 9-10',
+      tasksCount: 6,
+      skills: ['Log normalization', 'Primary adjustments', 'Secondary color tracking', 'Stylized grain overlays'],
+      icon: Sparkles
+    },
+    {
+      id: 'module-6',
+      title: 'Freelance Hustle & Graduation',
+      subtitle: 'Building a killer showreel, optimizing export codecs, preparing client packages, and getting high-paying contracts.',
+      duration: 'Week 11-12',
+      tasksCount: 4,
+      skills: ['Showreel curation', 'Client contract guides', 'ProRes & web export presets', 'Portfolio landing page'],
+      icon: Trophy
+    }
+  ];
 
   const [wordIdx, setWordIdx] = useState(0);
   const animatedWords = [
@@ -198,6 +274,26 @@ export default function Home() {
       !lower.includes('vimeo.com')
     );
   };
+
+  const totalModules = roadmapModules.length;
+  const completedCount = completedModules.length;
+  const progressPercent = Math.round((completedCount / totalModules) * 100);
+
+  let studentRank = 'Creative Cadet';
+  let rankColor = 'text-blue-400';
+  if (progressPercent >= 100) {
+    studentRank = 'Cutscene Legend Pro';
+    rankColor = 'text-rose-500';
+  } else if (progressPercent >= 83) {
+    studentRank = 'Vanguard Director';
+    rankColor = 'text-purple-400';
+  } else if (progressPercent >= 50) {
+    studentRank = 'Cinema Architect';
+    rankColor = 'text-amber-400';
+  } else if (progressPercent >= 16) {
+    studentRank = 'Narrative Explorer';
+    rankColor = 'text-emerald-400';
+  }
 
   return (
     <div className="bg-black text-white">
@@ -479,6 +575,185 @@ export default function Home() {
                 </motion.div>
               ))
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* Dynamic Interactive Student Roadmap Section */}
+      <section className="py-24 bg-black border-y border-purple-500/10 relative overflow-hidden">
+        {/* Subtle decorative background lights */}
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-purple-600/5 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-indigo-600/5 rounded-full blur-[140px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <span className="text-purple-500 font-mono text-xs tracking-widest uppercase font-bold px-4 py-1.5 bg-purple-500/10 rounded-full border border-purple-500/20">Learning Path</span>
+            <h2 className="text-4xl md:text-5xl font-black mt-4 text-white tracking-tight">Cutscene Academy Roadmap</h2>
+            <p className="text-gray-400 max-w-2xl mx-auto mt-4 text-sm sm:text-base leading-relaxed">
+              Track your trajectory from zero to industry maestro. Toggle modules to simulate your ongoing progress and unlock exclusive ranks!
+            </p>
+          </div>
+
+          {/* Progress Dashboard Banner */}
+          <div className="max-w-4xl mx-auto mb-16 p-6 sm:p-8 bg-zinc-950/70 border border-purple-500/15 rounded-3xl backdrop-blur-md relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+              <div>
+                <p className="text-xs text-gray-400 uppercase font-mono tracking-wider">Simulated Rank</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Award className={`w-5 h-5 ${rankColor}`} />
+                  <span className={`text-lg font-black tracking-tight ${rankColor}`} id="student-rank">
+                    {studentRank}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">Complete more modules to rank higher.</p>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="flex justify-between text-xs text-gray-400 font-mono mb-2">
+                  <span>OVERALL MASTER LEVEL</span>
+                  <span className="font-bold text-white">{progressPercent}%</span>
+                </div>
+                <div className="w-full bg-zinc-900 rounded-full h-3 overflow-hidden border border-zinc-800">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercent}%` }}
+                    transition={{ type: "spring", stiffness: 80, damping: 15 }}
+                    className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full shadow-[0_0_12px_rgba(147,51,234,0.5)]"
+                  />
+                </div>
+              </div>
+
+              <div className="text-center md:text-right">
+                <span className="inline-block text-gray-400 text-xs font-mono font-bold py-1.5 px-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  {completedCount} of {totalModules} MODULES CLEAR
+                </span>
+                <p className="text-[11px] text-gray-500 mt-1.5">Interactive Demo Path</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Timeline Core */}
+          <div className="relative max-w-4xl mx-auto">
+            {/* Center connector line */}
+            <div className="absolute left-6 md:left-1/2 top-4 bottom-4 w-1 bg-zinc-900 -translate-x-1/2 pointer-events-none rounded-full" />
+            
+            {/* Glowing active progress connector line */}
+            <div 
+              className="absolute left-6 md:left-1/2 top-4 w-1 bg-gradient-to-b from-purple-500 to-indigo-500 -translate-x-1/2 pointer-events-none rounded-full blur-[1.5px] transition-all duration-700 animate-pulse"
+              style={{
+                height: `${Math.max(0, (completedCount - 1) / (totalModules - 1)) * 100}%`
+              }}
+            />
+
+            <div className="space-y-12">
+              {roadmapModules.map((module, mIdx) => {
+                const isCompleted = completedModules.includes(module.id);
+                const IconComponent = module.icon;
+                
+                return (
+                  <motion.div 
+                    key={module.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-100px" }}
+                    transition={{ duration: 0.5, delay: mIdx * 0.05 }}
+                    className={`flex flex-col md:flex-row relative items-start ${
+                      mIdx % 2 === 1 ? 'md:flex-row-reverse' : ''
+                    }`}
+                  >
+                    {/* Circle Node indicator */}
+                    <div className="absolute left-6 md:left-1/2 w-10 h-10 -translate-x-1/2 flex items-center justify-center z-20">
+                      <button
+                        onClick={() => toggleModuleCompletion(module.id)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 border cursor-pointer outline-none ${
+                          isCompleted 
+                            ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.6)] scale-110' 
+                            : 'bg-zinc-950 border-purple-900/40 hover:border-purple-500 text-gray-400 hover:text-white hover:scale-105'
+                        }`}
+                        title="Toggle completion simulation"
+                      >
+                        {isCompleted ? <Check className="w-5 h-5 font-bold" /> : <Lock className="w-4 h-4 text-gray-500" />}
+                      </button>
+                    </div>
+
+                    {/* Left/Right Card Spacer */}
+                    <div className="w-full md:w-1/2 md:px-12 pl-16 md:pl-0">
+                      <div 
+                        className={`p-6 sm:p-8 bg-zinc-950/60 border rounded-3xl backdrop-blur-sm transition-all duration-350 relative ${
+                          isCompleted 
+                            ? 'border-purple-500/25 bg-gradient-to-b from-zinc-950 to-purple-950/5 shadow-[0_10px_30px_-10px_rgba(147,51,234,0.15)] animate-fade-in' 
+                            : 'border-purple-950/15 hover:border-purple-900/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-purple-400 bg-purple-900/20 px-2.5 py-1 rounded-lg">
+                            {module.duration}
+                          </span>
+                          <span className="text-gray-500 text-xs font-mono">
+                            {module.tasksCount} Tasks Included
+                          </span>
+                        </div>
+
+                        <div className="flex items-start gap-4 mb-4">
+                          <div className={`p-3 rounded-2xl ${
+                            isCompleted ? 'bg-purple-600/15 text-purple-400' : 'bg-zinc-900 text-gray-500'
+                          }`}>
+                            <IconComponent className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className={`text-base sm:text-lg font-black tracking-tight ${
+                              isCompleted ? 'text-white' : 'text-gray-300'
+                            }`}>
+                              {module.title}
+                            </h3>
+                            <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                              {module.subtitle}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-purple-900/10 pt-4 mt-4">
+                          <h4 className="text-[11px] font-mono tracking-wider text-gray-500 uppercase mb-2">Acquired Mastery Tools:</h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {module.skills.map((skill, sIdx) => (
+                              <span 
+                                key={sIdx}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                                  isCompleted 
+                                    ? 'bg-purple-500/10 text-purple-300 border border-purple-500/15' 
+                                    : 'bg-zinc-900/80 text-gray-500 border border-zinc-800'
+                                }`}
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Interactive toggle block */}
+                        <div className="mt-5 flex justify-end">
+                          <button
+                            onClick={() => toggleModuleCompletion(module.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              isCompleted 
+                                ? 'bg-purple-900/20 hover:bg-purple-900/40 text-purple-400 border border-purple-500/15' 
+                                : 'bg-zinc-900 hover:bg-zinc-850 text-gray-400 border border-zinc-800'
+                            }`}
+                          >
+                            <span>{isCompleted ? 'Clear Step' : 'Clear Milestone'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Standard matching spacer for desktop layouts */}
+                    <div className="hidden md:block w-1/2" />
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>

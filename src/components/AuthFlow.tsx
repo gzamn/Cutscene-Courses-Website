@@ -3,7 +3,8 @@ import {
   GoogleAuthProvider, 
   FacebookAuthProvider, 
   OAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  sendEmailVerification
 } from 'firebase/auth';
 import { 
   db, 
@@ -45,7 +46,7 @@ interface AuthFlowProps {
 export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, isEnrollmentFlow = false }: AuthFlowProps) {
   const { t, language } = useLanguage();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [step, setStep] = useState<'details' | 'username_google' | 'completed'>('details');
+  const [step, setStep] = useState<'details' | 'username_google' | 'completed' | 'verify_email'>('details');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
@@ -236,6 +237,20 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
       // --- Standard SIGN IN flow ---
       try {
         const userCredential = await loginWithEmail(formData.email, formData.password);
+        
+        if (!userCredential.emailVerified) {
+          try {
+            await sendEmailVerification(userCredential);
+            setInfoMessage('Verification email sent to ' + userCredential.email + '! Please check your inbox.');
+          } catch (verifErr: any) {
+            console.error('Email verification send failed:', verifErr);
+            setError('Verification required, please click resend to try again.');
+          }
+          setStep('verify_email');
+          setIsLoading(false);
+          return;
+        }
+
         const userDoc = await getDoc(doc(db, 'users', userCredential.uid));
 
         if (userDoc.exists()) {
@@ -319,10 +334,16 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      setStep('completed');
-      setTimeout(() => {
-        onSuccess();
-      }, 1500);
+      // Send verification email
+      try {
+        await sendEmailVerification(user);
+        setInfoMessage('A verification link has been sent to ' + formData.email + '. Please check your inbox.');
+      } catch (verifErr: any) {
+        console.error('Verification email failed during sign up:', verifErr);
+        setError('Account created, but verification email failed to send. You can resend it shortly.');
+      }
+
+      setStep('verify_email');
     } catch (err: any) {
       console.error('Sign-up failed:', err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -641,6 +662,100 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
                 )}
               </button>
             </form>
+          )}
+
+          {/* Verify Email UI */}
+          {step === 'verify_email' && (
+            <div className="space-y-6 text-center py-4">
+              <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto border border-purple-500/20 animate-pulse">
+                <Mail className="w-8 h-8 text-purple-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-white">Verify Your Email Address</h3>
+                <p className="text-gray-400 text-xs px-2 leading-relaxed">
+                  We've sent a verification link to <strong className="text-purple-300 font-mono text-[11px] block mt-1 break-all">{formData.email || auth.currentUser?.email}</strong>. Please check your inbox and click the verification link to proceed.
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setError('');
+                    setInfoMessage('');
+                    setIsLoading(true);
+                    try {
+                      await auth.currentUser?.reload();
+                      if (auth.currentUser?.emailVerified) {
+                        setInfoMessage('Email successfully verified!');
+                        setStep('completed');
+                        setTimeout(() => {
+                          onSuccess();
+                        }, 1500);
+                      } else {
+                        setError("Email verification link hasn't been clicked/verified yet. Please try again or resend.");
+                      }
+                    } catch (err: any) {
+                      console.error('Email verification reload check failed:', err);
+                      setError(err.message || 'Verification check failed.');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      I have verified my email
+                      <Check className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setError('');
+                      setInfoMessage('');
+                      setIsLoading(true);
+                      try {
+                        if (auth.currentUser) {
+                          await sendEmailVerification(auth.currentUser);
+                          setInfoMessage('New verification email sent! Check your inbox.');
+                        } else {
+                          setError('No active authentication session. Please sign in again.');
+                        }
+                      } catch (err: any) {
+                        console.error('Email verification resend failed:', err);
+                        setError(err.message || 'Verification resend failed.');
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-gray-300 border border-purple-900/30 rounded-2xl text-xs font-semibold transition-all disabled:opacity-50"
+                  >
+                    Resend Email
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setInfoMessage('');
+                      setStep('details');
+                    }}
+                    className="flex-1 py-3 bg-zinc-950 hover:bg-zinc-900 text-gray-400 rounded-2xl text-xs font-semibold transition-all"
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

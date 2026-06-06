@@ -820,41 +820,154 @@ export default function Payment() {
       {/* SUCCESS CONFIRMATION POPUP MODAL */}
       <AnimatePresence>
         {showSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/90 backdrop-blur-md" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/92 backdrop-blur-xl" 
+            />
+            
             <motion.div
-              initial={{ opacity: 0, y: 15, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 15, scale: 0.98 }}
-              className="bg-zinc-950 border border-purple-500/25 rounded-[2.5rem] p-10 max-w-md w-full relative z-10 text-center space-y-6"
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ 
+                opacity: 1, 
+                y: 0, 
+                scale: 1,
+                transition: { type: "spring", damping: 25, stiffness: 120 }
+              }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="bg-zinc-950 border border-purple-500/20 rounded-[2.5rem] p-10 max-w-md w-full relative z-10 text-center space-y-6 shadow-[0_25px_60px_-15px_rgba(147,51,234,0.3)] overflow-hidden"
             >
-              <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
-                <ShieldCheck className="w-10 h-10 animate-bounce cursor-pointer" />
+              {/* Premium Top Light Flare */}
+              <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-purple-500/10 via-transparent to-transparent pointer-events-none" />
+
+              {/* Icon Section with concentric pulsing rings and particles */}
+              <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
+                {/* Concentric pulsing background rings */}
+                <motion.div
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: [1, 1.4, 1.8], opacity: [0.15, 0.05, 0] }}
+                  transition={{ repeat: Infinity, duration: 2.5, ease: "easeOut" }}
+                  className="absolute inset-0 rounded-full bg-emerald-500"
+                />
+                <motion.div
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: [1, 1.3, 1.6], opacity: [0.2, 0.08, 0] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeOut", delay: 0.5 }}
+                  className="absolute inset-0 rounded-full bg-purple-500"
+                />
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", damping: 15 }}
+                  className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500/20 to-emerald-400/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.25)] relative z-10"
+                >
+                  <motion.div
+                    initial={{ scale: 0, rotate: -45 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", damping: 10, delay: 0.2 }}
+                  >
+                    <ShieldCheck className="w-10 h-10 cursor-pointer" />
+                  </motion.div>
+                </motion.div>
+
+                {/* Customized Premium Emitter Floating Confetti Particles */}
+                {Array.from({ length: 24 }).map((_, i) => {
+                  const angle = (i / 24) * 360 + Math.random() * 15;
+                  const distance = 70 + Math.random() * 110;
+                  const x = Math.cos((angle * Math.PI) / 180) * distance;
+                  const y = Math.sin((angle * Math.PI) / 180) * distance;
+                  const size = Math.random() * 7 + 3;
+                  const colors = ['#c084fc', '#60a5fa', '#34d399', '#fca5a5', '#fb7185', '#fef08a'];
+                  const color = colors[i % colors.length];
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                      animate={{ 
+                        opacity: [0, 1, 1, 0], 
+                        scale: [0, 1.3, 1, 0.3], 
+                        x: x, 
+                        y: y,
+                        rotate: Math.random() * 360
+                      }}
+                      transition={{ 
+                        duration: 1.8, 
+                        ease: "easeOut", 
+                        delay: 0.3 + Math.random() * 0.3 
+                      }}
+                      className="absolute pointer-events-none rounded-full"
+                      style={{ 
+                        width: size, 
+                        height: size, 
+                        backgroundColor: color,
+                        boxShadow: `0 0 8px ${color}`,
+                        left: 'calc(50% - 4px)',
+                        top: 'calc(50% - 4px)'
+                      }}
+                    />
+                  );
+                })}
               </div>
 
-              <div className="space-y-2">
-                <h3 className="text-2xl font-black text-white tracking-tight">Receipt Uploaded!</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  Thank you for enrolling! We have successfully registered your payment receipt. 
-                </p>
-                <p className="text-purple-300 font-semibold text-xs py-2 bg-purple-950/20 rounded-xl border border-purple-500/10">
+              {/* Text Section with staggered slide-up animations */}
+              <div className="space-y-4">
+                <motion.h3 
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-2xl font-black text-white tracking-tight font-sans"
+                >
+                  Receipt Uploaded!
+                </motion.h3>
+                
+                <motion.p 
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="text-gray-400 text-sm leading-relaxed max-w-[90%] mx-auto font-sans"
+                >
+                  Thank you for enrolling! We have successfully registered your payment receipt.
+                </motion.p>
+                
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.6, type: "spring" }}
+                  className="text-purple-300 font-semibold text-xs py-3 px-4 bg-purple-950/20 rounded-2xl border border-purple-550/15 max-w-[95%] mx-auto shadow-inner"
+                >
                   Verification usually takes 2-3 hours to confirm.
-                </p>
-                <p className="text-gray-500 text-xs leading-relaxed">
+                </motion.div>
+                
+                <motion.p 
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="text-gray-500 text-xs leading-relaxed max-w-[90%] mx-auto font-sans"
+                >
                   Your course is currently listed on your dashboard under <strong className="text-gray-300">"Pending Payments"</strong> with locked status while verification runs.
-                </p>
+                </motion.p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  navigate('/dashboard');
-                }}
-                className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-extrabold text-sm uppercase tracking-wider transition-all shadow-lg shadow-purple-650/20 cursor-pointer"
+              {/* Large, Beautiful Action Button with a custom hover scale and spring transition */}
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 }}
+                className="pt-2"
               >
-                Go to Dashboard
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    navigate('/dashboard');
+                  }}
+                  className="w-full py-4.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-2xl font-extrabold text-sm uppercase tracking-wider transition-all shadow-[0_4px_20px_rgba(124,58,237,0.3)] hover:shadow-[0_4px_25px_rgba(124,58,237,0.45)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                >
+                  Go to Dashboard
+                </button>
+              </motion.div>
             </motion.div>
           </div>
         )}
