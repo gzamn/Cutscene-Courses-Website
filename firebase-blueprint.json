@@ -205,6 +205,46 @@
         "createdBy": { "type": "string" }
       },
       "required": ["title", "content", "createdAt"]
+    },
+    "SpecialOffer": {
+      "title": "Special Offer Bundle",
+      "description": "Combination of academy courses with a lowered promotional price",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "titleFr": { "type": "string" },
+        "titleAr": { "type": "string" },
+        "descriptionEn": { "type": "string" },
+        "descriptionFr": { "type": "string" },
+        "descriptionAr": { "type": "string" },
+        "courseIds": { "type": "array" },
+        "originalPrice": { "type": "number" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "badgeEn": { "type": "string" },
+        "badgeFr": { "type": "string" },
+        "badgeAr": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "titleEn", "courseIds", "originalPrice", "price", "currency"]
+    },
+    "Statistic": {
+      "title": "Academy Statistic",
+      "description": "Dynamic homepage statistics section parameters editable by admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "value": { "type": "string" },
+        "labelEn": { "type": "string" },
+        "labelFr": { "type": "string" },
+        "labelAr": { "type": "string" },
+        "iconName": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["id", "value", "labelEn", "order"]
     }
   },
   "firestore": {
@@ -263,6 +303,14 @@
     "updates/{updateId}": {
       "schema": "Update",
       "description": "Announcements and site news posted by admins"
+    },
+    "special_offers/{offerId}": {
+      "schema": "SpecialOffer",
+      "description": "Combination of academy courses at a promotional lower price"
+    },
+    "statistics/{statisticId}": {
+      "schema": "Statistic",
+      "description": "Dynamic homepage statistics section parameters editable by admin"
     }
   }
 }

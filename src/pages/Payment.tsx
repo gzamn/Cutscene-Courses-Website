@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, collection, addDoc, query, where, getDocs, doc, getDoc, setDoc } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import AuthFlow from '../components/AuthFlow';
+import ValidationTooltip from '../components/ValidationTooltip';
 
 type PaymentMethod = 'ccp' | 'baridimob';
 
@@ -475,9 +476,7 @@ export default function Payment() {
                         placeholder="e.g. amine rouabhia"
                         className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all font-sans"
                       />
-                      {validationErrors.fullName && (
-                        <p className="text-red-500 text-xs font-bold mt-1.5">{validationErrors.fullName}</p>
-                      )}
+                      <ValidationTooltip isVisible={!!validationErrors.fullName} message={validationErrors.fullName === 'must be filled before continuing' ? 'Please fill out this field.' : validationErrors.fullName} />
                     </div>
 
                     <div className="space-y-2 text-left">
@@ -496,9 +495,7 @@ export default function Payment() {
                         placeholder="e.g. 0550 00 00 00"
                         className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all font-sans"
                       />
-                      {validationErrors.phone && (
-                        <p className="text-red-500 text-xs font-bold mt-1.5">{validationErrors.phone}</p>
-                      )}
+                      <ValidationTooltip isVisible={!!validationErrors.phone} message={validationErrors.phone === 'must be filled before continuing' ? 'Please fill out this field.' : validationErrors.phone} />
                     </div>
 
                     <div className="space-y-2 text-left">
@@ -693,9 +690,7 @@ export default function Payment() {
                         </>
                       )}
                     </div>
-                    {validationErrors.receipt && (
-                      <p className="text-red-500 text-xs font-bold mt-1.5">{validationErrors.receipt}</p>
-                    )}
+                    <ValidationTooltip isVisible={!!validationErrors.receipt} message="Please fill out this field." />
                   </div>                   {/* Policies Agreement Checkboxes */}
                   <div className="space-y-4 mb-8">
                     <div>
@@ -734,9 +729,7 @@ export default function Payment() {
                           </Link>
                         </span>
                       </div>
-                      {validationErrors.termsAgreed && (
-                        <p className="text-red-500 text-xs font-bold mt-1 ml-8">{validationErrors.termsAgreed}</p>
-                      )}
+                      <ValidationTooltip isVisible={!!validationErrors.termsAgreed} message="Please fill out this field." />
                     </div>
 
                     <div>
@@ -775,9 +768,7 @@ export default function Payment() {
                           </Link>
                         </span>
                       </div>
-                      {validationErrors.policyAgreed && (
-                        <p className="text-red-500 text-xs font-bold mt-1 ml-8">{validationErrors.policyAgreed}</p>
-                      )}
+                      <ValidationTooltip isVisible={!!validationErrors.policyAgreed} message="Please fill out this field." />
                     </div>
                   </div>
 

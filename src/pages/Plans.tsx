@@ -28,6 +28,7 @@ import {
   query,
   where
 } from '../firebase';
+import ValidationTooltip from '../components/ValidationTooltip';
 
 const DEFAULT_PLANS = [
   {
@@ -108,6 +109,7 @@ export default function Plans() {
   const [dragOver, setDragOver] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [policyAgreed, setPolicyAgreed] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
 
   // Pre-fill user data when available
   useEffect(() => {
@@ -126,6 +128,7 @@ export default function Plans() {
       return;
     }
     setReceiptFile(file);
+    setValidationErrors(prev => ({ ...prev, receipt: '' }));
     const reader = new FileReader();
     reader.onloadend = () => {
       setReceiptBase64(reader.result as string);
@@ -218,6 +221,7 @@ export default function Plans() {
     setReceiptBase64(null);
     setTermsAgreed(false);
     setPolicyAgreed(false);
+    setValidationErrors({});
     setCheckoutStep('details');
   };
 
@@ -230,62 +234,61 @@ export default function Plans() {
 
   const handleCompletePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: { [key: string]: string } = {};
 
     // 1. Full name validation: must be filled and correct formatted text
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      alert('Full Name is required.');
-      return;
-    }
-    if (trimmedName.length < 3) {
-      alert('Your Full Name must contain at least 3 letters.');
-      return;
-    }
-    const nameRegex = /^[\p{L}\s.''-]+$/u;
-    if (!nameRegex.test(trimmedName)) {
-      alert('Please enter a correct full name (consisting only of letter characters, spaces, and hyphens).');
-      return;
+      errors.fullName = 'must be filled before continuing';
+    } else if (trimmedName.length < 3) {
+      errors.fullName = 'Your Full Name must contain at least 3 letters.';
+    } else {
+      const nameRegex = /^[\p{L}\s.''-]+$/u;
+      if (!nameRegex.test(trimmedName)) {
+        errors.fullName = 'Please enter a correct full name (consisting only of letter characters, spaces, and hyphens).';
+      }
     }
 
     // 2. Email validation: must be filled with a correct formatted email address
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      alert('Electronic Mail Address is required.');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      alert('Please enter a correct email address format (e.g. yourname@domain.com).');
-      return;
+      errors.email = 'must be filled before continuing';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        errors.email = 'Please enter a correct email address format (e.g. yourname@domain.com).';
+      }
     }
 
     // 3. Phone validation: must be filled with a correct formatted phone number
     const trimmedPhone = phone.trim();
     if (!trimmedPhone) {
-      alert('Phone Number is required.');
-      return;
-    }
-    const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
-    if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
-      alert('Please enter a correct phone number containing 9 to 15 digits (e.g., 0550123456).');
-      return;
+      errors.phone = 'must be filled before continuing';
+    } else {
+      const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
+      if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
+        errors.phone = 'Please enter a correct phone number containing 9 to 15 digits (e.g., 0550123456).';
+      }
     }
 
     // 4. Agreement state validation
     if (!termsAgreed) {
-      alert('You must review and agree to the Terms & Conditions.');
-      return;
+      errors.termsAgreed = 'must be filled before continuing';
     }
     if (!policyAgreed) {
-      alert('You must review and agree to the Privacy & Refund Policy.');
-      return;
+      errors.policyAgreed = 'must be filled before continuing';
     }
 
     if (!receiptBase64) {
-      alert('Kindly upload or drop a photo of your transaction receipt to complete your purchase.');
+      errors.receipt = 'must be filled before continuing';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
       return;
     }
 
+    setValidationErrors({});
     setProcessing(true);
     setCheckoutStep('process');
 
@@ -542,9 +545,15 @@ export default function Plans() {
                           type="text"
                           required
                           value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
+                          onChange={(e) => {
+                            setFullName(e.target.value);
+                            if (validationErrors.fullName) {
+                              setValidationErrors(prev => ({ ...prev, fullName: '' }));
+                            }
+                          }}
                           className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500/30 text-left"
                         />
+                        <ValidationTooltip isVisible={!!validationErrors.fullName} message={validationErrors.fullName === 'must be filled before continuing' ? 'Please fill out this field.' : validationErrors.fullName} />
                       </div>
                       <div>
                         <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
@@ -554,9 +563,15 @@ export default function Plans() {
                           type="email"
                           required
                           value={email}
-                          onChange={(e) => setEmail(e.target.value)}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            if (validationErrors.email) {
+                              setValidationErrors(prev => ({ ...prev, email: '' }));
+                            }
+                          }}
                           className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500/30 text-left"
                         />
+                        <ValidationTooltip isVisible={!!validationErrors.email} message={validationErrors.email === 'must be filled before continuing' ? 'Please fill out this field.' : validationErrors.email} />
                       </div>
                     </div>
 
@@ -571,9 +586,15 @@ export default function Plans() {
                           required
                           placeholder="e.g. 0550 00 00 00"
                           value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
+                          onChange={(e) => {
+                            setPhone(e.target.value);
+                            if (validationErrors.phone) {
+                              setValidationErrors(prev => ({ ...prev, phone: '' }));
+                            }
+                          }}
                           className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white placeholder-gray-650 focus:outline-none focus:border-purple-500/30 text-left"
                         />
+                        <ValidationTooltip isVisible={!!validationErrors.phone} message={validationErrors.phone === 'must be filled before continuing' ? 'Please fill out this field.' : validationErrors.phone} />
                       </div>
                       <div>
                         <label className="block text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
@@ -708,68 +729,85 @@ export default function Plans() {
                           </>
                         )}
                       </div>
+                      <ValidationTooltip isVisible={!!validationErrors.receipt} message="Please fill out this field." />
                     </div>
 
                     {/* Policies Agreement Checkboxes */}
                     <div className="space-y-3 pt-2">
-                      <div className="flex items-start gap-2.5">
-                        <label htmlFor="agreeTermsPlans" className="relative flex items-center cursor-pointer mt-0.5 animate-none">
-                          <input
-                            id="agreeTermsPlans"
-                            type="checkbox"
-                            checked={termsAgreed}
-                            onChange={(e) => setTermsAgreed(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-all ${
-                            termsAgreed 
-                              ? 'bg-purple-600 border-purple-500 text-white' 
-                              : 'border-purple-900/40 bg-zinc-950 hover:border-purple-500/50'
-                          }`}>
-                            {termsAgreed && <Check className="w-3 h-3 font-black" />}
-                          </div>
-                        </label>
-                        <span className="text-xs text-gray-400 leading-normal">
-                          I hereby agree and consent to the{' '}
-                          <Link 
-                            to="/terms-and-conditions"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-400 font-bold hover:underline"
-                          >
-                            Terms & Conditions
-                          </Link>
-                        </span>
+                      <div>
+                        <div className="flex items-start gap-2.5">
+                          <label htmlFor="agreeTermsPlans" className="relative flex items-center cursor-pointer mt-0.5 animate-none">
+                            <input
+                              id="agreeTermsPlans"
+                              type="checkbox"
+                              checked={termsAgreed}
+                              onChange={(e) => {
+                                setTermsAgreed(e.target.checked);
+                                if (validationErrors.termsAgreed) {
+                                  setValidationErrors(prev => ({ ...prev, termsAgreed: '' }));
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-all ${
+                              termsAgreed 
+                                ? 'bg-purple-600 border-purple-500 text-white' 
+                                : 'border-purple-900/40 bg-zinc-950 hover:border-purple-500/50'
+                            }`}>
+                              {termsAgreed && <Check className="w-3 h-3 font-black" />}
+                            </div>
+                          </label>
+                          <span className="text-xs text-gray-400 leading-normal">
+                            I hereby agree and consent to the{' '}
+                            <Link 
+                              to="/terms-and-conditions"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-purple-400 font-bold hover:underline"
+                            >
+                              Terms & Conditions
+                            </Link>
+                          </span>
+                        </div>
+                        <ValidationTooltip isVisible={!!validationErrors.termsAgreed} message="Please fill out this field." />
                       </div>
 
-                      <div className="flex items-start gap-2.5">
-                        <label htmlFor="agreePolicyPlans" className="relative flex items-center cursor-pointer mt-0.5 animate-none">
-                          <input
-                            id="agreePolicyPlans"
-                            type="checkbox"
-                            checked={policyAgreed}
-                            onChange={(e) => setPolicyAgreed(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-all ${
-                            policyAgreed 
-                              ? 'bg-purple-600 border-purple-500 text-white' 
-                              : 'border-purple-900/40 bg-zinc-950 hover:border-purple-500/50'
-                          }`}>
-                            {policyAgreed && <Check className="w-3 h-3 font-black" />}
-                          </div>
-                        </label>
-                        <span className="text-xs text-gray-400 leading-normal">
-                          I certify that I accept the{' '}
-                          <Link 
-                            to="/privacy-policy"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-400 font-bold hover:underline"
-                          >
-                            Privacy & Refund Policy
-                          </Link>
-                        </span>
+                      <div>
+                        <div className="flex items-start gap-2.5">
+                          <label htmlFor="agreePolicyPlans" className="relative flex items-center cursor-pointer mt-0.5 animate-none">
+                            <input
+                              id="agreePolicyPlans"
+                              type="checkbox"
+                              checked={policyAgreed}
+                              onChange={(e) => {
+                                setPolicyAgreed(e.target.checked);
+                                if (validationErrors.policyAgreed) {
+                                  setValidationErrors(prev => ({ ...prev, policyAgreed: '' }));
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-all ${
+                              policyAgreed 
+                                ? 'bg-purple-600 border-purple-500 text-white' 
+                                : 'border-purple-900/40 bg-zinc-950 hover:border-purple-500/50'
+                            }`}>
+                              {policyAgreed && <Check className="w-3 h-3 font-black" />}
+                            </div>
+                          </label>
+                          <span className="text-xs text-gray-400 leading-normal">
+                            I certify that I accept the{' '}
+                            <Link 
+                              to="/privacy-policy"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-purple-400 font-bold hover:underline"
+                            >
+                              Privacy & Refund Policy
+                            </Link>
+                          </span>
+                        </div>
+                        <ValidationTooltip isVisible={!!validationErrors.policyAgreed} message="Please fill out this field." />
                       </div>
                     </div>
 

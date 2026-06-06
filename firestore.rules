@@ -132,5 +132,17 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Special promotional bundle offers
+    match /special_offers/{offerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Homepage achievement statistics
+    match /statistics/{statisticId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

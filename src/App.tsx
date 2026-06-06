@@ -18,6 +18,7 @@ import Plans from './pages/Plans';
 import Updates from './pages/Updates';
 import TermsAndConditions from './pages/TermsAndConditions';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import CompleteOrder from './pages/CompleteOrder';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -50,6 +51,14 @@ function App() {
             <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px]" />
             <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] bg-purple-900/5 rounded-full blur-[100px]" />
             <div className="absolute bottom-[10%] left-[20%] w-[35%] h-[35%] bg-purple-600/5 rounded-full blur-[120px]" />
+            
+            {/* Custom Background Stars/Dust Particles */}
+            <div className="bg-animation">
+              <div id="stars" />
+              <div id="stars2" />
+              <div id="stars3" />
+              <div id="stars4" />
+            </div>
           </div>
 
           <div className="relative z-10">
@@ -72,6 +81,7 @@ function App() {
                 <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/complete-order" element={<CompleteOrder />} />
                 <Route path="/studio/*" element={<StudioPage />} />
                 {/* Catch-all route to redirect back to home */}
                 <Route path="*" element={<Navigate to="/" replace />} />

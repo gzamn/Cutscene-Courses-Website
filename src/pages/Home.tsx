@@ -1,94 +1,23 @@
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock, Volume2, VolumeX, Compass, Film, Sparkles, Trophy, Award, CheckCircle2, Check, Layers } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useState, useEffect } from 'react';
-import { db, collection, getDocs, ensureDefaultStudentWorksSeeded, ensureDefaultHeroVideosSeeded } from '../firebase';
+import { db, collection, getDocs, ensureDefaultStudentWorksSeeded, ensureDefaultHeroVideosSeeded, ensureDefaultSpecialOffersSeeded, ensureDefaultStatisticsSeeded } from '../firebase';
 
 export default function Home() {
   const { t, language } = useLanguage();
   const [courses, setCourses] = useState<any[]>([]);
+  const [allCourses, setAllCourses] = useState<any[]>([]);
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
+  const [statistics, setStatistics] = useState<any[]>([]);
+  const [selectedOffer, setSelectedOffer] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string>('https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
-
-  const [completedModules, setCompletedModules] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('cutscene_roadmap_completed');
-      return saved ? JSON.parse(saved) : ['module-1', 'module-2'];
-    } catch {
-      return ['module-1', 'module-2'];
-    }
-  });
-
-  const toggleModuleCompletion = (moduleId: string) => {
-    setCompletedModules(prev => {
-      const updated = prev.includes(moduleId)
-        ? prev.filter(id => id !== moduleId)
-        : [...prev, moduleId];
-      localStorage.setItem('cutscene_roadmap_completed', JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const roadmapModules = [
-    {
-      id: 'module-1',
-      title: 'Foundations & Cinematic Vision',
-      subtitle: 'Introduction to editing software, workspace layout, ingestion, and cinematic pacing concepts.',
-      duration: 'Week 1-2',
-      tasksCount: 4,
-      skills: ['Premiere / Resolve Basics', 'Timeline Ingesting', 'A/B cutting', 'Intro to storyboarding'],
-      icon: Compass
-    },
-    {
-      id: 'module-2',
-      title: 'Creative Storytelling & Cuts',
-      subtitle: 'Mastering dynamic transitions, pacing, matching action, jump-cuts, and psychological scene setups.',
-      duration: 'Week 3-4',
-      tasksCount: 6,
-      skills: ['Narrative Tension', 'Matching action', 'Invisible cut techniques', 'Rhythmic timing'],
-      icon: Film
-    },
-    {
-      id: 'module-3',
-      title: 'Sound Design & Acoustics',
-      subtitle: 'Advanced layering, sound scaping, foley effects, equalization, keyframing volume, and mixing master tracks.',
-      duration: 'Week 5-6',
-      tasksCount: 5,
-      skills: ['Acoustic environments', 'Sub-mix control', 'Foley overlay', 'EQ & Dynamics matching'],
-      icon: Volume2
-    },
-    {
-      id: 'module-4',
-      title: 'Visual Effects & Compositing',
-      subtitle: 'Keyframing graphics, working with standard stock overlays, mask tracking, and rendering complex composite plans.',
-      duration: 'Week 7-8',
-      tasksCount: 7,
-      skills: ['Motion typography', 'Luma / Chroma keying', 'Target spatial tracking', 'Overlay blend modes'],
-      icon: Layers
-    },
-    {
-      id: 'module-5',
-      title: 'LUTs & Fine Color Grading',
-      subtitle: 'Color theory, matching different cameras, vectorscopes, curve modifications, and exporting cinematic visuals.',
-      duration: 'Week 9-10',
-      tasksCount: 6,
-      skills: ['Log normalization', 'Primary adjustments', 'Secondary color tracking', 'Stylized grain overlays'],
-      icon: Sparkles
-    },
-    {
-      id: 'module-6',
-      title: 'Freelance Hustle & Graduation',
-      subtitle: 'Building a killer showreel, optimizing export codecs, preparing client packages, and getting high-paying contracts.',
-      duration: 'Week 11-12',
-      tasksCount: 4,
-      skills: ['Showreel curation', 'Client contract guides', 'ProRes & web export presets', 'Portfolio landing page'],
-      icon: Trophy
-    }
-  ];
 
   const [wordIdx, setWordIdx] = useState(0);
   const animatedWords = [
@@ -110,8 +39,36 @@ export default function Home() {
         setLoading(true);
         // Fetch courses
         const snap = await getDocs(collection(db, 'courses'));
-        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).slice(0, 3);
+        const allList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAllCourses(allList);
+        const list = allList.slice(0, 3);
         setCourses(list);
+
+        // Fetch statistics
+        try {
+          let statsSnap = await getDocs(collection(db, 'statistics'));
+          if (statsSnap.empty) {
+            await ensureDefaultStatisticsSeeded();
+            statsSnap = await getDocs(collection(db, 'statistics'));
+          }
+          const statsList = statsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() as any }))
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          setStatistics(statsList);
+        } catch (statsErr) {
+          console.warn("Could not load homepage statistics:", statsErr);
+        }
+
+        // Fetch special offers
+        let offersSnap = await getDocs(collection(db, 'special_offers'));
+        if (offersSnap.empty) {
+          await ensureDefaultSpecialOffersSeeded();
+          offersSnap = await getDocs(collection(db, 'special_offers'));
+        }
+        const offersList = offersSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() as any }))
+          .filter(off => off.active === true);
+        setSpecialOffers(offersList);
 
         // Fetch hero background video
         try {
@@ -275,26 +232,6 @@ export default function Home() {
     );
   };
 
-  const totalModules = roadmapModules.length;
-  const completedCount = completedModules.length;
-  const progressPercent = Math.round((completedCount / totalModules) * 100);
-
-  let studentRank = 'Creative Cadet';
-  let rankColor = 'text-blue-400';
-  if (progressPercent >= 100) {
-    studentRank = 'Cutscene Legend Pro';
-    rankColor = 'text-rose-500';
-  } else if (progressPercent >= 83) {
-    studentRank = 'Vanguard Director';
-    rankColor = 'text-purple-400';
-  } else if (progressPercent >= 50) {
-    studentRank = 'Cinema Architect';
-    rankColor = 'text-amber-400';
-  } else if (progressPercent >= 16) {
-    studentRank = 'Narrative Explorer';
-    rankColor = 'text-emerald-400';
-  }
-
   return (
     <div className="bg-black text-white">
       {/* Hero Section */}
@@ -336,73 +273,6 @@ export default function Home() {
             {/* Subtle overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/35 pointer-events-none" />
           </div>
-
-          {/* Website title text placed directly under the video with consistent spacing and glowing shadow */}
-          <div className="mt-8 text-center z-10 w-full animate-fade-in">
-            <div className="liquid-glass px-8 py-5 rounded-3xl inline-block mx-auto max-w-[95%]">
-              {/* Highlight flare effect at the top */}
-              <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-purple-400/55 to-transparent opacity-75 pointer-events-none" />
-              
-              {language === 'ar' ? (
-                <h1 className="text-xs xs:text-sm sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-extrabold tracking-tight leading-normal flex flex-wrap items-center justify-center gap-x-1 sm:gap-x-2 text-center">
-                  <span className="text-white">حاب تتعلم</span>
-                  <span className="text-purple-400 font-black inline-flex relative overflow-hidden h-[1.25em] items-center justify-start w-[140px] xs:w-[160px] sm:w-[210px] md:w-[260px] lg:w-[310px]">
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={wordIdx}
-                        initial={{ y: '80%', opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: '-80%', opacity: 0 }}
-                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-                        className="whitespace-nowrap inline-block uppercase"
-                      >
-                        {animatedWords[wordIdx].ar}
-                      </motion.span>
-                    </AnimatePresence>
-                  </span>
-                  <span className="text-white">؟ Cutscene هنا!</span>
-                </h1>
-              ) : language === 'fr' ? (
-                <h1 className="text-xs xs:text-sm sm:text-lg md:text-xl lg:text-2.5xl xl:text-3xl font-extrabold tracking-tight leading-normal flex flex-wrap items-center justify-center gap-x-1 sm:gap-x-2 text-center">
-                  <span className="text-white">Vous voulez apprendre</span>
-                  <span className="text-purple-400 font-black inline-flex relative overflow-hidden h-[1.25em] items-center justify-start w-[170px] xs:w-[200px] sm:w-[260px] md:w-[330px] lg:w-[410px]">
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={wordIdx}
-                        initial={{ y: '80%', opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: '-80%', opacity: 0 }}
-                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-                        className="whitespace-nowrap inline-block uppercase"
-                      >
-                        {animatedWords[wordIdx].fr}
-                      </motion.span>
-                    </AnimatePresence>
-                  </span>
-                  <span className="text-white">? CUTSCENE est là !</span>
-                </h1>
-              ) : (
-                <h1 className="text-xs xs:text-sm sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-extrabold tracking-tight leading-normal flex flex-wrap items-center justify-center gap-x-1 sm:gap-x-2 text-center">
-                  <span className="text-white">Want to learn</span>
-                  <span className="text-purple-400 font-black inline-flex relative overflow-hidden h-[1.25em] items-center justify-start w-[150px] xs:w-[175px] sm:w-[220px] md:w-[285px] lg:w-[350px]">
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={wordIdx}
-                        initial={{ y: '80%', opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: '-80%', opacity: 0 }}
-                        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-                        className="whitespace-nowrap inline-block uppercase"
-                      >
-                        {animatedWords[wordIdx].en}
-                      </motion.span>
-                    </AnimatePresence>
-                  </span>
-                  <span className="text-white">? CUTSCENE is here!</span>
-                </h1>
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full animate-fade-in">
@@ -439,36 +309,224 @@ export default function Home() {
               </button>
             </motion.div>
           </div>
-
-          {/* Stats */}
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-0 mt-16 sm:mt-24 border border-white/5 rounded-[2rem] overflow-hidden glass-surface-dark"
-          >
-            {[
-              { label: t('stats.students'), value: '330+', icon: Users },
-              { label: t('stats.courses'), value: '3+', icon: BookOpen },
-              { label: t('stats.workshops'), value: '40+', icon: Star },
-              { label: t('stats.certified'), value: '100%', icon: ShieldCheck },
-            ].map((stat, i) => (
-              <div key={i} className={`p-10 text-center border-white/5 ${i !== 3 ? 'md:border-r' : ''} ${i % 2 === 0 ? 'border-r md:border-r-0' : ''} ${i < 2 ? 'border-b md:border-b-0' : ''} hover:bg-white/5 transition-colors group`}>
-                <div className="flex justify-center mb-4">
-                  <stat.icon className="w-6 h-6 text-purple-500 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="text-4xl font-black mb-2 tracking-tighter">{stat.value}</div>
-                <div className="text-micro text-gray-500">{stat.label}</div>
-              </div>
-            ))}
-          </motion.div>
         </div>
       </section>
 
+      {/* Special Offers Section */}
+      {specialOffers && specialOffers.length > 0 && (
+        <section className="py-12 relative overflow-hidden bg-black border-y border-purple-900/10">
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            <div className="absolute -top-[10%] right-[10%] w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[130px] animate-pulse" />
+            <div className="absolute -bottom-[10%] left-[5%] w-[350px] h-[350px] bg-purple-950/15 rounded-full blur-[120px]" />
+          </div>
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="text-center mb-10">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-950/40 border border-purple-500/30 text-purple-400 text-xs font-bold uppercase tracking-widest mb-4"
+              >
+                <Sparkles className="w-3.5 h-3.5 animate-bounce" />
+                <span>
+                  {language === 'ar' ? 'عروض التوفير الكبرى' : language === 'fr' ? 'Économies Spéciales' : 'Bundle Savings'}
+                </span>
+              </motion.div>
+              
+              <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight text-white">
+                {language === 'ar' ? 'باقات التعليم المدمج الحصرية' : language === 'fr' ? 'Offres de Combinaison de Cours' : 'Exclusive Combo Packs'}
+              </h2>
+              <p className="text-gray-400 max-w-2xl mx-auto text-sm sm:text-base">
+                {language === 'ar' ? ' وفر أكثر من ٢٥٪ عند اختيار الباقات التعليمية المخصصة. احصل على مراجع كاملة، تقييم مدى الحياة، وشهادة لكل دورة.' : 
+                 language === 'fr' ? 'Économisez plus de 25% en associant plusieurs cours. Accès illimité à vie, mentorat complet et certifications incluses.' : 
+                 'Save over 25% by choosing our tailored combinations. Get comprehensive masterclasses, lifetime evaluations, and graduate certifications for both courses.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto w-full">
+              {specialOffers.map((offer, index) => {
+                const title = language === 'ar' ? (offer.titleAr || offer.titleEn) : language === 'fr' ? (offer.titleFr || offer.titleEn) : offer.titleEn;
+                const badge = language === 'ar' ? (offer.badgeAr || offer.badgeEn) : language === 'fr' ? (offer.badgeFr || offer.badgeEn) : offer.badgeEn;
+                const savingsPct = Math.round(((offer.originalPrice - offer.price) / (offer.originalPrice || 1)) * 100);
+
+                return (
+                  <motion.div
+                    key={offer.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                    className="relative bg-zinc-950/70 border border-purple-900/20 hover:border-purple-500/30 rounded-3xl overflow-hidden flex flex-col h-full transition-all duration-300 group shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-purple-950/10 hover:translate-y-[-4px]"
+                  >
+                    {/* Banner Image - The absolute majority of the design */}
+                    <div className="relative aspect-[3/4] w-full overflow-hidden bg-black shrink-0 border-b border-purple-900/10">
+                      <img 
+                        src={offer.imageUrl || 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800'} 
+                        alt={title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        referrerPolicy="no-referrer"
+                      />
+                      
+                      {/* Badge overlays */}
+                      <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+                        {badge && (
+                          <span className="px-3 py-1 text-[9px] font-black rounded-lg uppercase tracking-wider bg-purple-600 text-white shadow-lg shadow-purple-500/30">
+                            {badge}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="absolute top-4 right-4 z-10">
+                        <span className="text-[9px] font-mono font-bold bg-emerald-500 text-black px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-lg">
+                          -{savingsPct}% {language === 'ar' ? 'خصم' : 'OFF'}
+                        </span>
+                      </div>
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/40 via-zinc-950/80 to-zinc-950 opacity-90" />
+                    </div>
+
+                    {/* Details section */}
+                    <div className="p-6 flex flex-col flex-grow justify-between text-left">
+                      <div>
+                        {/* Name of the bundle */}
+                        <h3 className="text-xl font-black tracking-tight text-white mb-2 line-clamp-2 leading-snug group-hover:text-purple-400 transition-colors uppercase">
+                          {title}
+                        </h3>
+
+                        {/* Price Details */}
+                        <div className="flex items-baseline gap-4 mt-6 flex-wrap">
+                          <span className="text-sm sm:text-base line-through text-gray-500 font-semibold">
+                            {offer.originalPrice?.toLocaleString()} {offer.currency}
+                          </span>
+                          <span className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+                            {offer.price?.toLocaleString()} <span className="text-purple-400 text-xl font-black">{offer.currency}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 2 Buttons: Details & Claim Now */}
+                      <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-purple-900/10">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOffer(offer)}
+                          className="px-4 py-3 rounded-xl bg-zinc-900/60 border border-purple-900/20 hover:bg-zinc-800 text-gray-300 font-extrabold text-[10px] sm:text-xs uppercase tracking-wider text-center transition-all cursor-pointer flex items-center justify-center"
+                        >
+                          {language === 'ar' ? 'تفاصيل العرض' : language === 'fr' ? 'Détails' : 'Details'}
+                        </button>
+
+                        <Link
+                          to={`/complete-order?offerId=${offer.id}`}
+                          className="px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider text-center transition-all cursor-pointer shadow-lg hover:shadow-purple-600/20 flex items-center justify-center gap-1.5"
+                        >
+                          <span>{language === 'ar' ? 'اشترك الآن' : language === 'fr' ? 'S\'inscrire' : 'Claim Now'}</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Special Offer Details Modal */}
+      <AnimatePresence>
+        {selectedOffer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md cursor-pointer" onClick={() => setSelectedOffer(null)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2rem] p-6 sm:p-8 w-full max-w-lg shadow-2xl z-10 text-left max-h-[85vh] overflow-y-auto font-sans text-white"
+            >
+              <button 
+                type="button"
+                onClick={() => setSelectedOffer(null)} 
+                className="absolute top-5 right-5 p-2 hover:bg-white/5 rounded-full text-gray-400 hover:text-white cursor-pointer transition-colors z-20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden mb-6 border border-white/5">
+                <img 
+                  src={selectedOffer.imageUrl || 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800'} 
+                  alt={language === 'ar' ? (selectedOffer.titleAr || selectedOffer.titleEn) : language === 'fr' ? (selectedOffer.titleFr || selectedOffer.titleEn) : selectedOffer.titleEn}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent flex items-end p-5">
+                  <span className="px-3 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider bg-purple-600 text-white shadow-lg">
+                    {language === 'ar' ? (selectedOffer.badgeAr || selectedOffer.badgeEn) : language === 'fr' ? (selectedOffer.badgeFr || selectedOffer.badgeEn) : selectedOffer.badgeEn || 'Combo Saver'}
+                  </span>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-black text-white tracking-tight mb-2 uppercase">
+                {language === 'ar' ? (selectedOffer.titleAr || selectedOffer.titleEn) : language === 'fr' ? (selectedOffer.titleFr || selectedOffer.titleEn) : selectedOffer.titleEn}
+              </h3>
+
+              <p className="text-gray-400 text-xs sm:text-sm leading-relaxed mb-6">
+                {language === 'ar' ? (selectedOffer.descriptionAr || selectedOffer.descriptionEn) : language === 'fr' ? (selectedOffer.descriptionFr || selectedOffer.descriptionEn) : selectedOffer.descriptionEn}
+              </p>
+
+              {/* Included courses checklist inside popup detail modal */}
+              {selectedOffer.courseIds && selectedOffer.courseIds.length > 0 && (
+                <div className="mb-6 p-4 bg-purple-950/25 border border-purple-900/20 rounded-2xl">
+                  <h4 className="text-[10px] font-mono font-black text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>
+                      {language === 'ar' ? 'محتويات الباقة المدعومة:' : language === 'fr' ? 'Programmes inclus :' : 'Included Syllabus Modules:'}
+                    </span>
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedOffer.courseIds.map((cid: string) => {
+                      const matched = allCourses.find((c: any) => c.id === cid);
+                      return matched ? (
+                        <div key={cid} className="flex items-center gap-2.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-xs text-gray-300 font-semibold truncate">
+                            {matched.title}
+                          </span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-5 border-t border-purple-900/10 flex items-center justify-between gap-4">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
+                    {language === 'ar' ? 'السعر المخفض:' : language === 'fr' ? 'Prix Total :' : 'Promo price'}
+                  </span>
+                  <div className="text-2xl font-black text-purple-400 font-sans">
+                    {selectedOffer.price?.toLocaleString()} {selectedOffer.currency}
+                  </div>
+                </div>
+
+                <Link
+                  to={`/complete-order?offerId=${selectedOffer.id}`}
+                  onClick={() => setSelectedOffer(null)}
+                  className="px-5 py-3.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 inline-flex items-center gap-2"
+                >
+                  <span>{language === 'ar' ? 'سجل الآن' : language === 'fr' ? 'Claimer' : 'Claim now'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Featured Courses Preview */}
-      <section className="py-20 bg-zinc-950">
+      <section className="py-12 bg-zinc-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-end mb-12">
+          <div className="flex justify-between items-end mb-8">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('courses.title')}</h2>
               <p className="text-gray-400">{t('courses.subtitle')}</p>
@@ -576,204 +634,55 @@ export default function Home() {
               ))
             )}
           </div>
+
+          {/* Home statistics fall under the section of our courses */}
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-0 mt-12 border border-white/5 rounded-[2rem] overflow-hidden glass-surface-dark"
+          >
+            {(statistics && statistics.length > 0 ? statistics : [
+              { id: 'students', value: '590+', labelEn: 'Students', labelFr: 'Étudiants', labelAr: 'طالب', iconName: 'Users' },
+              { id: 'courses', value: '3+', labelEn: 'Courses', labelFr: 'Cours', labelAr: 'دورات', iconName: 'BookOpen' },
+              { id: 'workshops', value: '40+', labelEn: 'Free Workshops', labelFr: 'Ateliers gratuits', labelAr: 'ورشة عمل مجانية', iconName: 'Star' },
+              { id: 'certified', value: '100%', labelEn: 'Certified', labelFr: 'Certifié', labelAr: 'معتمد', iconName: 'ShieldCheck' },
+            ]).map((stat, i, arr) => {
+              const IconComponent = (Icons as any)[stat.iconName || 'Users'] || Icons.Users;
+              const label = language === 'ar' ? (stat.labelAr || stat.labelEn) : language === 'fr' ? (stat.labelFr || stat.labelEn) : stat.labelEn;
+              return (
+                <div key={stat.id || i} className={`p-10 text-center border-white/5 ${i !== arr.length - 1 ? 'md:border-r' : ''} ${i % 2 === 0 ? 'border-r md:border-r-0' : ''} ${i < 2 ? 'border-b md:border-b-0' : ''} hover:bg-white/5 transition-colors group`}>
+                  <div className="flex justify-center mb-4">
+                    <IconComponent className="w-6 h-6 text-purple-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <div className="text-4xl font-black mb-2 tracking-tighter">{stat.value}</div>
+                  <div className="text-micro text-gray-500">{label}</div>
+                </div>
+              );
+            })}
+          </motion.div>
         </div>
       </section>
 
-      {/* Dynamic Interactive Student Roadmap Section */}
-      <section className="py-24 bg-black border-y border-purple-500/10 relative overflow-hidden">
-        {/* Subtle decorative background lights */}
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-purple-600/5 rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-indigo-600/5 rounded-full blur-[140px] pointer-events-none" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <span className="text-purple-500 font-mono text-xs tracking-widest uppercase font-bold px-4 py-1.5 bg-purple-500/10 rounded-full border border-purple-500/20">Learning Path</span>
-            <h2 className="text-4xl md:text-5xl font-black mt-4 text-white tracking-tight">Cutscene Academy Roadmap</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto mt-4 text-sm sm:text-base leading-relaxed">
-              Track your trajectory from zero to industry maestro. Toggle modules to simulate your ongoing progress and unlock exclusive ranks!
-            </p>
-          </div>
-
-          {/* Progress Dashboard Banner */}
-          <div className="max-w-4xl mx-auto mb-16 p-6 sm:p-8 bg-zinc-950/70 border border-purple-500/15 rounded-3xl backdrop-blur-md relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-              <div>
-                <p className="text-xs text-gray-400 uppercase font-mono tracking-wider">Simulated Rank</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Award className={`w-5 h-5 ${rankColor}`} />
-                  <span className={`text-lg font-black tracking-tight ${rankColor}`} id="student-rank">
-                    {studentRank}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500 mt-1">Complete more modules to rank higher.</p>
-              </div>
-
-              <div className="flex flex-col">
-                <div className="flex justify-between text-xs text-gray-400 font-mono mb-2">
-                  <span>OVERALL MASTER LEVEL</span>
-                  <span className="font-bold text-white">{progressPercent}%</span>
-                </div>
-                <div className="w-full bg-zinc-900 rounded-full h-3 overflow-hidden border border-zinc-800">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPercent}%` }}
-                    transition={{ type: "spring", stiffness: 80, damping: 15 }}
-                    className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full shadow-[0_0_12px_rgba(147,51,234,0.5)]"
-                  />
-                </div>
-              </div>
-
-              <div className="text-center md:text-right">
-                <span className="inline-block text-gray-400 text-xs font-mono font-bold py-1.5 px-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
-                  {completedCount} of {totalModules} MODULES CLEAR
-                </span>
-                <p className="text-[11px] text-gray-500 mt-1.5">Interactive Demo Path</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Interactive Timeline Core */}
-          <div className="relative max-w-4xl mx-auto">
-            {/* Center connector line */}
-            <div className="absolute left-6 md:left-1/2 top-4 bottom-4 w-1 bg-zinc-900 -translate-x-1/2 pointer-events-none rounded-full" />
-            
-            {/* Glowing active progress connector line */}
-            <div 
-              className="absolute left-6 md:left-1/2 top-4 w-1 bg-gradient-to-b from-purple-500 to-indigo-500 -translate-x-1/2 pointer-events-none rounded-full blur-[1.5px] transition-all duration-700 animate-pulse"
-              style={{
-                height: `${Math.max(0, (completedCount - 1) / (totalModules - 1)) * 100}%`
-              }}
-            />
-
-            <div className="space-y-12">
-              {roadmapModules.map((module, mIdx) => {
-                const isCompleted = completedModules.includes(module.id);
-                const IconComponent = module.icon;
-                
-                return (
-                  <motion.div 
-                    key={module.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-100px" }}
-                    transition={{ duration: 0.5, delay: mIdx * 0.05 }}
-                    className={`flex flex-col md:flex-row relative items-start ${
-                      mIdx % 2 === 1 ? 'md:flex-row-reverse' : ''
-                    }`}
-                  >
-                    {/* Circle Node indicator */}
-                    <div className="absolute left-6 md:left-1/2 w-10 h-10 -translate-x-1/2 flex items-center justify-center z-20">
-                      <button
-                        onClick={() => toggleModuleCompletion(module.id)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 border cursor-pointer outline-none ${
-                          isCompleted 
-                            ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.6)] scale-110' 
-                            : 'bg-zinc-950 border-purple-900/40 hover:border-purple-500 text-gray-400 hover:text-white hover:scale-105'
-                        }`}
-                        title="Toggle completion simulation"
-                      >
-                        {isCompleted ? <Check className="w-5 h-5 font-bold" /> : <Lock className="w-4 h-4 text-gray-500" />}
-                      </button>
-                    </div>
-
-                    {/* Left/Right Card Spacer */}
-                    <div className="w-full md:w-1/2 md:px-12 pl-16 md:pl-0">
-                      <div 
-                        className={`p-6 sm:p-8 bg-zinc-950/60 border rounded-3xl backdrop-blur-sm transition-all duration-350 relative ${
-                          isCompleted 
-                            ? 'border-purple-500/25 bg-gradient-to-b from-zinc-950 to-purple-950/5 shadow-[0_10px_30px_-10px_rgba(147,51,234,0.15)] animate-fade-in' 
-                            : 'border-purple-950/15 hover:border-purple-900/30'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 mb-3">
-                          <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-purple-400 bg-purple-900/20 px-2.5 py-1 rounded-lg">
-                            {module.duration}
-                          </span>
-                          <span className="text-gray-500 text-xs font-mono">
-                            {module.tasksCount} Tasks Included
-                          </span>
-                        </div>
-
-                        <div className="flex items-start gap-4 mb-4">
-                          <div className={`p-3 rounded-2xl ${
-                            isCompleted ? 'bg-purple-600/15 text-purple-400' : 'bg-zinc-900 text-gray-500'
-                          }`}>
-                            <IconComponent className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h3 className={`text-base sm:text-lg font-black tracking-tight ${
-                              isCompleted ? 'text-white' : 'text-gray-300'
-                            }`}>
-                              {module.title}
-                            </h3>
-                            <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                              {module.subtitle}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="border-t border-purple-900/10 pt-4 mt-4">
-                          <h4 className="text-[11px] font-mono tracking-wider text-gray-500 uppercase mb-2">Acquired Mastery Tools:</h4>
-                          <div className="flex flex-wrap gap-1.5">
-                            {module.skills.map((skill, sIdx) => (
-                              <span 
-                                key={sIdx}
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                                  isCompleted 
-                                    ? 'bg-purple-500/10 text-purple-300 border border-purple-500/15' 
-                                    : 'bg-zinc-900/80 text-gray-500 border border-zinc-800'
-                                }`}
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Interactive toggle block */}
-                        <div className="mt-5 flex justify-end">
-                          <button
-                            onClick={() => toggleModuleCompletion(module.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                              isCompleted 
-                                ? 'bg-purple-900/20 hover:bg-purple-900/40 text-purple-400 border border-purple-500/15' 
-                                : 'bg-zinc-900 hover:bg-zinc-850 text-gray-400 border border-zinc-800'
-                            }`}
-                          >
-                            <span>{isCompleted ? 'Clear Step' : 'Clear Milestone'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Standard matching spacer for desktop layouts */}
-                    <div className="hidden md:block w-1/2" />
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Students Work Section */}
-      <section id="students-work" className="py-24 bg-black relative overflow-hidden">
+      <section id="students-work" className="py-12 bg-black relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full">
           <div className="absolute top-0 left-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[120px]" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-900/5 rounded-full blur-[120px]" />
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">{t('studentsWork.title')}</h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
               {t('studentsWork.subtitle')}
             </p>
           </div>
 
-          <div className="space-y-20">
+          <div className="space-y-12">
             {studentWorks.map((category, idx) => (
               <div key={category.courseId}>
                 <div className="flex items-center justify-between gap-4 mb-8">

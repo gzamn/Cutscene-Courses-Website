@@ -5,8 +5,10 @@ import {
   BookOpen, PlusCircle, Sparkles, Check, AlertCircle, ArrowLeft, 
   Layers, ChevronRight, Users, Film, Settings, Trash2, Edit2, 
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
-  Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin
+  Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
+  Star, ShieldCheck, Trophy
 } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
   db, 
@@ -19,11 +21,14 @@ import {
   deleteDoc, 
   updateDoc,
   getDoc,
-  ensureDefaultHeroVideosSeeded
+  ensureDefaultHeroVideosSeeded,
+  ensureDefaultSpecialOffersSeeded,
+  ensureDefaultStatisticsSeeded,
+  DEFAULT_STATISTICS
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 
-type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'updates';
+type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'updates' | 'offers' | 'statistics';
 
 interface Toast {
   id: string;
@@ -67,6 +72,45 @@ export default function AdminPanel() {
     instagram: 'https://www.instagram.com/cutscene.dz/',
     youtube: 'https://youtube.com/cutscene',
     discord: 'https://discord.gg/cutscene'
+  });
+
+  // Special promotional combo offers states
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
+  const [loadingSpecialOffers, setLoadingSpecialOffers] = useState(false);
+  const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
+  const [editingSpecialOfferId, setEditingSpecialOfferId] = useState<string | null>(null);
+  const [specialOfferForm, setSpecialOfferForm] = useState({
+    id: '',
+    titleEn: '',
+    titleFr: '',
+    titleAr: '',
+    descriptionEn: '',
+    descriptionFr: '',
+    descriptionAr: '',
+    courseIds: [] as string[],
+    originalPrice: '',
+    price: '',
+    currency: 'DA',
+    imageUrl: '',
+    badgeEn: '',
+    badgeFr: '',
+    badgeAr: '',
+    active: true
+  });
+
+  // Homepage statistics console states
+  const [statisticsList, setStatisticsList] = useState<any[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [showStatModal, setShowStatModal] = useState(false);
+  const [editingStatId, setEditingStatId] = useState<string | null>(null);
+  const [statForm, setStatForm] = useState({
+    id: '',
+    value: '',
+    labelEn: '',
+    labelFr: '',
+    labelAr: '',
+    iconName: 'Users',
+    order: 1
   });
 
   // Selected state for chapters course-filter
@@ -218,6 +262,8 @@ export default function AdminPanel() {
       fetchHeroVideos();
       fetchSettings();
       fetchUpdates();
+      fetchSpecialOffers();
+      fetchStatistics();
     }
   }, [user, userProfile]);
 
@@ -489,6 +535,156 @@ export default function AdminPanel() {
     } finally {
       setLoadingUpdates(false);
     }
+  };
+
+  const fetchSpecialOffers = async () => {
+    setLoadingSpecialOffers(true);
+    try {
+      let snap = await getDocs(collection(db, 'special_offers'));
+      if (snap.empty) {
+        console.log('Special offers empty in Admin panel. Seeding default special offers...');
+        await ensureDefaultSpecialOffersSeeded();
+        snap = await getDocs(collection(db, 'special_offers'));
+      }
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data() as any
+      }));
+      setSpecialOffers(list);
+    } catch (err) {
+      console.error('Error fetching special offers:', err);
+      showToast('error', 'Could not load special offers from Firestore.');
+    } finally {
+      setLoadingSpecialOffers(false);
+    }
+  };
+
+  const fetchStatistics = async () => {
+    setLoadingStats(true);
+    try {
+      let snap = await getDocs(collection(db, 'statistics'));
+      if (snap.empty) {
+        await ensureDefaultStatisticsSeeded();
+        snap = await getDocs(collection(db, 'statistics'));
+      }
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data() as any
+      })).sort((a, b) => (a.order || 0) - (b.order || 0));
+      setStatisticsList(list);
+    } catch (err: any) {
+      console.error('Fetch statistics error:', err);
+      showToast('error', 'Failed loading homepage statistics.');
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const handleCreateOrUpdateStat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statForm.id.trim() || !statForm.value.trim() || !statForm.labelEn.trim()) {
+      showToast('error', 'ID, Value, and English Label are required.');
+      return;
+    }
+
+    const cleanId = statForm.id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (!cleanId) {
+      showToast('error', 'Invalid Stat ID.');
+      return;
+    }
+
+    try {
+      const payload = {
+        id: cleanId,
+        value: statForm.value,
+        labelEn: statForm.labelEn,
+        labelFr: statForm.labelFr || '',
+        labelAr: statForm.labelAr || '',
+        iconName: statForm.iconName || 'Users',
+        order: Number(statForm.order) || 1
+      };
+
+      await setDoc(doc(db, 'statistics', cleanId), payload);
+      showToast('success', editingStatId ? 'Statistic updated successfully.' : 'Statistic created successfully.');
+      setShowStatModal(false);
+      setEditingStatId(null);
+      setStatForm({
+        id: '',
+        value: '',
+        labelEn: '',
+        labelFr: '',
+        labelAr: '',
+        iconName: 'Users',
+        order: 1
+      });
+      fetchStatistics();
+    } catch (err: any) {
+      console.error('Save statistic error:', err);
+      showToast('error', 'Failed saving statistic.');
+    }
+  };
+
+  const handleDeleteStat = async (statId: string) => {
+    try {
+      await deleteDoc(doc(db, 'statistics', statId));
+      showToast('success', 'Statistic deleted successfully.');
+      fetchStatistics();
+    } catch (err: any) {
+      console.error('Delete statistic error:', err);
+      showToast('error', 'Failed deleting statistic.');
+    }
+  };
+
+  const handleSaveSpecialOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!specialOfferForm.id) {
+      showToast('error', 'Combination pack ID code is required.');
+      return;
+    }
+    if (!specialOfferForm.titleEn) {
+      showToast('error', 'English Title is required.');
+      return;
+    }
+    if (specialOfferForm.courseIds.length === 0) {
+      showToast('error', 'Please check at least one included course for this combo bundle.');
+      return;
+    }
+
+    try {
+      const origPriceVal = Number(specialOfferForm.originalPrice || 0);
+      const prcVal = Number(specialOfferForm.price || 0);
+      const payload = {
+        ...specialOfferForm,
+        originalPrice: origPriceVal,
+        price: prcVal,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'special_offers', specialOfferForm.id), payload, { merge: true });
+      showToast('success', editingSpecialOfferId ? 'Combo pack updated successfully!' : 'Combo pack created successfully!');
+      setShowSpecialOfferModal(false);
+      fetchSpecialOffers();
+    } catch (error) {
+      console.error('Error saving special offer:', error);
+      showToast('error', 'Could not save combo offer. Check logs.');
+    }
+  };
+
+  const handleDeleteSpecialOffer = (id: string) => {
+    askConfirmation(
+      'Delete Special Offer Pack?',
+      'Are you sure you want to permanently delete this combination bundle? Existing orders will not be affected but users will no longer see this offer.',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'special_offers', id));
+          showToast('success', 'Combination bundle successfully deleted.');
+          fetchSpecialOffers();
+        } catch (error) {
+          console.error(error);
+          showToast('error', 'Failed deleting combination offer.');
+        }
+      }
+    );
   };
 
   const fetchSettings = async () => {
@@ -1278,6 +1474,7 @@ export default function AdminPanel() {
             {[
               { id: 'courses', name: 'Course Modules', icon: BookOpen },
               { id: 'chapters', name: 'Chapters & Tasks', icon: Layers },
+              { id: 'offers', name: 'Special Bundles', icon: Sparkles },
               { id: 'downloadables', name: 'Premium Assets', icon: Film },
               { id: 'plans', name: 'Membership Plans', icon: Award },
               { id: 'students', name: 'Students Ledger', icon: Users },
@@ -1286,6 +1483,7 @@ export default function AdminPanel() {
               { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
               { id: 'updates', name: 'Latest Updates / News', icon: Bell },
               { id: 'settings', name: 'Console Settings', icon: Settings },
+              { id: 'statistics', name: 'Homepage Statistics', icon: Activity },
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -2577,7 +2775,567 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* HOMEPAGE STATISTICS EDITING PANEL */}
+        {activeTab === 'statistics' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Homepage Statistics</h1>
+                <p className="text-gray-400 text-xs mt-1">Configure and live-edit counters, achievements, and statistics on the main landing page.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={async () => {
+                    if (window.confirm("Are you sure you want to seed the 4 standard homepage statistics to Firestore? This will restore Students (590+), Courses (3+), Free Workshops (40+), and Certified (100%).")) {
+                      try {
+                        setLoadingStats(true);
+                        // Force update/insert each default stat using setDoc to be absolutely sure they exist!
+                        for (const stat of DEFAULT_STATISTICS) {
+                          await setDoc(doc(db, 'statistics', stat.id), stat);
+                        }
+                        showToast('success', 'Default statistics successfully seeded.');
+                        fetchStatistics();
+                      } catch (err: any) {
+                        console.error('Failed manual seed:', err);
+                        showToast('error', 'Failed to seed default statistics.');
+                      } finally {
+                        setLoadingStats(false);
+                      }
+                    }
+                  }}
+                  className="px-5 py-3 bg-zinc-900 hover:bg-zinc-800 text-purple-400 border border-purple-900/30 font-bold rounded-2xl text-xs uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Seed Defaults
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingStatId(null);
+                    setStatForm({
+                      id: '',
+                      value: '',
+                      labelEn: '',
+                      labelFr: '',
+                      labelAr: '',
+                      iconName: 'Users',
+                      order: statisticsList.length + 1
+                    });
+                    setShowStatModal(true);
+                  }}
+                  className="px-5 py-3 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold rounded-2xl text-xs uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-600/10"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add New Stat
+                </button>
+              </div>
+            </div>
+
+            {loadingStats ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+              </div>
+            ) : (
+              <div className="bg-black/60 border border-purple-950/30 rounded-[2.5rem] p-6 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-950/20 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                        <th className="py-4 px-6">ID / Order</th>
+                        <th className="py-4 px-6">Icon & Value</th>
+                        <th className="py-4 px-6">Labels (EN / FR / AR)</th>
+                        <th className="py-4 px-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/10">
+                      {statisticsList.map((stat, i) => {
+                        const IconComponent = (Icons as any)[stat.iconName || 'Users'] || Icons.Users;
+                        return (
+                          <tr key={stat.id || i} className="hover:bg-white/5 transition-colors group">
+                            <td className="py-4 px-6 text-sm">
+                              <span className="font-bold text-white block">#{stat.order || i + 1}</span>
+                              <span className="text-xs text-gray-500 font-mono italic">{stat.id}</span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-purple-950/30 border border-purple-500/20 rounded-xl text-purple-400">
+                                  <IconComponent className="w-4 h-4" />
+                                </div>
+                                <span className="text-lg font-black text-white">{stat.value}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-6 text-xs text-gray-400 space-y-1">
+                              <div><span className="text-gray-600 font-semibold mr-1">EN:</span> {stat.labelEn}</div>
+                              {stat.labelFr && <div><span className="text-gray-600 font-semibold mr-1">FR:</span> {stat.labelFr}</div>}
+                              {stat.labelAr && <div><span className="text-gray-600 font-semibold mr-1">AR:</span> {stat.labelAr}</div>}
+                            </td>
+                            <td className="py-4 px-6 text-right">
+                              <div className="flex items-center justify-end gap-2 product-actions">
+                                <button
+                                  onClick={() => {
+                                    setEditingStatId(stat.id);
+                                    setStatForm({
+                                      id: stat.id,
+                                      value: stat.value || '',
+                                      labelEn: stat.labelEn || '',
+                                      labelFr: stat.labelFr || '',
+                                      labelAr: stat.labelAr || '',
+                                      iconName: stat.iconName || 'Users',
+                                      order: stat.order || 1
+                                    });
+                                    setShowStatModal(true);
+                                  }}
+                                  className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-purple-400 hover:text-purple-300 hover:bg-zinc-800 transition-all cursor-pointer"
+                                  title="Edit Stat"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setConfirmDialog({
+                                      isOpen: true,
+                                      title: 'Delete Statistic?',
+                                      message: `Are you absolutely sure you want to delete the "${stat.labelEn}" statistic counter from the homepage? This action is immediate and cannot be undone.`,
+                                      confirmText: 'Delete Counter',
+                                      isDanger: true,
+                                      onConfirm: () => handleDeleteStat(stat.id)
+                                    });
+                                  }}
+                                  className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-red-500 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer"
+                                  title="Delete Stat"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {statisticsList.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-12 text-center text-gray-500 text-xs">
+                            No homepage statistics found. Click "Add New Stat" to populate counters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 6: SPECIAL BUNDLES & COMBO OFFERS */}
+        {activeTab === 'offers' && (
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Promotional Bundles</h1>
+                <p className="text-gray-400 text-xs mt-1">Configure combined academic courses at custom discount prices with dynamic ordering landing pages.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingSpecialOfferId(null);
+                  setSpecialOfferForm({
+                    id: '',
+                    titleEn: '',
+                    titleFr: '',
+                    titleAr: '',
+                    descriptionEn: '',
+                    descriptionFr: '',
+                    descriptionAr: '',
+                    courseIds: [],
+                    originalPrice: '',
+                    price: '',
+                    currency: 'DA',
+                    imageUrl: '',
+                    badgeEn: 'Special Bundle',
+                    badgeFr: 'Offre Spéciale',
+                    badgeAr: 'عرض خاص',
+                    active: true
+                  });
+                  setShowSpecialOfferModal(true);
+                }}
+                className="px-6 py-4 bg-brand-radial hover:opacity-95 rounded-2xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white shadow-xl shadow-purple-600/10 transition-all cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <PlusCircle className="w-4 h-4 shrink-0" />
+                Add Combo Bundle
+              </button>
+            </div>
+
+            {loadingSpecialOffers ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+              </div>
+            ) : specialOffers.length === 0 ? (
+              <div className="text-center py-16 bg-zinc-950 border border-dashed border-purple-900/20 rounded-3xl max-w-4xl mx-auto w-full">
+                <Sparkles className="w-8 h-8 text-purple-400 mx-auto mb-4 animate-pulse" />
+                <h3 className="text-sm font-bold text-white mb-1">No combo bundles available yet</h3>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto leading-normal">
+                  Create a custom group package by clicking the "Add Combo Bundle" button.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-black/40 border border-purple-950/30 rounded-[2rem] overflow-hidden shadow-2xl backdrop-blur-md">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-950 text-[10px] font-mono tracking-wider uppercase text-purple-400">
+                        <th className="p-4 sm:p-5">Bundle visual</th>
+                        <th className="p-4 sm:p-5">Title (EN)</th>
+                        <th className="p-4 sm:p-5">Items count</th>
+                        <th className="p-4 sm:p-5">Savings Promotion</th>
+                        <th className="p-4 sm:p-5">Active Status</th>
+                        <th className="p-4 sm:p-5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/30 text-xs text-gray-300 font-semibold">
+                      {specialOffers.map((item) => (
+                        <tr key={item.id} className="hover:bg-purple-950/10 transition-colors">
+                          <td className="p-4 sm:p-5">
+                            <img
+                              src={item.imageUrl || 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=150'}
+                              alt="bundle thumbnail"
+                              className="w-16 h-10 object-cover rounded-xl border border-white/5"
+                              referrerPolicy="no-referrer"
+                            />
+                          </td>
+                          <td className="p-4 sm:p-5">
+                            <div className="font-bold text-white max-w-[200px] truncate">{item.titleEn}</div>
+                            <div className="text-[9px] font-mono text-gray-500 mt-1 uppercase">ID: {item.id}</div>
+                          </td>
+                          <td className="p-4 sm:p-5 font-mono text-xs text-purple-400">
+                            {item.courseIds?.length || 0} courses
+                          </td>
+                          <td className="p-4 sm:p-5">
+                            <span className="line-through text-gray-500 font-normal mr-2">
+                              {item.originalPrice?.toLocaleString()} {item.currency}
+                            </span>
+                            <span className="text-emerald-400 font-bold">
+                              {item.price?.toLocaleString()} {item.currency}
+                            </span>
+                          </td>
+                          <td className="p-4 sm:p-5">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${
+                              item.active 
+                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+                                : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                            }`}>
+                              {item.active ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td className="p-4 sm:p-5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingSpecialOfferId(item.id);
+                                  setSpecialOfferForm({
+                                    id: item.id || '',
+                                    titleEn: item.titleEn || '',
+                                    titleFr: item.titleFr || '',
+                                    titleAr: item.titleAr || '',
+                                    descriptionEn: item.descriptionEn || '',
+                                    descriptionFr: item.descriptionFr || '',
+                                    descriptionAr: item.descriptionAr || '',
+                                    courseIds: item.courseIds || [],
+                                    originalPrice: item.originalPrice !== undefined ? String(item.originalPrice) : '',
+                                    price: item.price !== undefined ? String(item.price) : '',
+                                    currency: item.currency || 'DA',
+                                    imageUrl: item.imageUrl || '',
+                                    badgeEn: item.badgeEn || '',
+                                    badgeFr: item.badgeFr || '',
+                                    badgeAr: item.badgeAr || '',
+                                    active: item.active !== false
+                                  });
+                                  setShowSpecialOfferModal(true);
+                                }}
+                                className="p-2.5 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-300 cursor-pointer hover:bg-zinc-800"
+                                title="Edit offer metadata"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSpecialOffer(item.id)}
+                                className="p-2.5 bg-red-950/15 hover:bg-red-950/30 hover:border-red-500/20 border border-transparent text-red-500 hover:text-red-400 rounded-xl text-xs transition-all cursor-pointer"
+                                title="Delete offer permanently"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
+
+      {/* MODAL: ADD / EDIT SPECIAL OFFER */}
+      <AnimatePresence>
+        {showSpecialOfferModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowSpecialOfferModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-2xl shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto font-sans text-white"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-black text-white tracking-tight">{editingSpecialOfferId ? 'Edit Combo Pack Details' : 'Design Combo Bundle'}</h2>
+                  <p className="text-gray-400 text-xs mt-0.5">Formulate Course Combinations, set price points & localized descriptions</p>
+                </div>
+                <button onClick={() => setShowSpecialOfferModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSpecialOffer} className="space-y-6">
+                {/* ID segment */}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5">Bundle ID Code (Slug key for ordering, e.g. bundle-creative)</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!!editingSpecialOfferId}
+                    placeholder="e.g. combo-video-motion"
+                    value={specialOfferForm.id}
+                    onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
+                  />
+                  {!editingSpecialOfferId && (
+                    <p className="text-[10px] text-gray-500 mt-1">This forms the ordering landing page: /complete-order?offer={specialOfferForm.id || 'slug'}</p>
+                  )}
+                </div>
+
+                {/* Localized titles section */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-400 border-b border-purple-950/40 pb-1">Bundle Titles (Multi-language)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">English Title *</label>
+                      <input
+                        type="text"
+                        required
+                        value={specialOfferForm.titleEn}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, titleEn: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">French Title</label>
+                      <input
+                        type="text"
+                        value={specialOfferForm.titleFr}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, titleFr: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">Arabic Title</label>
+                      <input
+                        type="text"
+                        value={specialOfferForm.titleAr}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, titleAr: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2.5 text-xs text-white text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Localized descriptions section */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-400 border-b border-purple-950/40 pb-1">Bundle Descriptions (Multi-language)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">English Description</label>
+                      <textarea
+                        rows={2}
+                        value={specialOfferForm.descriptionEn}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, descriptionEn: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">French Description</label>
+                      <textarea
+                        rows={2}
+                        value={specialOfferForm.descriptionFr}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, descriptionFr: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">Arabic Description</label>
+                      <textarea
+                        rows={2}
+                        value={specialOfferForm.descriptionAr}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, descriptionAr: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2.5 text-xs text-white text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Localized badges section */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-400 border-b border-purple-950/40 pb-1">Promotional Display Badges (optional)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">English Badge</label>
+                      <input
+                        type="text"
+                        value={specialOfferForm.badgeEn}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, badgeEn: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 text-xs py-2 text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">French Badge</label>
+                      <input
+                        type="text"
+                        value={specialOfferForm.badgeFr}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, badgeFr: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 text-xs py-2 text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-400 mb-1">Arabic Badge</label>
+                      <input
+                        type="text"
+                        value={specialOfferForm.badgeAr}
+                        onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, badgeAr: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-3 text-xs py-2 text-white text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Course Checklist selections */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-400 border-b border-purple-950/40 pb-1">
+                    Bundled Courses Selection *
+                  </h3>
+                  <div className="bg-black/50 border border-purple-950 rounded-2xl p-4 space-y-2 max-h-44 overflow-y-auto">
+                    {courses.length === 0 ? (
+                      <p className="text-gray-500 text-xs text-center py-2">No courses registered in catalog yet.</p>
+                    ) : (
+                      courses.map((course) => {
+                        const isChecked = specialOfferForm.courseIds.includes(course.id);
+                        return (
+                          <label key={course.id} className="flex items-center gap-3 py-1.5 hover:bg-white/5 px-2 rounded-lg cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                const newIds = isChecked
+                                  ? specialOfferForm.courseIds.filter(id => id !== course.id)
+                                  : [...specialOfferForm.courseIds, course.id];
+                                setSpecialOfferForm({ ...specialOfferForm, courseIds: newIds });
+                              }}
+                              className="accent-purple-500"
+                            />
+                            <div className="text-xs">
+                              <span className="font-bold text-white">{course.title}</span>
+                              <span className="text-[10px] font-mono text-gray-500 ml-2 uppercase">({course.id})</span>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Image and Price metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Bundle Cover Image URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/promo..."
+                      value={specialOfferForm.imageUrl}
+                      onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, imageUrl: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Target Currency</label>
+                    <input
+                      type="text"
+                      required
+                      value={specialOfferForm.currency}
+                      onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, currency: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Standard Original Price ({specialOfferForm.currency})</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g. 30000"
+                      value={specialOfferForm.originalPrice}
+                      onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, originalPrice: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Special Combo Price ({specialOfferForm.currency})</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g. 19000"
+                      value={specialOfferForm.price}
+                      onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, price: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Active Switch status */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="active-offer-flag"
+                    checked={specialOfferForm.active}
+                    onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, active: e.target.checked })}
+                    className="w-4 h-4 accent-purple-500"
+                  />
+                  <label htmlFor="active-offer-flag" className="text-xs font-semibold text-gray-300 cursor-pointer select-none">
+                    Show this promotional bundle on the Homepage special category list
+                  </label>
+                </div>
+
+                {/* Form Controls */}
+                <div className="pt-4 border-t border-purple-950/25 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowSpecialOfferModal(false)}
+                    className="px-5 py-3 border border-purple-900/20 hover:bg-white/5 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/10"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Bundle Configuration
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL 1: ADD / EDIT COURSE */}
       <AnimatePresence>
@@ -3363,6 +4121,180 @@ export default function AdminPanel() {
                   {loadingUpdates && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>{editingUpdateId ? 'Save Changes' : 'Publish Announcement'}</span>
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: CREATE / EDIT HOMEPAGE STATISTICS */}
+      <AnimatePresence>
+        {showStatModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => { setShowStatModal(false); setEditingStatId(null); }} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-left"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{editingStatId ? 'Edit Statistical Counter' : 'Create Statistical Counter'}</h2>
+                  <p className="text-gray-400 text-xs">Configure the counter value, translations, and select the badge icon.</p>
+                </div>
+                <button 
+                  onClick={() => { setShowStatModal(false); setEditingStatId(null); }} 
+                  className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateOrUpdateStat} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Stat ID (Unique Key)</label>
+                    <input
+                      type="text"
+                      required
+                      disabled={!!editingStatId}
+                      value={statForm.id}
+                      onChange={(e) => setStatForm({ ...statForm, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono disabled:opacity-50"
+                      placeholder="e.g. students"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold text-purple-400">Stat Value</label>
+                    <input
+                      type="text"
+                      required
+                      value={statForm.value}
+                      onChange={(e) => setStatForm({ ...statForm, value: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-bold"
+                      placeholder="e.g. 590, 3+, 100%"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Label (English)</label>
+                  <input
+                    type="text"
+                    required
+                    value={statForm.labelEn}
+                    onChange={(e) => setStatForm({ ...statForm, labelEn: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="e.g. Active Students"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Label (French)</label>
+                    <input
+                      type="text"
+                      value={statForm.labelFr}
+                      onChange={(e) => setStatForm({ ...statForm, labelFr: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      placeholder="e.g. Étudiants actifs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Label (Arabic)</label>
+                    <input
+                      type="text"
+                      value={statForm.labelAr}
+                      onChange={(e) => setStatForm({ ...statForm, labelAr: e.target.value })}
+                      className="w-full bg-black border border-purple-900/40 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                      placeholder="طالب"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Sort Order</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={statForm.order}
+                      onChange={(e) => setStatForm({ ...statForm, order: Number(e.target.value) || 1 })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Active Icon Name</label>
+                    <select
+                      value={statForm.iconName}
+                      onChange={(e) => setStatForm({ ...statForm, iconName: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                    >
+                      <option value="Users">Users</option>
+                      <option value="BookOpen">BookOpen</option>
+                      <option value="Star">Star</option>
+                      <option value="ShieldCheck">ShieldCheck</option>
+                      <option value="Award">Award</option>
+                      <option value="Activity">Activity</option>
+                      <option value="Layers">Layers</option>
+                      <option value="Trophy">Trophy</option>
+                      <option value="HelpCircle">HelpCircle</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Visual Icon Selection Row */}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 font-mono">Select Icon Preset</label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {[
+                      { name: 'Users', icon: Users },
+                      { name: 'BookOpen', icon: BookOpen },
+                      { name: 'Star', icon: Star },
+                      { name: 'ShieldCheck', icon: ShieldCheck },
+                      { name: 'Award', icon: Award },
+                      { name: 'Activity', icon: Activity },
+                      { name: 'Layers', icon: Layers },
+                      { name: 'Trophy', icon: Trophy },
+                      { name: 'HelpCircle', icon: HelpCircle },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      const isSelected = statForm.iconName === item.name;
+                      return (
+                        <button
+                          type="button"
+                          key={item.name}
+                          onClick={() => setStatForm({ ...statForm, iconName: item.name })}
+                          className={`p-3 border rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-purple-950/40 border-purple-500 text-purple-300 shadow-md shadow-purple-500/10'
+                              : 'bg-black border-purple-900/20 text-gray-400 hover:text-white hover:border-purple-900/40'
+                          }`}
+                          title={item.name}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={loadingStats}
+                    className="w-full py-4 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow flex items-center justify-center gap-2"
+                  >
+                    {loadingStats && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>{editingStatId ? 'Save Statistic' : 'Create Statistic'}</span>
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

@@ -542,3 +542,119 @@ export const ensureDefaultHeroVideosSeeded = async () => {
   }
 };
 
+export const DEFAULT_SPECIAL_OFFERS = [
+  {
+    id: "bundle-creative",
+    titleEn: "Ultimate Creative Masterclass Bundle",
+    titleFr: "Pack Créatif Suprême",
+    titleAr: "الباقة الإبداعية المتكاملة",
+    descriptionEn: "Master both cinematic video editing and graphic branding. Perfect for modern storytellers and designers looking to build a cohesive visual skillset.",
+    descriptionFr: "Maîtrisez à la fois le montage vidéo cinématographique et l'identité de marque graphique. Idéal pour les créatifs modernes.",
+    descriptionAr: "احترف مونتاج الفيديو السينمائي والتصميم الجرافيكي معاً. باقة مخصصة لصناع المحتوى والمصممين لتطوير مهاراتهم البصرية.",
+    courseIds: ["1", "4"],
+    originalPrice: 27000,
+    price: 19000,
+    currency: "DA",
+    imageUrl: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=850&q=80",
+    badgeEn: "Save 30%",
+    badgeFr: "Épargez 30%",
+    badgeAr: "وفر 30%",
+    active: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "bundle-dev",
+    titleEn: "Full Stack Bootcamp & Advanced Engineering",
+    titleFr: "Pack Développeur Full Stack & Frontend",
+    titleAr: "باقة مطور الويب الشامل والبرمجة المتقدمة",
+    descriptionEn: "Transform from an absolute beginner into an advanced frontend mastermind. Learn fundamentals up to complex optimization pipelines and React rendering architecture.",
+    descriptionFr: "Passez de débutant absolu à ingénieur frontend chevronné. De HTML/CSS aux architectures de rendu complexes.",
+    descriptionAr: "انتقل من مبرمج مبتدئ إلى مهندس واجهات تفاعلية متقدم. تغطي الباقة أساسيات الويب وحتى بنية هندسة البرمجيات المعقدة.",
+    courseIds: ["2", "3"],
+    originalPrice: 40000,
+    price: 29900,
+    currency: "DA",
+    imageUrl: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=850&q=80",
+    badgeEn: "Hot Deal",
+    badgeFr: "Meilleur Choix",
+    badgeAr: "عرض ساخن",
+    active: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const ensureDefaultSpecialOffersSeeded = async () => {
+  try {
+    const offersRef = fbCollection(db, 'special_offers');
+    const snap = await fbGetDocs(offersRef);
+    if (snap.empty) {
+      console.log("Empty Firestore special_offers collection detected. Seeding starter bundles...");
+      for (const bundle of DEFAULT_SPECIAL_OFFERS) {
+        await fbSetDoc(fbDoc(db, 'special_offers', bundle.id), bundle);
+      }
+      console.log("Starter bundles database seeding completed successfully.");
+    }
+  } catch (error) {
+    console.warn("Could not seed starter special offers:", error);
+  }
+};
+
+export const DEFAULT_STATISTICS = [
+  {
+    id: "students",
+    value: "590+",
+    labelEn: "Students",
+    labelFr: "Étudiants",
+    labelAr: "طالب",
+    iconName: "Users",
+    order: 1
+  },
+  {
+    id: "courses",
+    value: "3+",
+    labelEn: "Courses",
+    labelFr: "Cours",
+    labelAr: "دورات",
+    iconName: "BookOpen",
+    order: 2
+  },
+  {
+    id: "workshops",
+    value: "40+",
+    labelEn: "Free Workshops",
+    labelFr: "Ateliers gratuits",
+    labelAr: "ورشة عمل مجانية",
+    iconName: "Star",
+    order: 3
+  },
+  {
+    id: "certified",
+    value: "100%",
+    labelEn: "Certified",
+    labelFr: "Certifié",
+    labelAr: "معتمد",
+    iconName: "ShieldCheck",
+    order: 4
+  }
+];
+
+export const ensureDefaultStatisticsSeeded = async () => {
+  try {
+    const statsRef = fbCollection(db, 'statistics');
+    const snap = await fbGetDocs(statsRef);
+    if (snap.empty) {
+      console.log("Empty Firestore statistics collection detected. Seeding defaults...");
+      for (const stat of DEFAULT_STATISTICS) {
+        await fbSetDoc(fbDoc(db, "statistics", stat.id), stat);
+      }
+      console.log("Starter statistics database seeding completed successfully.");
+    } else {
+      // Force update students count to 590+ to fulfill the user's explicit request
+      await fbSetDoc(fbDoc(db, "statistics", "students"), { ...DEFAULT_STATISTICS[0], value: "590+" }, { merge: true });
+    }
+  } catch (error) {
+    console.warn("Could not seed starter statistics:", error);
+  }
+};
+
+
