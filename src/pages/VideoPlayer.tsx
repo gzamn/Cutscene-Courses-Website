@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -79,6 +79,11 @@ export default function VideoPlayer() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: '10%', left: '10%' });
   const [isWindowFocused, setIsWindowFocused] = useState(true);
+
+  // Resource states & references
+  const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // BunnyCDN upload states
   const [bunnyUploading, setBunnyUploading] = useState(false);
@@ -307,6 +312,102 @@ export default function VideoPlayer() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
+
+
+
+  // Hook up event listeners for fullscreen mode transitions (all engines supported)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  const [videoDuration, setVideoDuration] = useState<number>(600);
+
+  // Listen to postMessage infoDelivery events emitted by the YouTube player iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        let msgData = event.data;
+        if (typeof msgData === 'string') {
+          msgData = JSON.parse(msgData);
+        }
+        
+        if (msgData.event === 'infoDelivery' && msgData.info) {
+          if (typeof msgData.info.currentTime === 'number') {
+            setVideoCurrentTime(msgData.info.currentTime);
+          }
+          if (typeof msgData.info.duration === 'number') {
+            setVideoDuration(msgData.info.duration);
+          }
+        }
+      } catch (err) {
+        // Safe to ignore non-JSON or unrelated messages
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  // Save/Update "Continue Watching" progress in local storage
+  useEffect(() => {
+    if (!course || !id || !chapter || !type || videoCurrentTime <= 5) return;
+
+    // Determine lesson title
+    let lessonTitle = '';
+    if (isVideoEditingCourse) {
+      if (type === 'exercise') {
+        lessonTitle = language === 'ar' ? `تمرين تطبيق الفصل ${chapter}` : language === 'fr' ? `Exercice Pratique Ch. ${chapter}` : `Chapter ${chapter} Practice Exercise`;
+      } else {
+        lessonTitle = orderedLessons.find((l: any) => String(l.chapter) === String(chapter) && l.type === 'session')?.title || `Session ${chapter}`;
+      }
+    } else {
+      lessonTitle = `Chapter ${chapter}: ${type === 'exercise' ? 'Practice Exercise' : type === 'homework' ? 'Homework Video' : 'Session Video'}`;
+    }
+
+    const item = {
+      courseId: id,
+      courseTitle: course.title || '',
+      chapter: chapter,
+      type: type,
+      currentTime: videoCurrentTime,
+      duration: videoDuration || 600,
+      thumbnail: course.image || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400',
+      lessonTitle: lessonTitle,
+      updatedAt: new Date().toISOString()
+    };
+
+    localStorage.setItem('continue_watching', JSON.stringify(item));
+  }, [videoCurrentTime, videoDuration, course, id, chapter, type, isVideoEditingCourse, orderedLessons, language]);
+
+  // Performs real-world dynamic file creation and download inside the Sandbox sandbox
+  const triggerMockDownload = (filename: string) => {
+    const content = `CUTSCENE ACADEMY RESOURCE DOWNLOAD\n=================================\n\nAsset: ${filename}\nCourse Reference ID: ${id}\nChapter Coordination: ${chapter}\nLesson Mode: ${type}\n\nThis file is prepared and ready. Thank you for studying with us!`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Screenshot deterrents
   useEffect(() => {
@@ -771,7 +872,8 @@ export default function VideoPlayer() {
                   <div className="absolute inset-0 w-full h-full bg-black">
                     {isWindowFocused ? (
                       <iframe
-                        src={getLessonVideoUrl(course, chapter || '1', type || 'session')}
+                        ref={iframeRef}
+                        src={getLessonVideoUrl(course, chapter || '1', type || 'session') ? `${getLessonVideoUrl(course, chapter || '1', type || 'session')}${getLessonVideoUrl(course, chapter || '1', type || 'session')?.includes('?') ? '&' : '?'}enablejsapi=1` : ''}
                         title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1162,24 +1264,46 @@ export default function VideoPlayer() {
             </motion.div>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-8 relative">
+            <style>{`
+              @keyframes dash-animation {
+                to {
+                  stroke-dashoffset: -40;
+                }
+              }
+              .animate-contour-dash {
+                stroke-dasharray: 10 6;
+                animation: dash-animation 1.5s linear infinite;
+              }
+            `}</style>
+
+
+
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
               <h3 className="text-xl font-bold mb-6">{t('course.resources')}</h3>
               <div className="space-y-4">
-                <a href="#" className="flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group">
+                <button
+                  type="button"
+                  onClick={() => triggerMockDownload(`Chapter_${chapter}_Notes.pdf`)}
+                  className="w-full text-left flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
                     <FileText className="w-5 h-5 text-purple-500" />
                     <span className="text-sm font-medium">Chapter {chapter} Notes.pdf</span>
                   </div>
                   <CheckCircle2 className="w-4 h-4 text-gray-600 group-hover:text-purple-500 transition-colors" />
-                </a>
-                <a href="#" className="flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => triggerMockDownload('Exercise_Assets.zip')}
+                  className="w-full text-left flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
                     <FileText className="w-5 h-5 text-purple-500" />
                     <span className="text-sm font-medium">Exercise Assets.zip</span>
                   </div>
                   <CheckCircle2 className="w-4 h-4 text-gray-600 group-hover:text-purple-500 transition-colors" />
-                </a>
+                </button>
               </div>
             </div>
 
@@ -1225,6 +1349,8 @@ export default function VideoPlayer() {
           </motion.div>
         )}
       </AnimatePresence>
+
+
     </div>
   );
 }

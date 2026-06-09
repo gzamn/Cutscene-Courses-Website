@@ -144,5 +144,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Resource notification triggers
+    match /resource_triggers/{triggerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

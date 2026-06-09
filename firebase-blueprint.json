@@ -245,6 +245,21 @@
         "order": { "type": "number" }
       },
       "required": ["id", "value", "labelEn", "order"]
+    },
+    "ResourceTrigger": {
+      "title": "Resource Notification Trigger",
+      "description": "Auto-pop a resource highlighting contour or full-screen notification at a specific video time",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "string" },
+        "type": { "type": "string" },
+        "timeInSeconds": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["courseId", "chapter", "type", "timeInSeconds"]
     }
   },
   "firestore": {
@@ -311,6 +326,10 @@
     "statistics/{statisticId}": {
       "schema": "Statistic",
       "description": "Dynamic homepage statistics section parameters editable by admin"
+    },
+    "resource_triggers/{triggerId}": {
+      "schema": "ResourceTrigger",
+      "description": "Resource notification triggers for video player"
     }
   }
 }

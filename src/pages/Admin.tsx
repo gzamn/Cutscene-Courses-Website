@@ -116,6 +116,23 @@ export default function AdminPanel() {
   // Selected state for chapters course-filter
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
 
+  // Resource triggers console states
+  const [resourceTriggers, setResourceTriggers] = useState<any[]>([]);
+  const [loadingTriggers, setLoadingTriggers] = useState(false);
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
+  const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
+  const [triggerForm, setTriggerForm] = useState({
+    courseId: '',
+    chapter: '',
+    type: 'session',
+    timeMinutes: 0,
+    timeSeconds: 0,
+    isActive: true,
+    alertTitle: 'Important Lesson Assets',
+    alertText: 'Download the workspace material from the Resources card on the right to start your project.',
+    showAlertOnScreen: true
+  });
+
   // Custom confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -579,6 +596,8 @@ export default function AdminPanel() {
       setLoadingStats(false);
     }
   };
+
+
 
   const handleCreateOrUpdateStat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2925,6 +2944,8 @@ export default function AdminPanel() {
           </div>
         )}
 
+
+
         {/* TAB 6: SPECIAL BUNDLES & COMBO OFFERS */}
         {activeTab === 'offers' && (
           <div className="space-y-8">
@@ -4350,6 +4371,10 @@ export default function AdminPanel() {
           </div>
         )}
       </AnimatePresence>
+
+
+
+
 
     </div>
   );
