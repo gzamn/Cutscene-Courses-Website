@@ -815,11 +815,21 @@ export default function Home() {
         {/* Floating Continue Watching window (bottom left) */}
         {showContinueWatching && continueWatching && (
           <motion.div
-            initial={{ opacity: 0, x: -60, y: 30, scale: 0.9 }}
+            initial={{ opacity: 0, x: -120, y: 120, scale: 0.85 }}
             animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: -40, scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-6 left-6 z-[100] max-w-sm w-80 md:w-96 bg-zinc-950/95 border-2 border-purple-500/20 rounded-[2.2rem] p-5 shadow-[0_20px_50px_rgba(168,85,247,0.2)] backdrop-blur-md overflow-hidden flex flex-col font-sans"
+            exit={{ opacity: 0, x: -80, y: 80, scale: 0.9 }}
+            whileHover={{ 
+              scale: 1.02,
+              borderColor: "rgba(168, 85, 247, 0.5)",
+              boxShadow: "0 25px 60px rgba(168, 85, 247, 0.45)"
+            }}
+            transition={{ 
+              type: 'spring', 
+              stiffness: 260, 
+              damping: 24,
+              mass: 1.1
+            }}
+            className="fixed bottom-6 left-6 z-[100] max-w-sm w-80 md:w-96 bg-zinc-950/95 border-2 border-purple-500/20 rounded-[2.2rem] p-5 shadow-[0_20px_50px_rgba(168,85,247,0.2)] backdrop-blur-md overflow-hidden flex flex-col font-sans cursor-pointer transition-colors duration-300"
           >
             {/* Ambient colorful top bar indicator */}
             <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-600 animate-pulse" />
