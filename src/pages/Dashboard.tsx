@@ -155,19 +155,20 @@ export default function Dashboard() {
         return;
       }
 
-      // 2. Active plan/subscription check or explicitly subscribed
-      const hasPremiumPlan = userProfile?.activePlan && userProfile.activePlan !== 'Free Plan';
-      if (hasPremiumPlan || userProfile?.hasPlan || userProfile?.subscribed) {
-        setHasDownloadAccess(true);
-        return;
-      }
+      // 2. Active plan/subscription layouts do not grant access anymore as per client requests.
+      // Access is granted strictly by enrolling/purchasing courses.
 
       // 3. User bought a course check (enrollments collection)
       try {
         const qEnrollments = query(collection(db, 'enrollments'), where('uid', '==', user.uid));
         const enrollSnap = await getDocs(qEnrollments);
         if (!enrollSnap.empty) {
-          setHasDownloadAccess(true);
+          // Verify that they have an enrollment record representing a course, not a plan bundle
+          const hasCourseEnrollment = enrollSnap.docs.some(doc => {
+            const data = doc.data();
+            return data.format !== 'plan' && data.courseId && !data.courseId.startsWith('plan_');
+          });
+          setHasDownloadAccess(hasCourseEnrollment);
         } else {
           setHasDownloadAccess(false);
         }
@@ -205,6 +206,12 @@ export default function Dashboard() {
       return;
     }
 
+    const CDN_BASE = "https://Websitestorage.b-cdn.net";
+    const filePath = item.downloadUrl || "";
+    const fullUrl = filePath.startsWith('http://') || filePath.startsWith('https://') 
+      ? filePath 
+      : `${CDN_BASE}/${filePath}`;
+
     // Add record of this download in user library if downloaded here & not present
     try {
       if (user) {
@@ -221,7 +228,7 @@ export default function Dashboard() {
             name: item.name,
             category: item.category,
             imageUrl: item.imageUrl || '',
-            downloadUrl: item.downloadUrl,
+            downloadUrl: fullUrl,
             description: item.description || '',
             savedAt: new Date().toISOString()
           });
@@ -232,7 +239,7 @@ export default function Dashboard() {
     }
 
     const link = document.createElement('a');
-    link.href = item.downloadUrl;
+    link.href = fullUrl;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.click();

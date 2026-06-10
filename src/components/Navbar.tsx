@@ -23,6 +23,8 @@ export default function Navbar() {
   const updatesMenuRef = useRef<HTMLDivElement>(null);
   const mobileUpdatesMenuRef = useRef<HTMLDivElement>(null);
 
+  const avatarUrl = userProfile?.photoURL || userProfile?.avatar || userProfile?.photoUrl || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`;
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -315,7 +317,7 @@ export default function Navbar() {
                 >
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-650 rounded-full opacity-60 blur-xs group-hover:opacity-100 transition duration-300" />
                   <img
-                    src={userProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`}
+                    src={avatarUrl}
                     alt="Profile Avatar"
                     className="relative w-9 h-9 rounded-full object-cover border border-white/10"
                     referrerPolicy="no-referrer"

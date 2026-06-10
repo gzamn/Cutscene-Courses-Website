@@ -23,6 +23,7 @@ import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { useEffect } from 'react';
+import { runOneTimeMigration } from './firebase';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,10 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    runOneTimeMigration();
+  }, []);
+
   return (
     <LanguageProvider>
       <AuthProvider>

@@ -25,6 +25,7 @@ import {
   addDoc, 
   doc, 
   setDoc,
+  getDoc,
   query,
   where
 } from '../firebase';
@@ -99,6 +100,23 @@ export default function Plans() {
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'ccp' | 'baridimob'>('baridimob');
   const [processing, setProcessing] = useState(false);
+  const [config, setConfig] = useState<any>(null);
+
+  // Fetch website configuration settings for coming soon check
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const docRef = doc(db, 'config', 'settings');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setConfig(docSnap.data());
+        }
+      } catch (err) {
+        console.error('Error fetching settings config:', err);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   // New billing & receipts states
   const [fullName, setFullName] = useState('');
@@ -398,6 +416,39 @@ export default function Plans() {
             <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs text-purple-400 font-mono">LOADING MEMBERSHIP BUNDLES...</span>
           </div>
+        ) : (config ? config.isPlansComingSoon !== false : true) ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-xl mx-auto py-16 px-8 rounded-[2.5rem] bg-zinc-950/70 border border-purple-900/15 text-center relative overflow-hidden shadow-2xl"
+          >
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-24 bg-purple-600/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mx-auto mb-6">
+              <Sparkles className="w-8 h-8" />
+            </div>
+            
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold text-[10px] uppercase tracking-wider mb-4">
+              Coming Soon
+            </div>
+
+            <h2 className="text-2xl font-black text-white tracking-tight mb-3">
+              Premium Plans & Memberships
+            </h2>
+            
+            <p className="text-sm text-gray-400 leading-relaxed mb-6 px-6">
+              {config?.plansComingSoonText || "Membership sub-packages are coming soon. Access is strictly granted through direct course purchases for now!"}
+            </p>
+
+            <div className="flex justify-center gap-4 pt-4 border-t border-purple-900/10">
+              <button
+                onClick={() => navigate('/courses')}
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/35 transition-all"
+              >
+                Browse Academy Courses
+              </button>
+            </div>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
             {plans.map((plan, idx) => {

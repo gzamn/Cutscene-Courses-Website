@@ -657,6 +657,110 @@ export const ensureDefaultStatisticsSeeded = async () => {
   }
 };
 
+// Recursive value helper to replace old CDN URLs with correct ones
+function migrateUrlsInValue(val: any): { updated: any; changed: boolean } {
+  if (typeof val === 'string') {
+    if (/cutscenedz\.b-cdn\.net/i.test(val)) {
+      return {
+        updated: val.replace(/cutscenedz\.b-cdn\.net/gi, 'Websitestorage.b-cdn.net'),
+        changed: true
+      };
+    }
+    return { updated: val, changed: false };
+  } else if (Array.isArray(val)) {
+    let changed = false;
+    const updatedArray = val.map(item => {
+      const res = migrateUrlsInValue(item);
+      if (res.changed) changed = true;
+      return res.updated;
+    });
+    return { updated: updatedArray, changed };
+  } else if (val && typeof val === 'object') {
+    let changed = false;
+    const updatedObj: Record<string, any> = {};
+    for (const key of Object.keys(val)) {
+      const res = migrateUrlsInValue(val[key]);
+      if (res.changed) changed = true;
+      updatedObj[key] = res.updated;
+    }
+    return { updated: updatedObj, changed };
+  }
+  return { updated: val, changed: false };
+}
+
+// Migration script to update all database collections' image/CDN URLs to use the correct domain
+export const runOneTimeMigration = async () => {
+  if (typeof window !== 'undefined') {
+    const isDone = localStorage.getItem('bunny_pullzone_migration_done_v3');
+    if (isDone) return;
+  }
+
+  console.log('[Migration] Starting one-time Firestore CDN URL migration from Cutscenedz.b-cdn.net to Websitestorage.b-cdn.net...');
+
+  const COLLECTIONS_TO_MIGRATE = [
+    'courses',
+    'special_offers',
+    'downloadables',
+    'user_downloads',
+    'statistics',
+    'hero_videos',
+    'student_works',
+    'comments',
+    'reviews',
+    'updates',
+    'plans',
+    'users'
+  ];
+
+  let migratedCount = 0;
+
+  for (const colName of COLLECTIONS_TO_MIGRATE) {
+    try {
+      const colRef = fbCollection(db, colName);
+      const snap = await fbGetDocs(colRef);
+      if (snap && !snap.empty) {
+        for (const docSnap of snap.docs) {
+          const docData = docSnap.data();
+          const { updated, changed } = migrateUrlsInValue(docData);
+          if (changed) {
+            await fbUpdateDoc(fbDoc(db, colName, docSnap.id), updated);
+            console.log(`[Migration] Migrated document ${docSnap.id} in collection "${colName}"`);
+            migratedCount++;
+          }
+
+          // If this is the courses collection, also migrate chapters subcollection
+          if (colName === 'courses') {
+            try {
+              const chaptersRef = fbCollection(db, `courses/${docSnap.id}/chapters`);
+              const chaptersSnap = await fbGetDocs(chaptersRef);
+              if (chaptersSnap && !chaptersSnap.empty) {
+                for (const chapterDoc of chaptersSnap.docs) {
+                  const chapterData = chapterDoc.data();
+                  const dRes = migrateUrlsInValue(chapterData);
+                  if (dRes.changed) {
+                    await fbUpdateDoc(fbDoc(db, `courses/${docSnap.id}/chapters`, chapterDoc.id), dRes.updated);
+                    console.log(`[Migration] Migrated chapter ${chapterDoc.id} under course ${docSnap.id}`);
+                    migratedCount++;
+                  }
+                }
+              }
+            } catch (chapterErr) {
+              console.warn(`[Migration] Could not migrate chapters for course ${docSnap.id}:`, chapterErr);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[Migration] Could not migrate collection "${colName}":`, err);
+    }
+  }
+
+  console.log(`[Migration] Migration complete. Total documents/subcollections updated: ${migratedCount}`);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('bunny_pullzone_migration_done_v3', 'true');
+  }
+};
+
 
 
 

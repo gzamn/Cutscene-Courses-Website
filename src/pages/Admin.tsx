@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -43,6 +43,18 @@ export default function AdminPanel() {
 
   // Active sub-section
   const [activeTab, setActiveTab] = useState<AdminTab>('courses');
+
+  // Multi-selection states for mass deletion
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [selectedDownloadableIds, setSelectedDownloadableIds] = useState<string[]>([]);
+  const [selectedStudentWorkIds, setSelectedStudentWorkIds] = useState<string[]>([]);
+
+  // Clear selections on tab swap
+  useEffect(() => {
+    setSelectedCourseIds([]);
+    setSelectedDownloadableIds([]);
+    setSelectedStudentWorkIds([]);
+  }, [activeTab]);
   
   // Custom Toast State
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -71,7 +83,20 @@ export default function AdminPanel() {
     contactEmail: 'contact@cutscene-academy.com',
     instagram: 'https://www.instagram.com/cutscene.dz/',
     youtube: 'https://youtube.com/cutscene',
-    discord: 'https://discord.gg/cutscene'
+    discord: 'https://discord.gg/cutscene',
+    // Dynamic Coming Soon Parameters
+    isSoftwaresComingSoon: true,
+    softwaresComingSoonText: 'We are preparing professional software applications, editors, and helper tool configuration bundles. Stay tuned!',
+    isVideosComingSoon: true,
+    videosComingSoonText: 'Exclusive raw 4K cinematic overlays and atmospheric video assets are currently rendering.',
+    isImagesComingSoon: true,
+    imagesComingSoonText: 'Studio high-definition lightmaps, background style textures, and photorealistic overlays are being sorted.',
+    isMusicComingSoon: true,
+    musicComingSoonText: 'Lofi background beats and epic orchestral tracks are under production by our studio composers.',
+    isSoundEffectsComingSoon: true,
+    soundEffectsComingSoonText: 'Acoustic swooshes, low loops, and tech feedback effects are being processed in our foley library.',
+    isPlansComingSoon: true,
+    plansComingSoonText: 'Membership sub-packages are coming soon. Access is strictly granted through direct course purchases for now!'
   });
 
   // Special promotional combo offers states
@@ -79,6 +104,79 @@ export default function AdminPanel() {
   const [loadingSpecialOffers, setLoadingSpecialOffers] = useState(false);
   const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
   const [editingSpecialOfferId, setEditingSpecialOfferId] = useState<string | null>(null);
+
+  // Direct Image upload handling states
+  const [promoUploading, setPromoUploading] = useState(false);
+  const [downloadableUploading, setDownloadableUploading] = useState(false);
+  const promoFileRef = useRef<HTMLInputElement>(null);
+  const downloadableFileRef = useRef<HTMLInputElement>(null);
+
+  const uploadPromoImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    
+    setPromoUploading(true);
+    try {
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name })
+      });
+      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      const signData = await signRes.json();
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
+      });
+      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      const uploadResult = await uploadRes.json();
+      
+      setSpecialOfferForm(prev => ({ ...prev, imageUrl: uploadResult.publicUrl }));
+      showToast('success', 'Promo Bundle Cover Image imported successfully!');
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      showToast('error', `Failed to upload image: ${err.message || err}`);
+    } finally {
+      setPromoUploading(false);
+    }
+  };
+
+  const uploadDownloadableImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    
+    setDownloadableUploading(true);
+    try {
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name })
+      });
+      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      const signData = await signRes.json();
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
+      });
+      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      const uploadResult = await uploadRes.json();
+      
+      setDownloadableForm(prev => ({ ...prev, imageUrl: uploadResult.publicUrl }));
+      showToast('success', 'Downloadable Cover Image imported successfully!');
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      showToast('error', `Failed to upload image: ${err.message || err}`);
+    } finally {
+      setDownloadableUploading(false);
+    }
+  };
+
   const [specialOfferForm, setSpecialOfferForm] = useState({
     id: '',
     titleEn: '',
@@ -224,7 +322,8 @@ export default function AdminPanel() {
     category: 'Softwares',
     imageUrl: '',
     downloadUrl: '',
-    description: ''
+    description: '',
+    guideVideoUrl: ''
   });
 
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -712,7 +811,10 @@ export default function AdminPanel() {
       const snap = await getDocs(collection(db, 'config'));
       const settingsDoc = snap.docs.find(d => d.id === 'settings');
       if (settingsDoc) {
-        setWebsiteSettings(settingsDoc.data());
+        setWebsiteSettings((prev: any) => ({
+          ...prev,
+          ...settingsDoc.data()
+        }));
       } else {
         // Document settings initial setup draft
         await setDoc(doc(db, 'config', 'settings'), websiteSettings);
@@ -815,6 +917,27 @@ export default function AdminPanel() {
         }
       },
       'Delete Permanently',
+      true
+    );
+  };
+
+  const handleMassDeleteCourses = () => {
+    if (selectedCourseIds.length === 0) return;
+    askConfirmation(
+      'Bulk Delete Courses',
+      `Are you absolutely sure you want to permanently delete the ${selectedCourseIds.length} selected courses? This will lock students and cannot be undone.`,
+      async () => {
+        try {
+          await Promise.all(selectedCourseIds.map(id => deleteDoc(doc(db, 'courses', id))));
+          showToast('success', `${selectedCourseIds.length} courses successfully deleted from the database.`);
+          setSelectedCourseIds([]);
+          fetchCourses();
+        } catch (err: any) {
+          console.error('Bulk course deletion failure:', err);
+          showToast('error', 'Failed to delete selected courses.');
+        }
+      },
+      'Delete Selected',
       true
     );
   };
@@ -1058,6 +1181,27 @@ export default function AdminPanel() {
     );
   };
 
+  const handleMassDeleteStudentWorks = () => {
+    if (selectedStudentWorkIds.length === 0) return;
+    askConfirmation(
+      'Bulk Delete Showcase Works',
+      `Confirm permanently deleting the ${selectedStudentWorkIds.length} selected student artwork submissions from the showcase?`,
+      async () => {
+        try {
+          await Promise.all(selectedStudentWorkIds.map(id => deleteDoc(doc(db, 'student_works', id))));
+          showToast('success', `${selectedStudentWorkIds.length} student works successfully discarded.`);
+          setSelectedStudentWorkIds([]);
+          fetchStudentWorks();
+        } catch (err: any) {
+          console.error('Bulk student works deletion failure:', err);
+          showToast('error', 'Failed to delete selected student works.');
+        }
+      },
+      'Delete Selected',
+      true
+    );
+  };
+
   const handleApproveWork = async (work: any) => {
     try {
       await setDoc(doc(db, 'student_works', work.id), {
@@ -1081,7 +1225,7 @@ export default function AdminPanel() {
         category: downloadableForm.category,
         imageUrl: downloadableForm.imageUrl,
         downloadUrl: downloadableForm.downloadUrl,
-        description: downloadableForm.description,
+        guideVideoUrl: downloadableForm.guideVideoUrl,
         updatedAt: new Date().toISOString()
       };
 
@@ -1104,7 +1248,8 @@ export default function AdminPanel() {
         category: 'Softwares',
         imageUrl: '',
         downloadUrl: '',
-        description: ''
+        description: '',
+        guideVideoUrl: ''
       });
       fetchDownloadables();
     } catch (err: any) {
@@ -1120,7 +1265,8 @@ export default function AdminPanel() {
       category: item.category || 'Softwares',
       imageUrl: item.imageUrl || '',
       downloadUrl: item.downloadUrl || '',
-      description: item.description || ''
+      description: item.description || '',
+      guideVideoUrl: item.guideVideoUrl || ''
     });
     setShowDownloadableModal(true);
   };
@@ -1140,6 +1286,27 @@ export default function AdminPanel() {
         }
       },
       'Delete Asset',
+      true
+    );
+  };
+
+  const handleMassDeleteDownloadables = () => {
+    if (selectedDownloadableIds.length === 0) return;
+    askConfirmation(
+      'Bulk Delete Downloadable Assets',
+      `Are you sure you want to permanently delete the ${selectedDownloadableIds.length} selected assets from the library? This action cannot be undone.`,
+      async () => {
+        try {
+          await Promise.all(selectedDownloadableIds.map(id => deleteDoc(doc(db, 'downloadables', id))));
+          showToast('success', `${selectedDownloadableIds.length} downloadable assets successfully deleted.`);
+          setSelectedDownloadableIds([]);
+          fetchDownloadables();
+        } catch (err: any) {
+          console.error('Bulk assets deletion failure:', err);
+          showToast('error', 'Failed to delete selected assets.');
+        }
+      },
+      'Delete Selected',
       true
     );
   };
@@ -1561,28 +1728,39 @@ export default function AdminPanel() {
                 <h1 className="text-3xl font-black text-white tracking-tight">Courses Catalog</h1>
                 <p className="text-gray-400 text-xs mt-1">Publish premium educational paths, assign level constraints and instructors</p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingCourseId(null);
-                  setCourseForm({
-                    title: '',
-                    description: '',
-                    category: 'Core',
-                    thumbnail_url: '',
-                    is_free: false,
-                    instructor: userProfile?.fullName || 'Senior Instructor',
-                    price: '15000',
-                    level: 'Beginner',
-                    duration: '8 weeks',
-                    certificateUrl: ''
-                  });
-                  setShowCourseModal(true);
-                }}
-                className="inline-flex items-center gap-2 px-5 py-3 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-purple-600/15 cursor-pointer"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Add New Program
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedCourseIds.length > 0 && (
+                  <button
+                    onClick={handleMassDeleteCourses}
+                    className="inline-flex items-center gap-2 px-5 py-3 bg-red-950/40 hover:bg-red-900/40 border border-red-500/30 text-red-500 font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedCourseIds.length})
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditingCourseId(null);
+                    setCourseForm({
+                      title: '',
+                      description: '',
+                      category: 'Core',
+                      thumbnail_url: '',
+                      is_free: false,
+                      instructor: userProfile?.fullName || 'Senior Instructor',
+                      price: '15000',
+                      level: 'Beginner',
+                      duration: '8 weeks',
+                      certificateUrl: ''
+                    });
+                    setShowCourseModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-purple-600/15 cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add New Program
+                </button>
+              </div>
             </div>
 
             {loadingCourses ? (
@@ -1600,6 +1778,20 @@ export default function AdminPanel() {
                   <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-zinc-950 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
                       <tr>
+                        <th className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                          <input 
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                            checked={courses.length > 0 && selectedCourseIds.length === courses.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedCourseIds(courses.map(c => c.id));
+                              } else {
+                                setSelectedCourseIds([]);
+                              }
+                            }}
+                          />
+                        </th>
                         <th className="py-4 px-6">Image</th>
                         <th className="py-4 px-6">Program Title</th>
                         <th className="py-4 px-6">Category</th>
@@ -1611,6 +1803,20 @@ export default function AdminPanel() {
                     <tbody className="divide-y divide-purple-950/15">
                       {courses.map((course) => (
                         <tr key={course.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                            <input 
+                              type="checkbox"
+                              className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                              checked={selectedCourseIds.includes(course.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedCourseIds([...selectedCourseIds, course.id]);
+                                } else {
+                                  setSelectedCourseIds(selectedCourseIds.filter(id => id !== course.id));
+                                }
+                              }}
+                            />
+                          </td>
                           <td className="py-4 px-6">
                             <img
                               src={course.image || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=150'}
@@ -2117,9 +2323,20 @@ export default function AdminPanel() {
         {/* TAB 4: STUDENT SHOWCASE WORKS */}
         {activeTab === 'student-works' && (
           <div className="space-y-8 animate-fade-in">
-            <div>
-              <h1 className="text-3xl font-black text-white tracking-tight">Showcase Submissions Gallery</h1>
-              <p className="text-gray-400 text-xs mt-1">Feature exceptional tasks on the homepage, remove entries representing improper concepts</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Showcase Submissions Gallery</h1>
+                <p className="text-gray-400 text-xs mt-1">Feature exceptional tasks on the homepage, remove entries representing improper concepts</p>
+              </div>
+              {selectedStudentWorkIds.length > 0 && (
+                <button
+                  onClick={handleMassDeleteStudentWorks}
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-red-950/40 hover:bg-red-900/40 border border-red-500/30 text-red-500 font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer self-start"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected ({selectedStudentWorkIds.length})
+                </button>
+              )}
             </div>
 
             {loadingWorks ? (
@@ -2136,6 +2353,20 @@ export default function AdminPanel() {
                   <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-zinc-950 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
                       <tr>
+                        <th className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                          <input 
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                            checked={studentWorks.length > 0 && selectedStudentWorkIds.length === studentWorks.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStudentWorkIds(studentWorks.map(w => w.id));
+                              } else {
+                                setSelectedStudentWorkIds([]);
+                              }
+                            }}
+                          />
+                        </th>
                         <th className="py-4 px-6">Approval Status</th>
                         <th className="py-4 px-6">Featured</th>
                         <th className="py-4 px-6">Illustration</th>
@@ -2152,6 +2383,20 @@ export default function AdminPanel() {
                         const isApproved = work.approved === true || work.status === 'approved';
                         return (
                           <tr key={work.id} className="hover:bg-white/5 transition-colors">
+                            <td className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                              <input 
+                                type="checkbox"
+                                className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                                checked={selectedStudentWorkIds.includes(work.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedStudentWorkIds([...selectedStudentWorkIds, work.id]);
+                                  } else {
+                                    setSelectedStudentWorkIds(selectedStudentWorkIds.filter(id => id !== work.id));
+                                  }
+                                }}
+                              />
+                            </td>
                             <td className="py-4 px-6">
                               {isApproved ? (
                                 <span className="px-3 py-1.5 bg-green-950/20 border border-green-500/30 text-green-400 text-[10px] uppercase font-black rounded-xl inline-flex items-center gap-1">
@@ -2223,23 +2468,35 @@ export default function AdminPanel() {
                 <h1 className="text-3xl font-black text-white tracking-tight">Premium Assets Library</h1>
                 <p className="text-gray-400 text-xs mt-1">Manage downloadable utilities, creative templates, softwares, and audio overlays</p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingDownloadableId(null);
-                  setDownloadableForm({
-                    name: '',
-                    category: 'Softwares',
-                    imageUrl: '',
-                    downloadUrl: '',
-                    description: ''
-                  });
-                  setShowDownloadableModal(true);
-                }}
-                className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Add Premium Asset
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedDownloadableIds.length > 0 && (
+                  <button
+                    onClick={handleMassDeleteDownloadables}
+                    className="inline-flex items-center gap-2 px-5 py-3 bg-red-950/40 hover:bg-red-900/40 border border-red-500/30 text-red-500 font-bold rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedDownloadableIds.length})
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditingDownloadableId(null);
+                    setDownloadableForm({
+                      name: '',
+                      category: 'Softwares',
+                      imageUrl: '',
+                      downloadUrl: '',
+                      description: '',
+                      guideVideoUrl: ''
+                    });
+                    setShowDownloadableModal(true);
+                  }}
+                  className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Premium Asset
+                </button>
+              </div>
             </div>
 
             {loadingDownloadables ? (
@@ -2258,16 +2515,44 @@ export default function AdminPanel() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-purple-950/30 text-gray-400 text-[10px] uppercase font-bold tracking-widest bg-zinc-950/60">
+                        <th className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                          <input 
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                            checked={downloadables.length > 0 && selectedDownloadableIds.length === downloadables.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedDownloadableIds(downloadables.map(item => item.id));
+                              } else {
+                                setSelectedDownloadableIds([]);
+                              }
+                            }}
+                          />
+                        </th>
                         <th className="py-4 px-6">Image</th>
                         <th className="py-4 px-6">Asset Name</th>
                         <th className="py-4 px-6">Category</th>
-                        <th className="py-4 px-6">Source URL</th>
+                        <th className="py-4 px-6">Bunny File Path</th>
                         <th className="py-4 px-6 text-right">Operations</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-purple-950/15">
                       {downloadables.map((item) => (
                         <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                            <input 
+                              type="checkbox"
+                              className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                              checked={selectedDownloadableIds.includes(item.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedDownloadableIds([...selectedDownloadableIds, item.id]);
+                                } else {
+                                  setSelectedDownloadableIds(selectedDownloadableIds.filter(id => id !== item.id));
+                                }
+                              }}
+                            />
+                          </td>
                           <td className="py-4 px-6">
                             <img
                               src={item.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80'}
@@ -2778,6 +3063,213 @@ export default function AdminPanel() {
                       className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
+
+                  {/* COMING SOON OVERRIDES HUB */}
+                  <div className="pt-6 border-t border-purple-950/20 space-y-4">
+                    <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      COMING SOON OVERRIDES
+                    </h3>
+                    <p className="text-[10px] text-gray-500 leading-normal">Configure which sections should act as "Coming Soon" and customize their presentation overlay text:</p>
+
+                    {/* PREMIUM PLANS */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Premium Sub Plans Page</label>
+                          <span className="text-[9px] text-gray-500 block">Controls visibility of the Plans/Pricing page.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isPlansComingSoon !== false ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={websiteSettings.isPlansComingSoon !== false}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isPlansComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isPlansComingSoon !== false ? 'The Category page is hidden behind a Coming Soon overlay. Input text is active below:' : 'Live! Content list is visible and accessible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Plans Coming Soon Custom Text..."
+                        value={websiteSettings.plansComingSoonText || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, plansComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* SOFTWARES */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Softwares Assets Section</label>
+                          <span className="text-[9px] text-gray-500 block">Controls visibility of software archives under files catalog.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isSoftwaresComingSoon !== false ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={websiteSettings.isSoftwaresComingSoon !== false}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isSoftwaresComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isSoftwaresComingSoon !== false ? 'The Category page is hidden behind a Coming Soon overlay. Input text is active below:' : 'Live! Content list is visible and accessible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Softwares Coming Soon Custom Text..."
+                        value={websiteSettings.softwaresComingSoonText || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, softwaresComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* VIDEOS */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Videos Assets Section</label>
+                          <span className="text-[9px] text-gray-500 block">Controls visibility of raw video templates and cinematic packs.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isVideosComingSoon !== false ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={websiteSettings.isVideosComingSoon !== false}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isVideosComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isVideosComingSoon !== false ? 'The Category page is hidden behind a Coming Soon overlay. Input text is active below:' : 'Live! Content list is visible and accessible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Videos Coming Soon Custom Text..."
+                        value={websiteSettings.videosComingSoonText || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, videosComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* IMAGES */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Images Assets Section</label>
+                          <span className="text-[9px] text-gray-500 block">Controls visibility of HD overlays, backdrops, and photorealistic elements.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isImagesComingSoon !== false ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={websiteSettings.isImagesComingSoon !== false}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isImagesComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isImagesComingSoon !== false ? 'The Category page is hidden behind a Coming Soon overlay. Input text is active below:' : 'Live! Content list is visible and accessible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Images Coming Soon Custom Text..."
+                        value={websiteSettings.imagesComingSoonText || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, imagesComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* MUSIC */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Music Assets Section</label>
+                          <span className="text-[9px] text-gray-500 block">Controls visibility of Lofi loop archives and ambient tracks.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isMusicComingSoon !== false ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={websiteSettings.isMusicComingSoon !== false}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isMusicComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isMusicComingSoon !== false ? 'The Category page is hidden behind a Coming Soon overlay. Input text is active below:' : 'Live! Content list is visible and accessible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Music Coming Soon Custom Text..."
+                        value={websiteSettings.musicComingSoonText || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, musicComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* SOUND EFFECTS */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Sound Effects Assets Section</label>
+                          <span className="text-[9px] text-gray-500 block">Controls visibility of auditory swooshes, tech indicators and indicators.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isSoundEffectsComingSoon !== false ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={websiteSettings.isSoundEffectsComingSoon !== false}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isSoundEffectsComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isSoundEffectsComingSoon !== false ? 'The Category page is hidden behind a Coming Soon overlay. Input text is active below:' : 'Live! Content list is visible and accessible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Sound Effects Coming Soon Custom Text..."
+                        value={websiteSettings.isSoundEffectsComingSoon !== false ? websiteSettings.soundEffectsComingSoonText || '' : ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, soundEffectsComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-purple-950/15">
@@ -3277,14 +3769,40 @@ export default function AdminPanel() {
                 {/* Image and Price metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Bundle Cover Image URL</label>
-                    <input
-                      type="url"
-                      placeholder="https://images.unsplash.com/promo..."
-                      value={specialOfferForm.imageUrl}
-                      onChange={(e) => setSpecialOfferForm({ ...specialOfferForm, imageUrl: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Bundle Cover Image</label>
+                    <div className="flex items-center gap-3">
+                      {specialOfferForm.imageUrl ? (
+                        <img 
+                          src={specialOfferForm.imageUrl} 
+                          alt="Bundle Cover Preview" 
+                          className="w-10 h-10 object-cover rounded-lg border border-purple-900/40 bg-black shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg border border-dashed border-purple-900/30 flex items-center justify-center text-gray-600 bg-black/50 text-[9px] uppercase font-mono shrink-0">
+                          None
+                        </div>
+                      )}
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        ref={promoFileRef}
+                        className="hidden"
+                        onChange={uploadPromoImage}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => promoFileRef.current?.click()}
+                        disabled={promoUploading}
+                        className="flex-1 px-3 py-2.5 bg-purple-650 hover:bg-purple-600 border border-purple-500/20 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        {promoUploading ? (
+                          <Icons.Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Icons.Upload className="w-3.5 h-3.5" />
+                        )}
+                        {specialOfferForm.imageUrl ? 'Replace Image' : 'Import File'}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Target Currency</label>
@@ -3825,38 +4343,70 @@ export default function AdminPanel() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Cover Image URL</label>
-                    <input
-                      type="url"
-                      value={downloadableForm.imageUrl}
-                      onChange={(e) => setDownloadableForm({ ...downloadableForm, imageUrl: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-                      placeholder="https://images.unsplash.com/..."
-                    />
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Cover Image</label>
+                    <div className="flex items-center gap-3">
+                      {downloadableForm.imageUrl ? (
+                        <img 
+                          src={downloadableForm.imageUrl} 
+                          alt="Cover Thumbnail" 
+                          className="w-10 h-10 object-cover rounded-lg border border-purple-900/40 bg-black shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg border border-dashed border-purple-900/30 flex items-center justify-center text-gray-600 bg-black/50 text-[9px] uppercase font-mono shrink-0">
+                          None
+                        </div>
+                      )}
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        ref={downloadableFileRef}
+                        className="hidden"
+                        onChange={uploadDownloadableImage}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => downloadableFileRef.current?.click()}
+                        disabled={downloadableUploading}
+                        className="flex-1 px-3 py-2.5 bg-purple-650 hover:bg-purple-600 border border-purple-500/20 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        {downloadableUploading ? (
+                          <Icons.Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Icons.Upload className="w-3.5 h-3.5" />
+                        )}
+                        {downloadableForm.imageUrl ? 'Replace' : 'Import File'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Direct Download Asset URL</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Bunny File Path</label>
                   <input
-                    type="url"
+                    type="text"
                     required
                     value={downloadableForm.downloadUrl}
                     onChange={(e) => setDownloadableForm({ ...downloadableForm, downloadUrl: e.target.value })}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-                    placeholder="https://..."
+                    placeholder="e.g. courses/session1-resources.zip"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Path inside Bunny Storage (e.g., courses/session1-resources.zip).
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Brief Description</label>
-                  <textarea
-                    rows={3}
-                    value={downloadableForm.description}
-                    onChange={(e) => setDownloadableForm({ ...downloadableForm, description: e.target.value })}
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Guide Video URL / Stream Embed</label>
+                  <input
+                    type="url"
+                    value={downloadableForm.guideVideoUrl}
+                    onChange={(e) => setDownloadableForm({ ...downloadableForm, guideVideoUrl: e.target.value })}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                    placeholder="Provide context about what this pack contains..."
+                    placeholder="e.g. Bunny stream link, watch URL, or YouTube embed..."
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Configures the direct walkthrough player displayed when users tap the "Guide" button.
+                  </p>
                 </div>
 
                 <button

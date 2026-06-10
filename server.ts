@@ -133,7 +133,7 @@ async function startServer() {
 
       console.log(`BunnyCDN response code: ${response.status}`);
 
-      const publicUrl = `https://cutscenedocuments.b-cdn.net/${filename}`;
+      const publicUrl = `https://Websitestorage.b-cdn.net/${filename}`;
 
       res.json({
         success: true,

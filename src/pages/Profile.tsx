@@ -2,12 +2,13 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, auth, doc, updateDoc, ref, uploadBytes, getDownloadURL, updateProfile, updateEmail, updatePassword } from '../firebase';
-import { User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2, Upload } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Profile() {
   const { user, userProfile } = useAuth();
   const { t } = useLanguage();
+  const avatarUrl = userProfile?.photoURL || userProfile?.avatar || userProfile?.photoUrl || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`;
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [newPassword, setNewPassword] = useState('');
@@ -15,12 +16,68 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarUrlInput, setAvatarUrlInput] = useState('');
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+
+  const handleDirectAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+    const file = files[0];
+
+    setUploadingAvatar(true);
+    setMessage(null);
+
+    try {
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename: file.name })
+      });
+
+      if (!signRes.ok) {
+        throw new Error('Failed to obtain secured upload authorization.');
+      }
+      const signData = await signRes.json();
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Failed to stream upload payload to Bunny.');
+      }
+
+      const uploadResult = await uploadRes.json();
+      const photoURL = uploadResult.publicUrl;
+
+      // Update Auth Profile
+      await updateProfile(user, { photoURL });
+
+      // Update Firestore User Profile
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { 
+        photoURL,
+        avatar: photoURL,
+        photoUrl: photoURL
+      });
+
+      setMessage({ type: 'success', text: 'Profile picture imported and saved successfully!' });
+    } catch (err: any) {
+      console.error('Avatar upload failed:', err);
+      setMessage({ type: 'error', text: `Upload failed: ${err.message || err}` });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   React.useEffect(() => {
     if (userProfile) {
       setDisplayName(userProfile.displayName || '');
-      setAvatarUrlInput(userProfile.photoURL || '');
     }
     if (user) {
       setEmail(user.email || '');
@@ -79,30 +136,7 @@ export default function Profile() {
     }
   };
 
-  const handleAvatarLinkSubmit = async () => {
-    if (!user || !avatarUrlInput.trim()) return;
-
-    setUploadingAvatar(true);
-    setMessage(null);
-
-    try {
-      const photoURL = avatarUrlInput.trim();
-
-      // Update Auth
-      await updateProfile(user, { photoURL });
-
-      // Update Firestore
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { photoURL });
-
-      setMessage({ type: 'success', text: 'Profile picture updated via URL!' });
-    } catch (error) {
-      console.error('Avatar URL Update Error:', error);
-      setMessage({ type: 'error', text: 'Failed to update picture.' });
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
+  // No handleAvatarLinkSubmit needed anymore
 
   return (
     <div className="min-h-screen bg-black text-white pt-32 pb-20 px-4 sm:px-6 lg:px-8">
@@ -129,31 +163,33 @@ export default function Profile() {
                     </div>
                   ) : null}
                   <img
-                    src={userProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`}
+                    src={avatarUrl}
                     alt="Avatar"
                     className="w-full h-full object-cover"
                   />
                 </div>
               </div>
               <div className="w-full max-w-xs space-y-2">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 text-left">Avatar Link URL</label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    placeholder="https://example.com/pfp.jpg"
-                    value={avatarUrlInput}
-                    onChange={(e) => setAvatarUrlInput(e.target.value)}
-                    className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAvatarLinkSubmit}
-                    disabled={uploadingAvatar || !avatarUrlInput.trim()}
-                    className="px-3 py-2 bg-purple-650 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 shrink-0 cursor-pointer"
-                  >
-                    Save
-                  </button>
-                </div>
+                <input 
+                  type="file"
+                  accept="image/*"
+                  ref={avatarFileRef}
+                  className="hidden"
+                  onChange={handleDirectAvatarUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarFileRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="w-full px-4 py-2 bg-purple-650 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  {uploadingAvatar ? 'Uploading...' : 'Upload Image'}
+                </button>
               </div>
               <div className="text-center">
                 <h3 className="font-bold text-lg">{userProfile?.displayName}</h3>

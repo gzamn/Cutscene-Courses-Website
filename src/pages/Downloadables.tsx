@@ -14,7 +14,8 @@ import {
   Image as ImageIcon, 
   Volume2, 
   AlertCircle,
-  FolderOpen
+  FolderOpen,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -25,7 +26,9 @@ import {
   getDocs, 
   query, 
   where, 
-  addDoc 
+  addDoc,
+  doc,
+  getDoc
 } from '../firebase';
 
 // Helper to match category to an icon
@@ -125,12 +128,69 @@ export default function Downloadables() {
   const [downloadables, setDownloadables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [activeCategory, setActiveCategory] = useState<string>('Softwares');
   const [showLockModal, setShowLockModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [selectedInstallItem, setSelectedInstallItem] = useState<any>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
+  const [config, setConfig] = useState<any>(null);
 
-  const categories = ['All', 'Softwares', 'Videos', 'Images', 'Music', 'Sound Effects'];
+  const categories = ['Softwares', 'Videos', 'Images', 'Music', 'Sound Effects'];
+
+  // Fetch website configuration for coming soon flags
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const docRef = doc(db, 'config', 'settings');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setConfig(docSnap.data());
+        }
+      } catch (err) {
+        console.error('Error fetching settings config:', err);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const isCategoryComingSoon = (category: string) => {
+    if (!config) return true; // Default to true if config hasn't loaded yet
+    switch (category) {
+      case 'Softwares':
+        return config.isSoftwaresComingSoon !== false;
+      case 'Videos':
+        return config.isVideosComingSoon !== false;
+      case 'Images':
+        return config.isImagesComingSoon !== false;
+      case 'Music':
+        return config.isMusicComingSoon !== false;
+      case 'Sound Effects':
+        return config.isSoundEffectsComingSoon !== false;
+      default:
+        return false;
+    }
+  };
+
+  const getComingSoonText = (category: string) => {
+    if (!config) {
+      return 'Prepare yourself for premium industry-standard content. Releases are being compiled!';
+    }
+    switch (category) {
+      case 'Softwares':
+        return config.softwaresComingSoonText || 'Software resources are coming soon.';
+      case 'Videos':
+        return config.videosComingSoonText || 'Video overlays are coming soon.';
+      case 'Images':
+        return config.imagesComingSoonText || 'Image assets are coming soon.';
+      case 'Music':
+        return config.musicComingSoonText || 'Music collections are coming soon.';
+      case 'Sound Effects':
+        return config.soundEffectsComingSoonText || 'Sound effects are coming soon.';
+      default:
+        return 'Coming soon...';
+    }
+  };
 
   // Fetch downloadables
   useEffect(() => {
@@ -186,19 +246,20 @@ export default function Downloadables() {
         return;
       }
 
-      // 2. Active plan/subscription check or explicitly subscribed
-      if (userProfile?.activePlan || userProfile?.hasPlan || userProfile?.subscribed) {
-        setHasAccess(true);
-        setCheckingAccess(false);
-        return;
-      }
+      // 2. Active subscription plans DO NOT grant access anymore as per client requests.
+      // Access is granted strictly by enrolling/purchasing courses.
 
       // 3. User bought a course check (enrollments collection)
       try {
         const qEnrollments = query(collection(db, 'enrollments'), where('uid', '==', user.uid));
         const enrollSnap = await getDocs(qEnrollments);
         if (!enrollSnap.empty) {
-          setHasAccess(true);
+          // Verify that they have an enrollment record representing a course, not a plan bundle
+          const hasCourseEnrollment = enrollSnap.docs.some(doc => {
+            const data = doc.data();
+            return data.format !== 'plan' && data.courseId && !data.courseId.startsWith('plan_');
+          });
+          setHasAccess(hasCourseEnrollment);
         } else {
           setHasAccess(false);
         }
@@ -224,6 +285,12 @@ export default function Downloadables() {
     }
     
     // Add record of this download chosen by the student
+    const CDN_BASE = "https://Websitestorage.b-cdn.net";
+    const filePath = item.downloadUrl || "";
+    const fullUrl = filePath.startsWith('http://') || filePath.startsWith('https://') 
+      ? filePath 
+      : `${CDN_BASE}/${filePath}`;
+
     try {
       const qExist = query(
         collection(db, 'user_downloads'),
@@ -238,7 +305,7 @@ export default function Downloadables() {
           name: item.name,
           category: item.category,
           imageUrl: item.imageUrl || '',
-          downloadUrl: item.downloadUrl,
+          downloadUrl: fullUrl,
           description: item.description || '',
           savedAt: new Date().toISOString()
         });
@@ -249,7 +316,7 @@ export default function Downloadables() {
 
     // Perform actual file download
     const link = document.createElement('a');
-    link.href = item.downloadUrl;
+    link.href = fullUrl;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.click();
@@ -380,6 +447,36 @@ export default function Downloadables() {
             <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs text-purple-400 font-mono">LOADING DIGITAL VAULT...</span>
           </div>
+        ) : isCategoryComingSoon(activeCategory) ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-xl mx-auto py-16 px-8 rounded-[2.5rem] bg-zinc-950/70 border border-purple-900/15 text-center relative overflow-hidden shadow-2xl"
+          >
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-24 bg-purple-600/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mx-auto mb-6">
+              {getCategoryIcon(activeCategory)}
+            </div>
+            
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold text-[10px] uppercase tracking-wider mb-4">
+              Coming Soon
+            </div>
+
+            <h3 className="text-2xl font-black text-white tracking-tight mb-3">
+              {activeCategory} Vault
+            </h3>
+            
+            <p className="text-sm text-gray-400 leading-relaxed mb-6 px-4">
+              {getComingSoonText(activeCategory)}
+            </p>
+
+            <div className="border-t border-purple-900/10 pt-6">
+              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest bg-zinc-900 px-3 py-1.5 rounded-lg border border-white/5">
+                Target Stage: Under Assembly
+              </span>
+            </div>
+          </motion.div>
         ) : filteredItems.length === 0 ? (
           <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
             <FolderOpen className="w-12 h-12 text-gray-500 mx-auto mb-3" />
@@ -387,7 +484,7 @@ export default function Downloadables() {
             <p className="text-xs text-gray-600 mt-1">Try entering another keyword or switching categories</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
             <AnimatePresence mode="popLayout">
               {filteredItems.map((item, idx) => (
                 <motion.div
@@ -397,57 +494,54 @@ export default function Downloadables() {
                   exit={{ opacity: 0, scale: 0.95, y: 15 }}
                   transition={{ duration: 0.25, delay: idx * 0.04 }}
                   key={item.id}
-                  className="bg-zinc-950 border border-purple-900/10 rounded-[2rem] overflow-hidden group hover:border-purple-500/20 transition-all hover:shadow-[0_15px_30px_rgba(0,0,0,0.8)] hover:-translate-y-1 relative flex flex-col"
+                  className="group transition-all hover:-translate-y-1 relative flex flex-col bg-transparent"
                 >
-                  {/* Category label badge */}
-                  <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/80 border border-white/5 text-xs text-gray-300 font-semibold shadow-md">
-                    {getCategoryIcon(item.category)}
-                    {item.category}
-                  </div>
-
-                  {/* Image/Thumbnail Frame */}
-                  <div className="h-44 overflow-hidden relative bg-zinc-900 shrink-0">
+                  {/* Image/Thumbnail Frame (aspect-square + big) */}
+                  <div className="aspect-square w-full overflow-hidden bg-zinc-950/80 rounded-[1.5rem] border border-purple-950/20 shadow-lg relative shrink-0 mb-3.5">
                     <img 
                       src={item.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=500&q=80'} 
                       alt={item.name} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-95"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-95 group-hover:brightness-100"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/10 to-transparent pointer-events-none" />
                   </div>
 
                   {/* Body Info */}
-                  <div className="p-6 text-left flex-1 flex flex-col justify-between">
+                  <div className="text-left flex-1 flex flex-col justify-between">
                     <div>
-                      <h3 className="font-bold text-base text-gray-100 mb-2 leading-snug group-hover:text-purple-400 transition-colors line-clamp-1">
+                      <h3 className="font-black text-sm sm:text-base text-white mb-3.5 leading-snug group-hover:text-purple-400 transition-colors line-clamp-3">
                         {item.name}
                       </h3>
-                      <p className="text-xs text-gray-400 leading-relaxed line-clamp-3 mb-4">
-                        {item.description || 'Premium developer asset structured for production workflows and cinematic grade visuals.'}
-                      </p>
                     </div>
 
-                    {/* Download interface triggers */}
-                    <div className="pt-2 border-t border-purple-900/10 flex items-center justify-between gap-3">
-                      <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest bg-zinc-900/50 px-2 py-1 rounded">
-                        RECURRING ACCESS
-                      </span>
+                    {/* Download & Install controls */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full mt-auto">
+                      <button
+                        onClick={() => {
+                          setSelectedInstallItem(item);
+                          setShowInstallModal(true);
+                        }}
+                        className="w-full py-2 px-3 bg-zinc-900/50 hover:bg-zinc-800 border border-purple-950/25 hover:border-purple-800/30 text-gray-300 hover:text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        Guide
+                      </button>
 
                       <button
                         onClick={() => handleDownload(item)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                        className={`w-full py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                           hasAccess 
-                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_10px_rgba(147,51,234,0.2)]'
-                            : 'bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-400'
+                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_12px_rgba(147,51,234,0.25)]'
+                            : 'bg-zinc-900 hover:bg-zinc-805 border border-white/5 text-gray-400'
                         }`}
                       >
                         {hasAccess ? (
                           <>
-                            <Download className="w-4 h-4" />
+                            <Download className="w-3.5 h-3.5" />
                             Download
                           </>
                         ) : (
                           <>
-                            <Lock className="w-3.5 h-3.5 text-gray-500" />
+                            <Lock className="w-3 h-3 text-gray-500" />
                             Unlock
                           </>
                         )}
@@ -523,6 +617,199 @@ export default function Downloadables() {
                   Close & Browse Content Only
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* HOW TO INSTALL GUIDE MODAL */}
+      <AnimatePresence>
+        {showInstallModal && selectedInstallItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/85 backdrop-blur-md cursor-pointer" 
+              onClick={() => {
+                setShowInstallModal(false);
+                setSelectedInstallItem(null);
+              }}
+            />
+            
+            {/* Modal Body */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/30 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10"
+            >
+              {/* Top glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[70%] h-24 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex items-center gap-4 mb-6 border-b border-purple-950/30 pb-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-900/15 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <Play className="w-5 h-5 fill-purple-400" />
+                </div>
+                <div className="text-left">
+                  <span className="text-[10px] font-mono text-purple-400 uppercase tracking-widest">{selectedInstallItem.category} Guide</span>
+                  <h3 className="text-lg font-black text-white tracking-tight leading-none mt-1">
+                    Install: {selectedInstallItem.name}
+                  </h3>
+                </div>
+              </div>
+
+              {/* Video Player Section */}
+              {selectedInstallItem.guideVideoUrl ? (
+                <div className="mb-6">
+                  {(() => {
+                    const url = selectedInstallItem.guideVideoUrl;
+                    const isEmbed = url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com') || url.includes('iframe') || url.includes('embed') || url.includes('player.bunny.net');
+
+                    if (isEmbed) {
+                      let embedUrl = url;
+                      if (url.includes('youtube.com/watch?v=')) {
+                        embedUrl = url.replace('youtube.com/watch?v=', 'youtube.com/embed/');
+                      } else if (url.includes('youtu.be/')) {
+                        embedUrl = `https://www.youtube.com/embed/${url.split('youtu.be/')[1]}`;
+                      }
+                      return (
+                        <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-purple-900/20 shadow-lg bg-black">
+                          <iframe
+                            src={embedUrl}
+                            className="absolute inset-x-0 inset-y-0 w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            title="Guide Player"
+                          />
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-purple-900/20 shadow-lg bg-black">
+                        <video
+                          src={url}
+                          controls
+                          className="w-full h-full object-contain"
+                          poster={selectedInstallItem.imageUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80"}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="mb-6 p-4 rounded-2xl bg-black border border-purple-900/10 text-left flex items-start gap-3">
+                  <Play className="w-5 h-5 text-gray-600 mt-0.5" />
+                  <div>
+                    <span className="block text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-1">Guide Walkthrough Stream</span>
+                    <p className="text-xs text-gray-500 leading-snug">No guide video has been configured for this premium asset yet.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Guide Contents */}
+              <div className="text-left text-sm text-gray-300 space-y-4 mb-6 scrollbar-thin">
+                <div>
+                  <p className="text-xs text-gray-400 mb-4 font-medium">Follow these straightforward deployment steps to use this asset in your active projects:</p>
+                  
+                  {selectedInstallItem.category === 'Softwares' && (
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
+                        <span>Click the <strong className="text-white font-black">Download</strong> button and wait for the installer package to complete downloading on your local file system.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
+                        <span>Mount the package installer. If on MacOS, open the DMG. If on Windows, execute the system executable (.exe) wizard.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
+                        <span>Authorize system privileges when prompted, select standard plugins directories, and complete setup directives.</span>
+                      </li>
+                    </ul>
+                  )}
+
+                  {selectedInstallItem.category === 'Videos' && (
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
+                        <span>Download the cinematic dynamic templates overlay or matte pack.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
+                        <span>Import the raw cinematic overlays directly into your choice editor program (Premiere Pro, Resolve, or After Effects).</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
+                        <span>Assign track layout blend filters to <strong className="text-white">Screen</strong> or <strong className="text-white">Linear Dodge (Add)</strong> to naturally clear deep canvas blacks.</span>
+                      </li>
+                    </ul>
+                  )}
+
+                  {selectedInstallItem.category === 'Images' && (
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
+                        <span>Download high fidelity photorealistic backdrop, alphamaps, or matte layers.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
+                        <span>Drop the texture or model layers seamlessly into target active software timelines like Photoshop, Figma, or Blender.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
+                        <span>Perform scale or adjustment layer filters matching your customized production render dimensions.</span>
+                      </li>
+                    </ul>
+                  )}
+
+                  {selectedInstallItem.category === 'Music' && (
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
+                        <span>Download lossless and studio-optimized lofi beats or stem collections.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
+                        <span>Integrate raw waves or audio presets onto empty DAW sample tracks or audio tracks (Ableton, FL Studio, Logic).</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
+                        <span>Set active project session BPM values matching details inside file details metadata.</span>
+                      </li>
+                    </ul>
+                  )}
+
+                  {selectedInstallItem.category === 'Sound Effects' && (
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
+                        <span>Download individual click triggers, swoop sfx, impact textures, or acoustic chimes.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
+                        <span>Arrange individual SFX files directly on action triggers or clip nodes inside sound maps in Audition, Premiere, or DAWs.</span>
+                      </li>
+                      <li className="flex gap-3 text-xs leading-relaxed">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
+                        <span>Fine-tune decay patterns and master outputs matching atmosphere expectations in cinematic or UI frameworks.</span>
+                      </li>
+                    </ul>
+                  )}
+
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInstallModal(false);
+                  setSelectedInstallItem(null);
+                }}
+                className="w-full py-3 bg-zinc-900 hover:bg-zinc-805 border border-white/5 text-white font-bold rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Close Guide
+              </button>
             </motion.div>
           </div>
         )}
