@@ -184,7 +184,9 @@ export default function Dashboard() {
   // Load downloadables list
   useEffect(() => {
     const unsubDownloadables = onSnapshot(collection(db, 'downloadables'), (snapshot) => {
-      setDownloadables(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      setDownloadables(list);
     }, (error) => console.error("Error listening to downloadables:", error));
     return () => unsubDownloadables();
   }, []);

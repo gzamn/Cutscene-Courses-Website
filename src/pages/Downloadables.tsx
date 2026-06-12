@@ -205,9 +205,11 @@ export default function Downloadables() {
 
         if (list.length === 0) {
           console.log('No downloads found. Auto-seeding premium items...');
-          for (const item of DEFAULT_DOWNLOADABLES) {
+          for (let i = 0; i < DEFAULT_DOWNLOADABLES.length; i++) {
+            const item = DEFAULT_DOWNLOADABLES[i];
             await addDoc(collection(db, 'downloadables'), {
               ...item,
+              order: i + 1,
               createdAt: new Date().toISOString()
             });
           }
@@ -217,6 +219,9 @@ export default function Downloadables() {
             ...doc.data()
           }));
         }
+
+        // Sort downloadables by order ascending
+        list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
         setDownloadables(list);
       } catch (err: any) {

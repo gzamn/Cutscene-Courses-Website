@@ -323,7 +323,8 @@ export default function AdminPanel() {
     imageUrl: '',
     downloadUrl: '',
     description: '',
-    guideVideoUrl: ''
+    guideVideoUrl: '',
+    order: '1'
   });
 
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -579,6 +580,7 @@ export default function AdminPanel() {
         id: doc.id,
         ...doc.data()
       }));
+      list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
       setDownloadables(list);
     } catch (err: any) {
       console.error('Fetch downloadables error:', err);
@@ -1226,6 +1228,7 @@ export default function AdminPanel() {
         imageUrl: downloadableForm.imageUrl,
         downloadUrl: downloadableForm.downloadUrl,
         guideVideoUrl: downloadableForm.guideVideoUrl,
+        order: Number(downloadableForm.order) || 1,
         updatedAt: new Date().toISOString()
       };
 
@@ -1249,7 +1252,8 @@ export default function AdminPanel() {
         imageUrl: '',
         downloadUrl: '',
         description: '',
-        guideVideoUrl: ''
+        guideVideoUrl: '',
+        order: '1'
       });
       fetchDownloadables();
     } catch (err: any) {
@@ -1266,7 +1270,8 @@ export default function AdminPanel() {
       imageUrl: item.imageUrl || '',
       downloadUrl: item.downloadUrl || '',
       description: item.description || '',
-      guideVideoUrl: item.guideVideoUrl || ''
+      guideVideoUrl: item.guideVideoUrl || '',
+      order: item.order !== undefined ? String(item.order) : '1'
     });
     setShowDownloadableModal(true);
   };
@@ -2487,7 +2492,8 @@ export default function AdminPanel() {
                       imageUrl: '',
                       downloadUrl: '',
                       description: '',
-                      guideVideoUrl: ''
+                      guideVideoUrl: '',
+                      order: '1'
                     });
                     setShowDownloadableModal(true);
                   }}
@@ -2532,6 +2538,7 @@ export default function AdminPanel() {
                         <th className="py-4 px-6">Image</th>
                         <th className="py-4 px-6">Asset Name</th>
                         <th className="py-4 px-6">Category</th>
+                        <th className="py-4 px-6">Order</th>
                         <th className="py-4 px-6">Bunny File Path</th>
                         <th className="py-4 px-6 text-right">Operations</th>
                       </tr>
@@ -2569,6 +2576,9 @@ export default function AdminPanel() {
                             <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5 text-[10px] font-bold text-gray-300 uppercase">
                               {item.category}
                             </span>
+                          </td>
+                          <td className="py-4 px-6 font-mono text-xs text-purple-350">
+                            {item.order !== undefined ? item.order : '1'}
                           </td>
                           <td className="py-4 px-6">
                             <div className="text-xs text-purple-400 truncate max-w-[200px]" title={item.downloadUrl}>
@@ -4406,6 +4416,21 @@ export default function AdminPanel() {
                   />
                   <p className="text-[10px] text-gray-500 mt-1">
                     Configures the direct walkthrough player displayed when users tap the "Guide" button.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Ordering Index List Position</label>
+                  <input
+                    type="number"
+                    required
+                    value={downloadableForm.order}
+                    onChange={(e) => setDownloadableForm({ ...downloadableForm, order: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                    placeholder="e.g. 1"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Defines the order of elements displayed in the library (ascending, 1 shows first).
                   </p>
                 </div>
 

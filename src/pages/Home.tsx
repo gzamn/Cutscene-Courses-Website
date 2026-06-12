@@ -231,7 +231,7 @@ export default function Home() {
     if (embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be')) {
       const videoId = embedUrl.includes('embed/') ? embedUrl.split('embed/')[1]?.split('?')[0] : '';
       const separator = embedUrl.includes('?') ? '&' : '?';
-      return `${embedUrl}${separator}autoplay=0&mute=0&controls=1&loop=1&playlist=${videoId}&rel=0`;
+      return `${embedUrl}${separator}autoplay=0&mute=0&controls=1&loop=0&rel=0`;
     }
     return embedUrl;
   };
@@ -273,7 +273,6 @@ export default function Home() {
                 key={heroVideoUrl}
                 className="w-full h-full object-cover"
                 controls
-                loop
                 playsInline
               >
                 <source src={heroVideoUrl} type="video/mp4" />
