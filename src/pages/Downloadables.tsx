@@ -37,13 +37,13 @@ const getCategoryIcon = (category: string) => {
     case 'Softwares':
       return <FileCode className="w-5 h-5 text-purple-400" />;
     case 'Videos':
-      return <Video className="w-5 h-5 text-blue-400" />;
     case 'Images':
-      return <ImageIcon className="w-5 h-5 text-emerald-400" />;
+    case 'Videos/Images':
+      return <Video className="w-5 h-5 text-blue-400" />;
     case 'Music':
-      return <Music className="w-5 h-5 text-amber-400" />;
     case 'Sound Effects':
-      return <Volume2 className="w-5 h-5 text-red-400" />;
+    case 'Music/SFX':
+      return <Music className="w-5 h-5 text-amber-400" />;
     default:
       return <FolderOpen className="w-5 h-5 text-gray-400" />;
   }
@@ -66,56 +66,56 @@ const DEFAULT_DOWNLOADABLES = [
   },
   {
     name: '4K Cinematic Drone Overlays & Real Light Leaks',
-    category: 'Videos',
+    category: 'Videos/Images',
     imageUrl: 'https://images.unsplash.com/photo-1473968512647-3e447244af8f?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
     description: 'Raw high-quality optical overlays including natural sun flares, anamorphic light streaks, and micro-dust structures for video editing.',
   },
   {
     name: 'VHS Vintage Glitch Textures & Lo-Fi Noise Loop',
-    category: 'Videos',
+    category: 'Videos/Images',
     imageUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://www.w3schools.com/html/movie.mp4',
     description: 'Analog videotape static transitions, tracking lines, and retro color distortions to overlay over secondary videos for a true nostalgia aesthetic.',
   },
   {
     name: 'Moody Neo-Cyberpunk LUT Visual Map Reference',
-    category: 'Images',
+    category: 'Videos/Images',
     imageUrl: 'https://images.unsplash.com/photo-1515263487990-61b07816b324?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80',
     description: 'High-definition styleboards framing night city palettes, neon balance keys, and color harmony schemes for your cinematic pre-production.',
   },
   {
     name: 'Studio Portrait High-Res Key Lightmaps Pack',
-    category: 'Images',
+    category: 'Videos/Images',
     imageUrl: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1920&q=80',
     description: 'Specially shot shadow filters (gobos) and clean lightmap PNG textures to simulate complex window and blind lighting in digital environments.',
   },
   {
     name: 'Epic Orchestral Hope & Triumph Cinematic Theme',
-    category: 'Music',
+    category: 'Music/SFX',
     imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
     description: 'Sweeping strings, massive acoustic percussion, and heroic brass progressions ideal for video intros, trailer soundtracks, and climax scenes.',
   },
   {
     name: 'Moody Lo-Fi Cyber Ambient Synth background track',
-    category: 'Music',
+    category: 'Music/SFX',
     imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
     description: 'Slow-tempo hardware synthesizer oscillations and hypnotic electric beats designed for background loops, coding, or modern talk vlogs.',
   },
   {
     name: 'Subtle Cinematic Rise & Transition Swooshes (Stereo)',
-    category: 'Sound Effects',
+    category: 'Music/SFX',
     imageUrl: 'https://images.unsplash.com/photo-1484755560693-a4074577af3a?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
     description: 'Rich low frequency impacts, atmospheric tension risers, and quick panning wind transitions to emphasize sudden scene changes.',
   },
   {
     name: 'Futuristic UI Audio Feedback & Cybernetic Clicks',
-    category: 'Sound Effects',
+    category: 'Music/SFX',
     imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=500&q=80',
     downloadUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
     description: 'High-pitch telemetry tick, synthetic cursor sound effects, error chimes, and server buzz triggers for app editors or modern tech montages.',
@@ -136,7 +136,7 @@ export default function Downloadables() {
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [config, setConfig] = useState<any>(null);
 
-  const categories = ['Softwares', 'Videos', 'Images', 'Music', 'Sound Effects'];
+  const categories = ['Softwares', 'Videos/Images', 'Music/SFX'];
 
   // Fetch website configuration for coming soon flags
   useEffect(() => {
@@ -160,13 +160,13 @@ export default function Downloadables() {
       case 'Softwares':
         return config.isSoftwaresComingSoon !== false;
       case 'Videos':
-        return config.isVideosComingSoon !== false;
       case 'Images':
-        return config.isImagesComingSoon !== false;
+      case 'Videos/Images':
+        return config.isVideosComingSoon !== false && config.isImagesComingSoon !== false;
       case 'Music':
-        return config.isMusicComingSoon !== false;
       case 'Sound Effects':
-        return config.isSoundEffectsComingSoon !== false;
+      case 'Music/SFX':
+        return config.isMusicComingSoon !== false && config.isSoundEffectsComingSoon !== false;
       default:
         return false;
     }
@@ -180,13 +180,13 @@ export default function Downloadables() {
       case 'Softwares':
         return config.softwaresComingSoonText || 'Software resources are coming soon.';
       case 'Videos':
-        return config.videosComingSoonText || 'Video overlays are coming soon.';
       case 'Images':
-        return config.imagesComingSoonText || 'Image assets are coming soon.';
+      case 'Videos/Images':
+        return config.videosComingSoonText || config.imagesComingSoonText || 'Video Overlays and Image assets are coming soon.';
       case 'Music':
-        return config.musicComingSoonText || 'Music collections are coming soon.';
       case 'Sound Effects':
-        return config.soundEffectsComingSoonText || 'Sound effects are coming soon.';
+      case 'Music/SFX':
+        return config.musicComingSoonText || config.soundEffectsComingSoonText || 'Music and Sound Effects are coming soon.';
       default:
         return 'Coming soon...';
     }
@@ -330,7 +330,12 @@ export default function Downloadables() {
   const filteredItems = downloadables.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
+    const getNormalizedCategory = (cat: string) => {
+      if (cat === 'Videos' || cat === 'Images' || cat === 'Videos/Images') return 'Videos/Images';
+      if (cat === 'Music' || cat === 'Sound Effects' || cat === 'Music/SFX') return 'Music/SFX';
+      return cat;
+    };
+    const matchesCategory = activeCategory === 'All' || getNormalizedCategory(item.category) === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -733,70 +738,36 @@ export default function Downloadables() {
                     </ul>
                   )}
 
-                  {selectedInstallItem.category === 'Videos' && (
+                   {(selectedInstallItem.category === 'Videos' || selectedInstallItem.category === 'Images' || selectedInstallItem.category === 'Videos/Images') && (
                     <ul className="space-y-3">
                       <li className="flex gap-3 text-xs leading-relaxed">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
-                        <span>Download the cinematic dynamic templates overlay or matte pack.</span>
+                        <span>Download the cinematic dynamic templates overlay, stock footage element, or high-fidelity lightmaps/matte pack.</span>
                       </li>
                       <li className="flex gap-3 text-xs leading-relaxed">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
-                        <span>Import the raw cinematic overlays directly into your choice editor program (Premiere Pro, Resolve, or After Effects).</span>
+                        <span>Import the raw cinematic overlays, PNG backdrops, or light textures directly into Photoshop, Premiere Pro, Resolve, After Effects, or Figma.</span>
                       </li>
                       <li className="flex gap-3 text-xs leading-relaxed">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
-                        <span>Assign track layout blend filters to <strong className="text-white">Screen</strong> or <strong className="text-white">Linear Dodge (Add)</strong> to naturally clear deep canvas blacks.</span>
+                        <span>Configure blending parameters (such as Screen, Multiply, or Linear Dodge) or scale layer filters to naturally integrate the elements with your scene layout.</span>
                       </li>
                     </ul>
                   )}
 
-                  {selectedInstallItem.category === 'Images' && (
+                  {(selectedInstallItem.category === 'Music' || selectedInstallItem.category === 'Sound Effects' || selectedInstallItem.category === 'Music/SFX') && (
                     <ul className="space-y-3">
                       <li className="flex gap-3 text-xs leading-relaxed">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
-                        <span>Download high fidelity photorealistic backdrop, alphamaps, or matte layers.</span>
+                        <span>Download the lossless, studio-optimized background tracks, beats, loop overlays, or customized audio sound effects.</span>
                       </li>
                       <li className="flex gap-3 text-xs leading-relaxed">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
-                        <span>Drop the texture or model layers seamlessly into target active software timelines like Photoshop, Figma, or Blender.</span>
+                        <span>Integrate the raw wave or mp3 files directly onto a dedicated audio track in your workspace (Premiere Pro, Resolve, Audition, or DAWs).</span>
                       </li>
                       <li className="flex gap-3 text-xs leading-relaxed">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
-                        <span>Perform scale or adjustment layer filters matching your customized production render dimensions.</span>
-                      </li>
-                    </ul>
-                  )}
-
-                  {selectedInstallItem.category === 'Music' && (
-                    <ul className="space-y-3">
-                      <li className="flex gap-3 text-xs leading-relaxed">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
-                        <span>Download lossless and studio-optimized lofi beats or stem collections.</span>
-                      </li>
-                      <li className="flex gap-3 text-xs leading-relaxed">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
-                        <span>Integrate raw waves or audio presets onto empty DAW sample tracks or audio tracks (Ableton, FL Studio, Logic).</span>
-                      </li>
-                      <li className="flex gap-3 text-xs leading-relaxed">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
-                        <span>Set active project session BPM values matching details inside file details metadata.</span>
-                      </li>
-                    </ul>
-                  )}
-
-                  {selectedInstallItem.category === 'Sound Effects' && (
-                    <ul className="space-y-3">
-                      <li className="flex gap-3 text-xs leading-relaxed">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">1</span>
-                        <span>Download individual click triggers, swoop sfx, impact textures, or acoustic chimes.</span>
-                      </li>
-                      <li className="flex gap-3 text-xs leading-relaxed">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">2</span>
-                        <span>Arrange individual SFX files directly on action triggers or clip nodes inside sound maps in Audition, Premiere, or DAWs.</span>
-                      </li>
-                      <li className="flex gap-3 text-xs leading-relaxed">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-[10px]">3</span>
-                        <span>Fine-tune decay patterns and master outputs matching atmosphere expectations in cinematic or UI frameworks.</span>
+                        <span>Fine-tune audio levels, set custom track decay/panning filters, or adjust session BPM keys matching catalog details.</span>
                       </li>
                     </ul>
                   )}

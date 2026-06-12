@@ -289,12 +289,10 @@ export default function Dashboard() {
 
       let category = 'Documents';
       const extension = file.name.split('.').pop()?.toLowerCase();
-      if (['mp4', 'mov', 'avi', 'mkv'].includes(extension || '')) {
-        category = 'Videos';
-      } else if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension || '')) {
-        category = 'Images';
+      if (['mp4', 'mov', 'avi', 'mkv', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension || '')) {
+        category = 'Videos/Images';
       } else if (['mp3', 'wav', 'ogg', 'aac'].includes(extension || '')) {
-        category = 'Music';
+        category = 'Music/SFX';
       } else if (['exe', 'dmg', 'pkg', 'zip', 'rar'].includes(extension || '')) {
         category = 'Softwares';
       }
@@ -1056,7 +1054,7 @@ export default function Dashboard() {
 
               {/* Tag Carousel */}
               <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto scrollbar-none justify-start pb-1">
-                {['All', 'Softwares', 'Videos', 'Images', 'Music', 'Sound Effects'].map((cat) => (
+                {['All', 'Softwares', 'Videos/Images', 'Music/SFX'].map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setLibraryFilter(cat)}
@@ -1078,7 +1076,12 @@ export default function Dashboard() {
                 const filteredLibraryItems = userDownloads.filter(item => {
                   const matchesSearch = item.name.toLowerCase().includes(libraryQuery.toLowerCase()) || 
                                         (item.description && item.description.toLowerCase().includes(libraryQuery.toLowerCase()));
-                  const matchesCategory = libraryFilter === 'All' || item.category === libraryFilter;
+                  const getNormalizedCategory = (cat: string) => {
+                    if (cat === 'Videos' || cat === 'Images' || cat === 'Videos/Images') return 'Videos/Images';
+                    if (cat === 'Music' || cat === 'Sound Effects' || cat === 'Music/SFX') return 'Music/SFX';
+                    return cat;
+                  };
+                  const matchesCategory = libraryFilter === 'All' || getNormalizedCategory(item.category) === libraryFilter;
                   return matchesSearch && matchesCategory;
                 });
 

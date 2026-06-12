@@ -4345,10 +4345,8 @@ export default function AdminPanel() {
                       className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-350 focus:outline-none"
                     >
                       <option value="Softwares">Softwares</option>
-                      <option value="Videos">Videos</option>
-                      <option value="Images">Images</option>
-                      <option value="Music">Music</option>
-                      <option value="Sound Effects">Sound Effects</option>
+                      <option value="Videos/Images">Videos/Images</option>
+                      <option value="Music/SFX">Music/SFX</option>
                     </select>
                   </div>
 
