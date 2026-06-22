@@ -5,23 +5,32 @@ import { CreditCard, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock, Bui
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, collection, addDoc, query, where, getDocs, doc, getDoc, setDoc } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
+import { useRegion } from '../context/RegionContext';
 import AuthFlow from '../components/AuthFlow';
 import ValidationTooltip from '../components/ValidationTooltip';
-
-type PaymentMethod = 'ccp' | 'baridimob';
 
 export default function Payment() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
   const { t, language } = useLanguage();
+  const { currentRegion, getCoursePrice } = useRegion();
   const searchParams = new URLSearchParams(location.search);
   const courseId = searchParams.get('courseId');
   
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<'info' | 'payment'>('info');
-  const [selectedMethod, setSelectedMethod] = useState<'ccp' | 'baridimob'>('baridimob');
+  const [selectedMethod, setSelectedMethod] = useState<string>('');
+
+  useEffect(() => {
+    const activeMethods = currentRegion?.paymentMethods?.filter((m: any) => m.active) || [];
+    if (activeMethods.length > 0) {
+      setSelectedMethod(activeMethods[0].id);
+    } else {
+      setSelectedMethod('');
+    }
+  }, [currentRegion]);
   const [processing, setProcessing] = useState(false);
 
   // Checkbox and receipt states
@@ -86,7 +95,7 @@ export default function Payment() {
 
   const calculateTotal = () => {
     if (!course) return 0;
-    return course.price; // always standard price
+    return getCoursePrice(course).value;
   };
 
   const compressImage = (file: File): Promise<string> => {
@@ -282,7 +291,9 @@ export default function Payment() {
         email: formData.email,
         phone: formData.phone,
         format: 'recorded', // always recorded format
-        totalPaid: calculateTotal(),
+        totalPaid: getCoursePrice(course).formatted,
+        currency: currentRegion.currency,
+        regionId: currentRegion.id,
         paid: false,
         receiptUrl: receiptBase64,
         paymentMethod: selectedMethod,
@@ -384,7 +395,7 @@ export default function Payment() {
               <div className="space-y-4 mb-8">
                 <div className="flex justify-between text-gray-400 text-sm">
                   <span>{t('payment.coursePrice')}</span>
-                  <span className="text-white font-medium">{course.price.toLocaleString()} {course.currency}</span>
+                  <span className="text-white font-medium">{getCoursePrice(course).formatted}</span>
                 </div>
                 <div className="flex justify-between text-gray-400 text-sm">
                   <span>Course Format</span>
@@ -392,11 +403,11 @@ export default function Payment() {
                 </div>
                 <div className="flex justify-between text-gray-400 text-sm">
                   <span>{t('payment.platformFee')}</span>
-                  <span className="text-white font-medium">0 {course.currency}</span>
+                  <span className="text-white font-medium">0 {currentRegion.currency}</span>
                 </div>
                 <div className="pt-4 border-t border-purple-900/20 flex justify-between items-center">
                   <span className="text-lg font-bold">{t('payment.totalAmount')}</span>
-                  <span className="text-2xl font-black text-purple-500">{calculateTotal().toLocaleString()} {course.currency}</span>
+                  <span className="text-2xl font-black text-purple-500">{getCoursePrice(course).formatted}</span>
                 </div>
               </div>
 
@@ -553,74 +564,39 @@ export default function Payment() {
 
                   {/* Payment System Buttons Toggle */}
                   <div className="grid grid-cols-2 gap-3 mb-6">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMethod('baridimob')}
-                      className={`p-4 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
-                        selectedMethod === 'baridimob' 
-                          ? 'border-purple-600 bg-purple-950/30 text-white shadow-lg shadow-purple-900/10' 
-                          : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <Building2 className="w-5 h-5 text-purple-400" />
-                      <span className="text-xs font-bold uppercase font-sans">BaridiMob</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMethod('ccp')}
-                      className={`p-4 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
-                        selectedMethod === 'ccp' 
-                          ? 'border-purple-600 bg-purple-950/30 text-white shadow-lg shadow-purple-900/10' 
-                          : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <Landmark className="w-5 h-5 text-purple-400" />
-                      <span className="text-xs font-bold uppercase font-sans">CCP</span>
-                    </button>
+                    {currentRegion?.paymentMethods?.filter((m: any) => m.active).map((method: any) => {
+                      const IconComp = method.id === 'ccp' || method.id === 'bank' ? Landmark : CreditCard;
+                      return (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => setSelectedMethod(method.id)}
+                          className={`p-4 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                            selectedMethod === method.id 
+                              ? 'border-purple-600 bg-purple-950/30 text-white shadow-lg shadow-purple-900/10' 
+                              : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <IconComp className="w-5 h-5 text-purple-400" />
+                          <span className="text-xs font-bold font-sans leading-tight">{method.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Payment Credentials Panel */}
                   <div className="p-6 bg-black border border-purple-500/10 rounded-2xl mb-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
-                      <Building2 className="w-24 h-24 text-white" />
+                      <Landmark className="w-24 h-24 text-white" />
                     </div>
                     
-                    <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-black mb-3">
-                      {selectedMethod === 'baridimob' ? 'BaridiMob Wire details' : 'CCP Transaction Details'}
+                    <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-black mb-3 text-left">
+                      {currentRegion?.paymentMethods?.find((m: any) => m.id === selectedMethod)?.name || 'Payment Details'} Details
                     </h4>
 
-                    {selectedMethod === 'baridimob' ? (
-                      <div className="space-y-2.5">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-gray-505 font-medium">RIP Account:</span>
-                          <span className="font-mono text-purple-300 font-extrabold text-[13px] bg-purple-950/15 border border-purple-500/10 px-2.5 py-1 rounded-md select-all">
-                            00799999004164129502
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-gray-500 italic mt-2">
-                          *Transfer using your BaridiMob app and save the digital PDF or photo receipt below.
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 font-mono text-[11px]">
-                        <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                          <span className="text-gray-500">Name:</span>
-                          <span className="text-white font-extrabold select-all">ROUABHIA AMINE</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                          <span className="text-gray-500">Number:</span>
-                          <span className="text-white font-extrabold select-all">0041641295</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                          <span className="text-gray-500">Key:</span>
-                          <span className="text-white font-extrabold select-all">02</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500">Address:</span>
-                          <span className="text-white font-extrabold select-all">BATNA, BATNA</span>
-                        </div>
-                      </div>
-                    )}
+                    <div className="space-y-1.5 bg-zinc-950 p-3.5 rounded-xl text-left whitespace-pre-wrap font-mono text-gray-300 text-xs leading-relaxed">
+                      {currentRegion?.paymentMethods?.find((m: any) => m.id === selectedMethod)?.instructions || 'No details required.'}
+                    </div>
                   </div>
 
                   {/* Click/Drag File Upload Box */}

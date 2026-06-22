@@ -16,6 +16,8 @@ import {
   Landmark
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { GlowingCard, RainbowButton } from '../components/AnimatedButtons';
+import { useRegion } from '../context/RegionContext';
 import { 
   db, 
   handleFirestoreError, 
@@ -93,12 +95,22 @@ const DEFAULT_PLANS = [
 export default function Plans() {
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
+  const { currentRegion, getPlanPrice } = useRegion();
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutPlan, setCheckoutPlan] = useState<any | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'details' | 'process' | 'success'>('details');
   const [phone, setPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'ccp' | 'baridimob'>('baridimob');
+  const [paymentMethod, setPaymentMethod] = useState<string>('');
+
+  useEffect(() => {
+    const activeMethods = currentRegion?.paymentMethods?.filter((m: any) => m.active) || [];
+    if (activeMethods.length > 0) {
+      setPaymentMethod(activeMethods[0].id);
+    } else {
+      setPaymentMethod('');
+    }
+  }, [currentRegion]);
   const [processing, setProcessing] = useState(false);
   const [config, setConfig] = useState<any>(null);
 
@@ -327,8 +339,10 @@ export default function Plans() {
         phone: phone,
         ccpRIP: ccpRIP,
         format: 'plan',
-        totalPaid: checkoutPlan.price,
-        price: checkoutPlan.price,
+        totalPaid: getPlanPrice(checkoutPlan).formatted,
+        price: getPlanPrice(checkoutPlan).formatted,
+        currency: currentRegion.currency,
+        regionId: currentRegion.id,
         paid: false,
         receiptUrl: receiptBase64,
         paymentMethod: paymentMethod,
@@ -462,12 +476,15 @@ export default function Plans() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, delay: idx * 0.1 }}
                   key={plan.id || idx}
-                  className={`relative rounded-[2.5rem] p-8 text-left flex flex-col justify-between transition-all duration-300 md:scale-100 ${
-                    plan.isPopular 
-                      ? 'bg-gradient-to-b from-purple-950/40 via-zinc-950 to-zinc-950 border-2 border-purple-500 shadow-[0_0_50px_rgba(158,58,235,0.25)] md:scale-105 z-10' 
-                      : 'bg-zinc-950/60 border border-purple-900/10 hover:border-purple-500/25 hover:bg-zinc-950 hover:shadow-[0_0_35px_rgba(87,44,242,0.1)]'
-                  }`}
+                  className="h-full"
                 >
+                  <GlowingCard
+                    className={`relative rounded-[2.5rem] p-8 text-left flex flex-col justify-between transition-all duration-300 md:scale-100 h-full ${
+                      plan.isPopular 
+                        ? 'bg-gradient-to-b from-purple-950/40 via-zinc-950 to-zinc-950 border border-purple-500 shadow-[0_0_50px_rgba(158,58,235,0.25)] md:scale-105 z-10 animate-pulse-slow' 
+                        : 'bg-zinc-950/65 border border-purple-900/10 hover:border-purple-500/25'
+                    }`}
+                  >
                   {/* Subtle purple radial background light only for popular card to emphasize saturation */}
                   {plan.isPopular && (
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(158,58,235,0.12),transparent_70%)] rounded-[2.5rem] pointer-events-none" />
@@ -496,7 +513,7 @@ export default function Plans() {
                       <span className={`text-4xl sm:text-5xl font-black tracking-tight ${
                         plan.isPopular ? 'text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-100 to-purple-400' : 'text-white'
                       }`}>
-                        {plan.price}
+                        {getPlanPrice(plan).formatted}
                       </span>
                       <span className="text-[10px] text-purple-400/70 font-bold uppercase tracking-wider">
                         /month
@@ -552,6 +569,7 @@ export default function Plans() {
                       )}
                     </button>
                   )}
+                  </GlowingCard>
                 </motion.div>
               );
             })}
@@ -667,64 +685,36 @@ export default function Plans() {
                         Select Payment System
                       </label>
                       <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('baridimob')}
-                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
-                            paymentMethod === 'baridimob' 
-                              ? 'border-purple-600 bg-purple-950/20 text-white' 
-                              : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          <Building2 className="w-4 h-4 text-purple-400" />
-                          <span className="text-xs font-bold">BaridiMob</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('ccp')}
-                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 ${
-                            paymentMethod === 'ccp' 
-                              ? 'border-purple-600 bg-purple-950/20 text-white' 
-                              : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          <Landmark className="w-4 h-4 text-purple-400" />
-                          <span className="text-xs font-bold">CCP</span>
-                        </button>
+                        {currentRegion?.paymentMethods?.filter((m: any) => m.active).map((method: any) => {
+                          const IconComp = method.id === 'ccp' || method.id === 'bank' ? Landmark : CreditCard;
+                          return (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => setPaymentMethod(method.id)}
+                              className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                                paymentMethod === method.id 
+                                  ? 'border-purple-600 bg-purple-950/20 text-white' 
+                                  : 'border-white/5 bg-zinc-900/40 text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              <IconComp className="w-4 h-4 text-purple-400" />
+                              <span className="text-xs font-bold leading-tight">{method.name}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
                     {/* Account detailed card */}
                     <div className="p-4 bg-black border border-purple-500/10 rounded-xl relative overflow-hidden text-xs">
-                      <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-1.5">
-                        {paymentMethod === 'baridimob' ? 'BaridiMob Wire details' : 'CCP Transaction Details'}
+                      <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-1.5 text-left">
+                        {currentRegion?.paymentMethods?.find((m: any) => m.id === paymentMethod)?.name || 'Payment Info'} Details
                       </h4>
 
-                      {paymentMethod === 'baridimob' ? (
-                        <div className="space-y-1 bg-zinc-950 p-2.5 rounded-lg">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">RIP Account:</span>
-                            <span className="font-mono text-purple-300 font-bold bg-purple-950/20 px-2 py-0.5 rounded select-all text-xs">
-                              00799999004164129502
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5 font-mono text-[10px] bg-zinc-950 p-2.5 rounded-lg">
-                          <div className="flex justify-between items-center border-b border-white/5 pb-1">
-                            <span className="text-gray-500">Name:</span>
-                            <span className="text-white font-bold select-all">ROUABHIA AMINE</span>
-                          </div>
-                          <div className="flex justify-between items-center border-b border-white/5 pb-1">
-                            <span className="text-gray-500">Number:</span>
-                            <span className="text-white font-bold select-all">0041641295</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Key / Address:</span>
-                            <span className="text-white font-bold select-all">02 / BATNA</span>
-                          </div>
-                        </div>
-                      )}
+                      <div className="space-y-1 bg-zinc-950 p-2.5 rounded-lg text-left whitespace-pre-wrap font-mono text-gray-300 text-[10px] leading-normal">
+                        {currentRegion?.paymentMethods?.find((m: any) => m.id === paymentMethod)?.instructions || 'No details provided.'}
+                      </div>
                     </div>
 
                     {/* Drag & Drop Box */}
@@ -865,7 +855,7 @@ export default function Plans() {
                     {/* Summary row */}
                     <div className="pt-2 border-t border-purple-900/10 flex items-center justify-between text-xs">
                       <span className="text-gray-400 font-bold">Bundle Price:</span>
-                      <span className="text-xl font-black text-purple-400">{checkoutPlan.price}</span>
+                      <span className="text-xl font-black text-purple-400">{getPlanPrice(checkoutPlan).formatted}</span>
                     </div>
 
                     {/* Call to actions */}
@@ -877,13 +867,15 @@ export default function Plans() {
                       >
                         Cancel
                       </button>
-                      <button
+                      <RainbowButton
                         type="submit"
-                        className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/20 flex items-center justify-center gap-1.5"
+                        className="flex-1 text-white rounded-xl shadow-lg shadow-purple-600/20"
                       >
-                        <ShieldCheck className="w-4 h-4" />
-                        Complete Order
-                      </button>
+                        <span className="flex items-center justify-center gap-1.5 font-bold py-1 text-xs uppercase tracking-wider">
+                          <ShieldCheck className="w-4 h-4" />
+                          Complete Order
+                        </span>
+                      </RainbowButton>
                     </div>
                   </form>
                 </div>

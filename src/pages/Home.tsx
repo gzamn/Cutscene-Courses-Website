@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, Lock, Volume2, VolumeX, Compass, Film, Sparkles, Trophy, Award, CheckCircle2, Check, Layers } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { SparkleButton, RainbowButton, GlowingCard } from '../components/AnimatedButtons';
 import { useState, useEffect } from 'react';
 import { db, collection, getDocs, ensureDefaultStudentWorksSeeded, ensureDefaultHeroVideosSeeded, ensureDefaultSpecialOffersSeeded, ensureDefaultStatisticsSeeded } from '../firebase';
 
@@ -315,19 +316,21 @@ export default function Home() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mt-10 w-full sm:w-auto"
             >
-              <Link 
+              <RainbowButton 
                 to="/courses" 
-                className="w-full sm:w-auto px-10 py-5 bg-brand-radial hover:scale-105 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 group shadow-2xl shadow-purple-600/40 cursor-pointer"
+                className="w-full sm:w-auto text-white rounded-2xl"
               >
-                {t('hero.explore')}
-                <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </Link>
-              <button 
+                <span className="flex items-center gap-3 font-black text-lg py-1 px-4">
+                  {t('hero.explore')}
+                  <ArrowRight className={`w-6 h-6 group-hover:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
+                </span>
+              </RainbowButton>
+              <SparkleButton 
                 onClick={scrollToStudentsWork}
-                className="w-full sm:w-auto px-10 py-5 glass-surface hover:bg-white/10 text-white rounded-2xl font-bold text-lg transition-all cursor-pointer"
+                className="w-full sm:w-auto px-10 py-5 text-white rounded-2xl font-bold text-lg"
               >
                 {t('hero.studentsWork')}
-              </button>
+              </SparkleButton>
             </motion.div>
           </div>
         </div>
@@ -378,10 +381,11 @@ export default function Home() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="relative bg-zinc-950/70 border border-purple-900/20 hover:border-purple-500/30 rounded-3xl overflow-hidden flex flex-col h-full transition-all duration-300 group shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-purple-950/10 hover:translate-y-[-4px]"
+                    className="h-full"
                   >
-                    {/* Banner Image - The absolute majority of the design */}
-                    <div className="relative aspect-[3/4] w-full overflow-hidden bg-black shrink-0 border-b border-purple-900/10">
+                    <GlowingCard className="relative bg-zinc-950/70 border border-purple-900/20 hover:border-purple-500/30 rounded-3xl overflow-hidden flex flex-col h-full transition-all duration-300 group shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-purple-950/10 hover:translate-y-[-4px]">
+                      {/* Banner Image - The absolute majority of the design */}
+                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-black shrink-0 border-b border-purple-900/10">
                       <img 
                         src={offer.imageUrl || 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800'} 
                         alt={title}
@@ -428,25 +432,24 @@ export default function Home() {
 
                       {/* 2 Buttons: Details & Claim Now */}
                       <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-purple-900/10">
-                        <button
-                          type="button"
+                        <SparkleButton
                           onClick={() => setSelectedOffer(offer)}
-                          className="px-4 py-3 rounded-xl bg-zinc-900/60 border border-purple-900/20 hover:bg-zinc-800 text-gray-300 font-extrabold text-[10px] sm:text-xs uppercase tracking-wider text-center transition-all cursor-pointer flex items-center justify-center"
+                          className="px-4 py-3 rounded-xl text-gray-300 font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center"
                         >
                           {language === 'ar' ? 'تفاصيل العرض' : language === 'fr' ? 'Détails' : 'Details'}
-                        </button>
+                        </SparkleButton>
 
-                        <Link
+                        <RainbowButton
                           to={`/complete-order?offerId=${offer.id}`}
-                          className="px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider text-center transition-all cursor-pointer shadow-lg hover:shadow-purple-600/20 flex items-center justify-center gap-1.5"
+                          className="px-4 py-3 rounded-xl text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5"
                         >
                           <span>{language === 'ar' ? 'اشترك الآن' : language === 'fr' ? 'S\'inscrire' : 'Claim Now'}</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        </RainbowButton>
                       </div>
                     </div>
-                  </motion.div>
-                );
+                  </GlowingCard>
+                </motion.div>
+              );
               })}
             </div>
           </div>
@@ -571,8 +574,9 @@ export default function Home() {
                 <motion.div 
                   key={course.id}
                   whileHover={{ y: -10 }}
-                  className="bg-black border border-purple-900/20 rounded-2xl overflow-hidden group"
+                  className="h-full"
                 >
+                  <GlowingCard className="bg-black border border-purple-900/20 rounded-2xl overflow-hidden group flex flex-col h-full">
                   {course.isComingSoon ? (
                     <div className="relative h-48 overflow-hidden block">
                       <img 
@@ -634,24 +638,25 @@ export default function Home() {
                             {course.price ? `${course.price.toLocaleString()} ${course.currency || 'DA'}` : 'Free'}
                           </span>
                           <div className="flex gap-2">
-                            <Link 
+                            <SparkleButton 
                               to={`/courses/${course.id}`}
-                              className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-purple-900/30 rounded-lg transition-all text-xs font-bold"
+                              className="px-3 py-2 text-white border border-purple-900/30 rounded-lg text-xs font-bold flex items-center justify-center"
                             >
                               {t('courses.details')}
-                            </Link>
-                            <Link 
+                            </SparkleButton>
+                            <RainbowButton 
                               to={`/payment?courseId=${course.id}`}
-                              className="px-4 py-2 bg-brand-radial hover:opacity-90 text-white border border-purple-500/30 rounded-lg transition-all text-sm font-bold shadow-lg shadow-purple-600/10"
+                              className="px-4 py-2 text-white border border-purple-500/30 rounded-lg text-sm font-bold flex items-center justify-center"
                             >
                               {t('courses.getStarted')}
-                            </Link>
+                            </RainbowButton>
                           </div>
                         </>
                       )}
                     </div>
                   </div>
-                </motion.div>
+                </GlowingCard>
+              </motion.div>
               ))
             )}
           </div>
@@ -899,13 +904,15 @@ export default function Home() {
 
             {/* Play actions block */}
             <div className="mt-4 pt-3 border-t border-purple-900/10 flex items-center justify-end">
-              <Link
+              <RainbowButton
                 to={`/courses/${continueWatching.courseId}/video/${continueWatching.chapter}/${continueWatching.type}`}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-[10px] md:text-xs uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-md shadow-purple-950/20 active:scale-95 whitespace-nowrap cursor-pointer hover:shadow-[0_0_15px_rgba(168,85,247,0.4)]"
+                className="text-[10px] md:text-xs uppercase"
               >
-                <Play className="w-3.5 h-3.5" fill="currentColor" />
-                {language === 'ar' ? 'استمرار' : language === 'fr' ? 'Continuer' : 'Continue watching'}
-              </Link>
+                <span className="flex items-center gap-1.5 font-bold">
+                  <Play className="w-3 h-3 inline-block shrink-0" fill="currentColor" />
+                  {language === 'ar' ? 'استمرار' : language === 'fr' ? 'Continuer' : 'Continue watching'}
+                </span>
+              </RainbowButton>
             </div>
           </motion.div>
         )}

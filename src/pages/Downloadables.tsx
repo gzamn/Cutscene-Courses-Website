@@ -18,6 +18,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { SparkleButton, GlowingCard } from '../components/AnimatedButtons';
 import { 
   db, 
   handleFirestoreError, 
@@ -504,10 +505,11 @@ export default function Downloadables() {
                   exit={{ opacity: 0, scale: 0.95, y: 15 }}
                   transition={{ duration: 0.25, delay: idx * 0.04 }}
                   key={item.id}
-                  className="group transition-all hover:-translate-y-1 relative flex flex-col bg-transparent"
+                  className="h-full"
                 >
-                  {/* Image/Thumbnail Frame (aspect-square + big) */}
-                  <div className="aspect-square w-full overflow-hidden bg-zinc-950/80 rounded-[1.5rem] border border-purple-950/20 shadow-lg relative shrink-0 mb-3.5">
+                  <GlowingCard className="group transition-all hover:-translate-y-1 relative flex flex-col bg-zinc-950/40 p-4 border border-purple-900/10 rounded-[2rem] h-full">
+                    {/* Image/Thumbnail Frame (aspect-square + big) */}
+                    <div className="aspect-square w-full overflow-hidden bg-zinc-950/80 rounded-[1.5rem] border border-purple-950/20 shadow-lg relative shrink-0 mb-3.5">
                     <img 
                       src={item.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=500&q=80'} 
                       alt={item.name} 
@@ -525,16 +527,18 @@ export default function Downloadables() {
 
                     {/* Download & Install controls */}
                     <div className="flex flex-col sm:flex-row items-center gap-2 w-full mt-auto">
-                      <button
+                      <SparkleButton
                         onClick={() => {
                           setSelectedInstallItem(item);
                           setShowInstallModal(true);
                         }}
-                        className="w-full py-2 px-3 bg-zinc-900/50 hover:bg-zinc-800 border border-purple-950/25 hover:border-purple-800/30 text-gray-300 hover:text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        className="w-full py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5"
                       >
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        Guide
-                      </button>
+                        <span className="flex items-center gap-1.5 justify-center">
+                          <Play className="w-3 h-3 fill-current inline-block" />
+                          Guide
+                        </span>
+                      </SparkleButton>
 
                       <button
                         onClick={() => handleDownload(item)}
@@ -558,7 +562,8 @@ export default function Downloadables() {
                       </button>
                     </div>
                   </div>
-                </motion.div>
+                </GlowingCard>
+              </motion.div>
               ))}
             </AnimatePresence>
           </div>

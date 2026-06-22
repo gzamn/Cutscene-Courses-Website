@@ -2,12 +2,14 @@ import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useRegion } from '../context/RegionContext';
 import { useEffect, useState } from 'react';
 import { client, urlFor } from '../lib/sanity';
 import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs } from '../firebase';
 
 export default function Courses() {
   const { t, language } = useLanguage();
+  const { getCoursePrice } = useRegion();
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -109,7 +111,7 @@ export default function Courses() {
                       {course.isComingSoon ? (
                         <span className="text-xl text-purple-400 uppercase tracking-widest">{t('course.comingSoon') || 'Coming Soon'}</span>
                       ) : (
-                        `${(course.price || 0).toLocaleString()} ${course.currency || 'DA'}`
+                        getCoursePrice(course).formatted
                       )}
                     </div>
                   </Link>

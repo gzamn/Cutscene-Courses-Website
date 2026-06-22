@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2,
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
+import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 
 const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => {
   if (!course) return '';
@@ -1282,28 +1283,30 @@ export default function VideoPlayer() {
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
               <h3 className="text-xl font-bold mb-6">{t('course.resources')}</h3>
               <div className="space-y-4">
-                <button
-                  type="button"
+                <SparkleButton
                   onClick={() => triggerMockDownload(`Chapter_${chapter}_Notes.pdf`)}
-                  className="w-full text-left flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group cursor-pointer"
+                  className="w-full text-left p-4 rounded-2xl text-white font-medium flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-purple-500" />
-                    <span className="text-sm font-medium">Chapter {chapter} Notes.pdf</span>
-                  </div>
-                  <CheckCircle2 className="w-4 h-4 text-gray-600 group-hover:text-purple-500 transition-colors" />
-                </button>
-                <button
-                  type="button"
+                  <span className="flex items-center justify-between w-full">
+                    <span className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-purple-500 shrink-0" />
+                      <span className="text-sm font-medium">Chapter {chapter} Notes.pdf</span>
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors" />
+                  </span>
+                </SparkleButton>
+                <SparkleButton
                   onClick={() => triggerMockDownload('Exercise_Assets.zip')}
-                  className="w-full text-left flex items-center justify-between p-4 bg-zinc-900/50 border border-purple-900/20 rounded-2xl hover:bg-zinc-900 transition-colors group cursor-pointer"
+                  className="w-full text-left p-4 rounded-2xl text-white font-medium flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-purple-500" />
-                    <span className="text-sm font-medium">Exercise Assets.zip</span>
-                  </div>
-                  <CheckCircle2 className="w-4 h-4 text-gray-600 group-hover:text-purple-500 transition-colors" />
-                </button>
+                  <span className="flex items-center justify-between w-full">
+                    <span className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-purple-500 shrink-0" />
+                      <span className="text-sm font-medium">Exercise Assets.zip</span>
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors" />
+                  </span>
+                </SparkleButton>
               </div>
             </div>
 
@@ -1312,12 +1315,14 @@ export default function VideoPlayer() {
               <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
                 {t('course.helpDesc')}
               </p>
-              <Link 
+              <RainbowButton 
                 to="/support"
-                className="w-full py-3 bg-white text-purple-900 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors"
+                className="w-full text-white rounded-xl text-sm justify-center"
               >
-                {t('course.contactSupport')}
-              </Link>
+                <span className="font-bold py-1 flex justify-center items-center">
+                  {t('course.contactSupport')}
+                </span>
+              </RainbowButton>
             </div>
           </div>
         </div>

@@ -35,6 +35,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { SparkleButton } from './AnimatedButtons';
 
 interface AuthFlowProps {
   onSuccess: () => void;
@@ -223,6 +224,14 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle successful fingerprint scan
+  const handleFingerprintSuccess = () => {
+    const formElement = document.getElementById('auth-details-form') as HTMLFormElement;
+    if (formElement) {
+      formElement.requestSubmit();
     }
   };
 
@@ -463,7 +472,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
 
           {/* Details Form (Email Signup / Login) */}
           {step === 'details' && (
-            <form onSubmit={handleDetailsSubmit} className="space-y-4 text-left">
+            <form id="auth-details-form" onSubmit={handleDetailsSubmit} className="space-y-4 text-left">
               {isSignUp && (
                 <>
                   <div className="relative">
@@ -542,20 +551,23 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    {isSignUp ? 'Sign Up' : 'Sign In'}
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+              {!isSignUp ? (
+                <SparkleButton
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-4 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  {isLoading ? 'Signing In...' : 'Sign In'}
+                </SparkleButton>
+              ) : (
+                <SparkleButton
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-4 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  {isLoading ? 'Processing...' : 'Sign Up'}
+                </SparkleButton>
+              )}
 
               {/* Alternate Login providers */}
               <div className="relative my-6 select-none">

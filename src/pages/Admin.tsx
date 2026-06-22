@@ -27,8 +27,9 @@ import {
   DEFAULT_STATISTICS
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
+import { useRegion } from '../context/RegionContext';
 
-type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'updates' | 'offers' | 'statistics';
+type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions';
 
 interface Toast {
   id: string;
@@ -68,16 +69,6 @@ export default function AdminPanel() {
   const [downloadables, setDownloadables] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [heroVideos, setHeroVideos] = useState<any[]>([]);
-  const [updatesList, setUpdatesList] = useState<any[]>([]);
-  const [loadingUpdates, setLoadingUpdates] = useState(false);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
-  const [updateForm, setUpdateForm] = useState({
-    title: '',
-    content: '',
-    category: 'Announcement',
-    pinned: false
-  });
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
     contactEmail: 'contact@cutscene-academy.com',
@@ -231,6 +222,62 @@ export default function AdminPanel() {
     showAlertOnScreen: true
   });
 
+  // Regions Config States & syncing hooks
+  const { regions, refreshRegions } = useRegion();
+  const [selectedAdminRegionId, setSelectedAdminRegionId] = useState<string>('DZ');
+  const [regionForm, setRegionForm] = useState({
+    id: '',
+    name: '',
+    currency: '',
+    symbol: '',
+    multiplier: 1.0,
+    isDefault: false
+  });
+  const [editingPaymentMethods, setEditingPaymentMethods] = useState<any[]>([]);
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({});
+  const [isSavingRegionSettings, setIsSavingRegionSettings] = useState(false);
+
+  useEffect(() => {
+    // Select first region when loaded if DZ doesn't exist
+    if (regions.length > 0 && !regions.find(r => r.id === selectedAdminRegionId)) {
+      setSelectedAdminRegionId(regions[0].id);
+    }
+  }, [regions]);
+
+  useEffect(() => {
+    const reg = regions.find(r => r.id === selectedAdminRegionId);
+    if (reg) {
+      setRegionForm({
+        id: reg.id,
+        name: reg.name,
+        currency: reg.currency,
+        symbol: reg.symbol,
+        multiplier: reg.multiplier || 1.0,
+        isDefault: reg.isDefault || false
+      });
+      setEditingPaymentMethods(reg.paymentMethods || []);
+      
+      // Sync overrides mapping for courses, plans, offers
+      const overrides: Record<string, string> = {};
+      courses.forEach(c => {
+        if (c.regionalPrices && c.regionalPrices[selectedAdminRegionId] !== undefined) {
+          overrides[c.id] = String(c.regionalPrices[selectedAdminRegionId]);
+        }
+      });
+      plans.forEach(p => {
+        if (p.regionalPrices && p.regionalPrices[selectedAdminRegionId] !== undefined) {
+          overrides[p.id] = String(p.regionalPrices[selectedAdminRegionId]);
+        }
+      });
+      specialOffers.forEach(o => {
+        if (o.regionalPrices && o.regionalPrices[selectedAdminRegionId] !== undefined) {
+          overrides[o.id] = String(o.regionalPrices[selectedAdminRegionId]);
+        }
+      });
+      setPriceOverrides(overrides);
+    }
+  }, [selectedAdminRegionId, regions, courses, plans, specialOffers]);
+
   // Custom confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -291,7 +338,8 @@ export default function AdminPanel() {
     price: '15000',
     level: 'Beginner',
     duration: '8 weeks',
-    certificateUrl: ''
+    certificateUrl: '',
+    trailerUrl: ''
   });
 
   const [showChapterModal, setShowChapterModal] = useState(false);
@@ -378,7 +426,6 @@ export default function AdminPanel() {
       fetchPlans();
       fetchHeroVideos();
       fetchSettings();
-      fetchUpdates();
       fetchSpecialOffers();
       fetchStatistics();
     }
@@ -632,29 +679,6 @@ export default function AdminPanel() {
     }
   };
 
-  const fetchUpdates = async () => {
-    setLoadingUpdates(true);
-    try {
-      const snap = await getDocs(collection(db, 'updates'));
-      const list = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort pinned first, then by createdAt desc
-      list.sort((a: any, b: any) => {
-        if (a.pinned && !b.pinned) return -1;
-        if (!a.pinned && b.pinned) return 1;
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      });
-      setUpdatesList(list);
-    } catch (err: any) {
-      console.error('Fetch updates error:', err);
-      showToast('error', 'Failed loading updates from database.');
-    } finally {
-      setLoadingUpdates(false);
-    }
-  };
-
   const fetchSpecialOffers = async () => {
     setLoadingSpecialOffers(true);
     try {
@@ -755,6 +779,151 @@ export default function AdminPanel() {
     }
   };
 
+  // Regions Configuration Handlers
+  const handleSaveRegionSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regionForm.id || !regionForm.name || !regionForm.currency || !regionForm.symbol) {
+      showToast('error', 'All region fields are required.');
+      return;
+    }
+
+    setIsSavingRegionSettings(true);
+    try {
+      const idUpper = regionForm.id.toUpperCase().trim();
+      const updatedRegion = {
+        id: idUpper,
+        name: regionForm.name.trim(),
+        currency: regionForm.currency.toUpperCase().trim(),
+        symbol: regionForm.symbol.trim(),
+        multiplier: Number(regionForm.multiplier),
+        isDefault: regionForm.isDefault,
+        paymentMethods: editingPaymentMethods
+      };
+
+      // Handle default toggling: if this region is set to isDefault: true, set all other regions to isDefault: false
+      if (regionForm.isDefault) {
+        for (const reg of regions) {
+          if (reg.id !== idUpper && reg.isDefault) {
+            await updateDoc(doc(db, 'regions', reg.id), { isDefault: false });
+          }
+        }
+      }
+
+      await setDoc(doc(db, 'regions', idUpper), updatedRegion);
+
+      // Save price overrides!
+      // Updating Courses
+      for (const c of courses) {
+        const overrideVal = priceOverrides[c.id];
+        const currentOverride = c.regionalPrices?.[idUpper];
+        const newOverride = overrideVal && overrideVal.trim() !== '' ? Number(overrideVal) : undefined;
+        
+        if (newOverride !== currentOverride) {
+          const updatedPrices = { ...(c.regionalPrices || {}) };
+          if (newOverride === undefined) {
+            delete updatedPrices[idUpper];
+          } else {
+            updatedPrices[idUpper] = newOverride;
+          }
+          await updateDoc(doc(db, 'courses', c.id), { regionalPrices: updatedPrices });
+        }
+      }
+
+      // Updating Membership Plans
+      for (const p of plans) {
+        const overrideVal = priceOverrides[p.id];
+        const currentOverride = p.regionalPrices?.[idUpper];
+        const newOverride = overrideVal && overrideVal.trim() !== '' ? Number(overrideVal) : undefined;
+        
+        if (newOverride !== currentOverride) {
+          const updatedPrices = { ...(p.regionalPrices || {}) };
+          if (newOverride === undefined) {
+            delete updatedPrices[idUpper];
+          } else {
+            updatedPrices[idUpper] = newOverride;
+          }
+          await updateDoc(doc(db, 'plans', p.id), { regionalPrices: updatedPrices });
+        }
+      }
+
+      // Updating Special Combo Packs
+      for (const o of specialOffers) {
+        const overrideVal = priceOverrides[o.id];
+        const currentOverride = o.regionalPrices?.[idUpper];
+        const newOverride = overrideVal && overrideVal.trim() !== '' ? Number(overrideVal) : undefined;
+        
+        if (newOverride !== currentOverride) {
+          const updatedPrices = { ...(o.regionalPrices || {}) };
+          if (newOverride === undefined) {
+            delete updatedPrices[idUpper];
+          } else {
+            updatedPrices[idUpper] = newOverride;
+          }
+          await updateDoc(doc(db, 'special_offers', o.id), { regionalPrices: updatedPrices });
+        }
+      }
+
+      showToast('success', `Region ${idUpper} and price overrides successfully persisted to cloud database!`);
+      
+      // Sync local context and main lists
+      await refreshRegions();
+      await fetchCourses();
+      await fetchPlans();
+      await fetchSpecialOffers();
+      setSelectedAdminRegionId(idUpper);
+    } catch (err: any) {
+      console.error('Save region exception:', err);
+      showToast('error', 'Failed saving region and overrides: ' + (err.message || err));
+    } finally {
+      setIsSavingRegionSettings(false);
+    }
+  };
+
+  const handleDeleteAdminRegion = async (regId: string) => {
+    if (regions.length <= 1) {
+      showToast('error', 'Cannot delete the only remaining region.');
+      return;
+    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Region Config',
+      message: `Are you sure you want to permanently delete Region: ${regId}? All currency converters, multipliers, and payment directions will be lost.`,
+      confirmText: 'YES, DELETE',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'regions', regId));
+          showToast('success', `Region ${regId} successfully removed.`);
+          await refreshRegions();
+          setConfirmDialog(p => ({ ...p, isOpen: false }));
+        } catch (err: any) {
+          console.error('Delete region error:', err);
+          showToast('error', 'Failed to delete region.');
+        }
+      }
+    });
+  };
+
+  const handleAddNewRegionInit = () => {
+    setSelectedAdminRegionId('');
+    setRegionForm({
+      id: '',
+      name: '',
+      currency: '',
+      symbol: '',
+      multiplier: 1.0,
+      isDefault: false
+    });
+    setEditingPaymentMethods([
+      { id: 'baridimob', name: 'BaridiMob Direct', active: true, instructions: 'Please transfer the exact amount to Rip...' },
+      { id: 'ccp', name: 'CCP Post Agency', active: false, instructions: 'Virement bulletin coordinates...' },
+      { id: 'stripe', name: 'Credit Card (Stripe)', active: false, instructions: 'Stripe gateway details...' },
+      { id: 'paypal', name: 'PayPal Gateway', active: false, instructions: 'PayPal account details...' },
+      { id: 'bank', name: 'SEPA Bank Wire', active: false, instructions: 'Bank IBAN details...' }
+    ]);
+    setPriceOverrides({});
+  };
+
   const handleSaveSpecialOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!specialOfferForm.id) {
@@ -847,6 +1016,7 @@ export default function AdminPanel() {
         level: courseForm.level,
         duration: courseForm.duration,
         certificateUrl: courseForm.certificateUrl || '',
+        trailerUrl: courseForm.trailerUrl || '',
         updatedAt: serverTimestamp()
       };
 
@@ -878,7 +1048,8 @@ export default function AdminPanel() {
         price: '15000',
         level: 'Beginner',
         duration: '8 weeks',
-        certificateUrl: ''
+        certificateUrl: '',
+        trailerUrl: ''
       });
       fetchCourses();
     } catch (err: any) {
@@ -899,7 +1070,8 @@ export default function AdminPanel() {
       instructor: course.instructorName || '',
       level: course.level || 'Beginner',
       duration: course.duration || '8 weeks',
-      certificateUrl: course.certificateUrl || ''
+      certificateUrl: course.certificateUrl || '',
+      trailerUrl: course.trailerUrl || ''
     });
     setShowCourseModal(true);
   };
@@ -1502,97 +1674,6 @@ export default function AdminPanel() {
   };
 
 
-  // LATEST ANNOUNCEMENTS / UPDATES MUTATIONS
-  const startAddUpdate = () => {
-    setEditingUpdateId(null);
-    setUpdateForm({
-      title: '',
-      content: '',
-      category: 'Announcement',
-      pinned: false
-    });
-    setShowUpdateModal(true);
-  };
-
-  const startEditUpdate = (item: any) => {
-    setEditingUpdateId(item.id);
-    setUpdateForm({
-      title: item.title || '',
-      content: item.content || '',
-      category: item.category || 'Announcement',
-      pinned: !!item.pinned
-    });
-    setShowUpdateModal(true);
-  };
-
-  const handleUpdateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!updateForm.title.trim() || !updateForm.content.trim()) {
-      showToast('error', 'Title and Content are required fields.');
-      return;
-    }
-
-    try {
-      setLoadingUpdates(true);
-      const payload: any = {
-        title: updateForm.title.trim(),
-        content: updateForm.content.trim(),
-        category: updateForm.category,
-        pinned: updateForm.pinned,
-        updatedAt: new Date().toISOString(),
-        createdBy: user?.email || 'admin'
-      };
-
-      if (editingUpdateId) {
-        await updateDoc(doc(db, 'updates', editingUpdateId), payload);
-        showToast('success', 'Academy update published details modified successfully!');
-      } else {
-        const createPayload = {
-          ...payload,
-          createdAt: new Date().toISOString()
-        };
-        await addDoc(collection(db, 'updates'), createPayload);
-        showToast('success', 'New academy announcement posted and updates feed synchronized!');
-      }
-
-      setShowUpdateModal(false);
-      setEditingUpdateId(null);
-      setUpdateForm({ title: '', content: '', category: 'Announcement', pinned: false });
-      await fetchUpdates();
-    } catch (err: any) {
-      console.error('Error saving academy update:', err);
-      showToast('error', 'Failed publishing update. Check logs.');
-    } finally {
-      setLoadingUpdates(false);
-    }
-  };
-
-  const handleDeleteUpdate = async (updateId: string) => {
-    const updateItem = updatesList.find((u: any) => u.id === updateId);
-    if (!updateItem) return;
-
-    askConfirmation(
-      'Remove Academy Announcement',
-      `Are you completely sure you want to permanently erase the update "${updateItem.title}"? Users will no longer see this in their feed.`,
-      async () => {
-        try {
-          setLoadingUpdates(true);
-          await deleteDoc(doc(db, 'updates', updateId));
-          showToast('success', 'Announcement discarded from the news feed.');
-          await fetchUpdates();
-        } catch (err: any) {
-          console.error('Delete update error:', err);
-          showToast('error', 'Failed discarding announcement from Firestore.');
-        } finally {
-          setLoadingUpdates(false);
-        }
-      },
-      'Delete Announcement',
-      true
-    );
-  };
-
-
   // WEBSITE SETTINGS
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1672,9 +1753,9 @@ export default function AdminPanel() {
               { id: 'receipts', name: 'Receipt Verifications', icon: Receipt },
               { id: 'student-works', name: 'Showcase Gallery', icon: Film },
               { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
-              { id: 'updates', name: 'Latest Updates / News', icon: Bell },
               { id: 'settings', name: 'Console Settings', icon: Settings },
               { id: 'statistics', name: 'Homepage Statistics', icon: Activity },
+              { id: 'regions', name: 'Regions & Currency', icon: Globe },
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -1756,7 +1837,8 @@ export default function AdminPanel() {
                       price: '15000',
                       level: 'Beginner',
                       duration: '8 weeks',
-                      certificateUrl: ''
+                      certificateUrl: '',
+                      trailerUrl: ''
                     });
                     setShowCourseModal(true);
                   }}
@@ -2880,131 +2962,6 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* ANNOUNCEMENTS AND ACADEMY UPDATES STREAM */}
-        {activeTab === 'updates' && (
-          <div className="space-y-8 animate-fade-in w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-2">
-                  <Bell className="w-8 h-8 text-purple-400" />
-                  <span>Updates & Announcements</span>
-                </h1>
-                <p className="text-gray-400 text-xs mt-1">Publish platform news, system updates, events, and releases directly to student streams</p>
-              </div>
-
-              <button
-                onClick={startAddUpdate}
-                className="self-start sm:self-auto flex items-center gap-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-xs font-bold uppercase tracking-wider py-3.5 px-6 rounded-xl text-white transition-all shadow-md cursor-pointer"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>Publish Announcement</span>
-              </button>
-            </div>
-
-            {loadingUpdates ? (
-              <div className="py-20 flex justify-center">
-                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-              </div>
-            ) : updatesList.length === 0 ? (
-              <div className="bg-black/60 border border-purple-950/20 rounded-[2.5rem] p-12 text-center max-w-lg mx-auto space-y-5">
-                <div className="w-16 h-16 bg-purple-900/10 border border-purple-500/20 text-purple-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                  <Bell className="w-8 h-8 text-purple-400/80" />
-                </div>
-                <div className="space-y-1.5 animate-pulse">
-                  <h3 className="text-lg font-bold text-white uppercase tracking-tight">No announcements created</h3>
-                  <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
-                    Broaden your outreach! Create your first announcement to let students know about your amazing system.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={startAddUpdate}
-                  className="px-5 py-2.5 rounded-xl border border-purple-500/30 hover:bg-purple-900/10 hover:text-white text-xs font-bold uppercase tracking-wider transition-all text-purple-400 cursor-pointer"
-                >
-                  Create Announcement
-                </button>
-              </div>
-            ) : (
-              <div className="bg-black/40 border border-purple-950/30 rounded-[2.5rem] overflow-hidden">
-                <div className="p-6 sm:p-8 border-b border-purple-950/20">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-400">Published updates list ({updatesList.length})</span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[700px]">
-                    <thead>
-                      <tr className="border-b border-purple-950/20 bg-zinc-950/60">
-                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Status & Title</th>
-                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Category</th>
-                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Published Date</th>
-                        <th className="p-4 sm:p-5 text-[10px] font-bold uppercase tracking-widest text-gray-500 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {updatesList.map((item) => (
-                        <tr key={item.id} className="border-b border-purple-950/10 hover:bg-white/[0.02] transition-colors">
-                          <td className="p-4 sm:p-5">
-                            <div className="flex items-start gap-3 max-w-md">
-                              {item.pinned ? (
-                                <div className="p-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg shrink-0 mt-0.5" title="Pinned Announcement">
-                                  <Pin className="w-3.5 h-3.5 fill-amber-500/10" />
-                                </div>
-                              ) : (
-                                <div className="p-1.5 bg-zinc-900 border border-white/5 text-gray-500 rounded-lg shrink-0 mt-0.5">
-                                  <Bell className="w-3.5 h-3.5" />
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <span className="text-sm font-bold text-white block truncate hover:text-purple-400 transition-colors" title={item.title}>
-                                  {item.title}
-                                </span>
-                                <span className="text-[10px] text-gray-500 block truncate font-mono mt-0.5">
-                                  BY: {item.createdBy || 'SYSTEM_ADMIN'}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4 sm:p-5">
-                            <span className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold uppercase tracking-widest ${
-                              item.category?.toLowerCase() === 'announcement' ? 'bg-purple-950/40 text-purple-400 border border-purple-500/20' :
-                              item.category?.toLowerCase() === 'feature' ? 'bg-blue-950/40 text-blue-400 border border-blue-500/20' :
-                              item.category?.toLowerCase() === 'news' ? 'bg-green-950/40 text-green-300 border border-green-500/20' :
-                              'bg-amber-950/40 text-amber-400 border border-amber-500/20'
-                            }`}>
-                              {item.category || 'Announcement'}
-                            </span>
-                          </td>
-                          <td className="p-4 sm:p-5 text-xs text-gray-400 font-mono">
-                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
-                          </td>
-                          <td className="p-4 sm:p-5 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => startEditUpdate(item)}
-                                className="p-2.5 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-300 cursor-pointer hover:bg-zinc-800"
-                                title="Edit announcement content"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUpdate(item.id)}
-                                className="p-2.5 bg-red-950/15 hover:bg-red-950/30 hover:border-red-500/20 border border-transparent text-red-500 hover:text-red-400 rounded-xl text-xs transition-all cursor-pointer"
-                                title="Erase announcement"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* TAB 5: WEBSITE CONFIGURATION SETTINGS */}
         {activeTab === 'settings' && (
           <div className="space-y-8 animate-fade-in max-w-2xl">
@@ -3596,6 +3553,334 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {activeTab === 'regions' && (
+          <div className="space-y-8 animate-fade-in text-left">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Regions & Currency Management</h1>
+                <p className="text-gray-400 text-xs mt-1">Configure global countries/continents pricing multiplier, custom payment gateways, and absolute overrides.</p>
+              </div>
+              <button
+                onClick={handleAddNewRegionInit}
+                className="px-5 py-3 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold rounded-2xl text-xs uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-600/10"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Add New Region
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Regions list sidebar panel */}
+              <div className="lg:col-span-4 space-y-3.5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 font-mono mb-2">Available Regions</h3>
+                {regions.map(reg => {
+                  const isActiveAdmin = selectedAdminRegionId === reg.id;
+                  return (
+                    <div
+                      key={reg.id}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col gap-2 relative ${
+                        isActiveAdmin 
+                          ? 'bg-purple-950/30 border-purple-500/40 text-white shadow-lg' 
+                          : 'bg-zinc-900/40 border-white/5 text-gray-400 hover:border-white/10'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAdminRegionId(reg.id)}
+                        className="absolute inset-0 w-full h-full cursor-pointer z-10"
+                      />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="text-sm font-bold flex items-center gap-2">
+                            <span>{reg.name}</span>
+                            {reg.isDefault && (
+                              <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wide">Default</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] font-mono text-gray-500 mt-0.5 uppercase">ID: {reg.id} &bull; {reg.currency} ({reg.symbol})</div>
+                        </div>
+                        {regions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAdminRegion(reg.id);
+                            }}
+                            className="bg-red-950/40 text-red-400 p-2 rounded-xl border border-red-500/20 hover:bg-red-900 hover:text-white transition-colors cursor-pointer relative z-20"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 flex justify-between items-center mt-2 border-t border-white/5 pt-2">
+                        <span>Multiplier: <b>{reg.multiplier}</b></span>
+                        <span className="text-[10px] font-mono bg-zinc-950 px-2 py-0.5 rounded text-purple-400 border border-white/5">
+                          {reg.paymentMethods?.filter((p: any) => p.active).length || 0} active methods
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Edit / Configuration detail workspace */}
+              <div className="lg:col-span-8">
+                <form onSubmit={handleSaveRegionSettings} className="bg-black/60 border border-purple-950/30 rounded-[2.5rem] p-8 space-y-8 text-left">
+                  <div className="border-b border-purple-950/20 pb-5">
+                    <h2 className="text-xl font-bold text-white tracking-tight">
+                      {selectedAdminRegionId ? `Region: ${regionForm.name || selectedAdminRegionId}` : 'Create Brand New Region Workspace'}
+                    </h2>
+                    <p className="text-gray-400 text-xs mt-1">Specify regional currency factors, configure active client payment options, and input absolute overrides.</p>
+                  </div>
+
+                  {/* Core Properties Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-2">Region ID Code (e.g. CA, DZ, GB)</label>
+                      <input
+                        type="text"
+                        disabled={selectedAdminRegionId !== ''}
+                        value={regionForm.id}
+                        onChange={(e) => setRegionForm(prev => ({ ...prev, id: e.target.value }))}
+                        className="w-full bg-zinc-950 border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 disabled:opacity-40 font-mono uppercase"
+                        placeholder="e.g. CA"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-2">Region Common Name</label>
+                      <input
+                        type="text"
+                        value={regionForm.name}
+                        onChange={(e) => setRegionForm(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full bg-zinc-950 border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500"
+                        placeholder="e.g. Canada (CAD)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-2">Currency ISO Code (e.g. CAD, EUR)</label>
+                      <input
+                        type="text"
+                        value={regionForm.currency}
+                        onChange={(e) => setRegionForm(prev => ({ ...prev, currency: e.target.value }))}
+                        className="w-full bg-zinc-950 border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 font-mono uppercase"
+                        placeholder="e.g. CAD"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-2">Currency Symbol (e.g. $, €, £)</label>
+                      <input
+                        type="text"
+                        value={regionForm.symbol}
+                        onChange={(e) => setRegionForm(prev => ({ ...prev, symbol: e.target.value }))}
+                        className="w-full bg-zinc-950 border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500"
+                        placeholder="e.g. $"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold mb-2">DZ/DA Multiplier factor (e.g. 0.007)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={regionForm.multiplier}
+                        onChange={(e) => setRegionForm(prev => ({ ...prev, multiplier: Number(e.target.value) }))}
+                        className="w-full bg-zinc-950 border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                        placeholder="e.g. 0.007"
+                      />
+                      <p className="text-[10px] text-gray-500 italic mt-1.5">*Conversion factor used: Base DA price &times; factor. Example: 15,000 DA &times; 0.007 = 105 EUR</p>
+                    </div>
+
+                    <div className="flex items-center pt-8">
+                      <label className="relative flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={regionForm.isDefault}
+                          onChange={(e) => setRegionForm(prev => ({ ...prev, isDefault: e.target.checked }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-6 bg-zinc-800 rounded-full peer-checked:bg-purple-600 transition-colors after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full relative" />
+                        <span className="text-xs text-white font-semibold uppercase tracking-wider">Set as Fallback Default Region</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Payment Methods Sub-Section */}
+                  <div className="border-t border-purple-950/20 pt-6 space-y-4">
+                    <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-purple-400" />
+                      <span>Configure Region Payment Gateways</span>
+                    </h3>
+                    <p className="text-gray-400 text-xs">Decide what payment gateways are displayed on checkout. Fill instructions with transfer steps, IBAN, account names, etc.</p>
+
+                    <div className="space-y-4">
+                      {editingPaymentMethods.map((method, idx) => (
+                        <div key={method.id} className="bg-zinc-950/60 border border-purple-900/10 rounded-2xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-mono uppercase tracking-wider font-extrabold text-purple-300">{method.name} ({method.id})</span>
+                            <label className="relative flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={method.active}
+                                onChange={(e) => {
+                                  const updated = [...editingPaymentMethods];
+                                  updated[idx].active = e.target.checked;
+                                  setEditingPaymentMethods(updated);
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-zinc-800 rounded-full peer-checked:bg-purple-600 transition-colors after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full relative" />
+                              <span className="text-[10px] uppercase font-bold text-gray-400">{method.active ? 'Active' : 'Inactive'}</span>
+                            </label>
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-mono uppercase text-gray-500 mb-1">Payment Instructions shown to students</label>
+                            <textarea
+                              rows={3}
+                              value={method.instructions}
+                              onChange={(e) => {
+                                const updated = [...editingPaymentMethods];
+                                updated[idx].instructions = e.target.value;
+                                setEditingPaymentMethods(updated);
+                              }}
+                              className="w-full bg-zinc-950 border border-purple-900/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono leading-relaxed"
+                              placeholder="Describe bank transfer IBAN, account names, post slip wire steps..."
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Absolute Overrides Sub-Section */}
+                  <div className="border-t border-purple-950/20 pt-6 space-y-4">
+                    <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      <span>Absolute Pricing Overrides</span>
+                    </h3>
+                    <p className="text-gray-400 text-xs">Optionally specify exact/static prices in native currency format instead of multiplier conversions. Leave empty to fallback to converted DA prices.</p>
+
+                    <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
+                      {/* Courses Overrides */}
+                      {courses.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-black">Course Packages</h4>
+                          {courses.map(c => (
+                            <div key={c.id} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-zinc-950/30 p-3 rounded-xl border border-white/5">
+                              <div>
+                                <span className="text-xs font-semibold text-white block">{c.title}</span>
+                                <span className="text-[10px] font-mono text-gray-500">Base Price: {Number(c.price).toLocaleString()} DA &bull; Converted: {(Number(c.price) * (regionForm.multiplier || 1.0)).toLocaleString()} {regionForm.currency || 'USD'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={priceOverrides[c.id] || ''}
+                                  onChange={(e) => setPriceOverrides(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                  className="w-28 bg-zinc-950 border border-purple-900/20 rounded-xl px-3 py-1.5 text-xs text-white text-right focus:outline-none focus:border-purple-500 font-mono"
+                                  placeholder="converted"
+                                />
+                                <span className="text-xs font-mono text-gray-400">{regionForm.symbol || '$'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Special Combo Bundles Overrides */}
+                      {specialOffers.length > 0 && (
+                        <div className="space-y-3 pt-4">
+                          <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-black">Special Promo Combos</h4>
+                          {specialOffers.map(o => (
+                            <div key={o.id} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-zinc-950/30 p-3 rounded-xl border border-white/5">
+                              <div>
+                                <span className="text-xs font-semibold text-white block">{o.titleEn}</span>
+                                <span className="text-[10px] font-mono text-gray-500">Base Price: {Number(o.price).toLocaleString()} DA &bull; Converted: {(Number(o.price) * (regionForm.multiplier || 1.0)).toLocaleString()} {regionForm.currency || 'USD'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={priceOverrides[o.id] || ''}
+                                  onChange={(e) => setPriceOverrides(prev => ({ ...prev, [o.id]: e.target.value }))}
+                                  className="w-28 bg-zinc-950 border border-purple-900/20 rounded-xl px-3 py-1.5 text-xs text-white text-right focus:outline-none focus:border-purple-500 font-mono"
+                                  placeholder="converted"
+                                />
+                                <span className="text-xs font-mono text-gray-400">{regionForm.symbol || '$'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Membership / Plans Overrides */}
+                      {plans.length > 0 && (
+                        <div className="space-y-3 pt-4">
+                          <h4 className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-black">Academic Membership Plans</h4>
+                          {plans.map(p => {
+                            const isFree = (p.name || '').toLowerCase().includes('free') || String(p.price).startsWith('0');
+                            if (isFree) return null;
+                            const numericPart = String(p.price).replace(/[^\d]/g, '');
+                            const numericPrice = Number(numericPart) || 0;
+                            return (
+                              <div key={p.id} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-zinc-950/30 p-3 rounded-xl border border-white/5">
+                                <div>
+                                  <span className="text-xs font-semibold text-white block">{p.name}</span>
+                                  <span className="text-[10px] font-mono text-gray-500">Base Price: {p.price} &bull; Converted: {(numericPrice * (regionForm.multiplier || 1.0)).toLocaleString()} {regionForm.currency || 'USD'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={priceOverrides[p.id] || ''}
+                                    onChange={(e) => setPriceOverrides(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                    className="w-28 bg-zinc-950 border border-purple-900/20 rounded-xl px-3 py-1.5 text-xs text-white text-right focus:outline-none focus:border-purple-500 font-mono"
+                                    placeholder="converted"
+                                  />
+                                  <span className="text-xs font-mono text-gray-400">{regionForm.symbol || '$'}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Submission Row */}
+                  <div className="border-t border-purple-950/20 pt-6 flex items-center justify-end gap-4">
+                    {regions.length > 0 && selectedAdminRegionId && (
+                      <button
+                        type="button"
+                        onClick={handleAddNewRegionInit}
+                        className="px-5 py-3 bg-zinc-900 border border-white/5 text-gray-400 hover:text-white rounded-2xl text-xs uppercase font-extrabold tracking-wider transition-colors cursor-pointer"
+                      >
+                        Add Another Region
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSavingRegionSettings}
+                      className="px-6 py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-2xl text-xs uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-600/10"
+                    >
+                      {isSavingRegionSettings ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Saving Changes...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          <span>Save Settings & Overrides</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* MODAL: ADD / EDIT SPECIAL OFFER */}
@@ -3989,6 +4274,20 @@ export default function AdminPanel() {
                     onChange={(e) => setCourseForm({ ...courseForm, thumbnail_url: e.target.value })}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course Trailer Video Link (YouTube, Vimeo, Drive, Bunny, etc.)</label>
+                  <input
+                    type="url"
+                    value={courseForm.trailerUrl || ''}
+                    onChange={(e) => setCourseForm({ ...courseForm, trailerUrl: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Adds an interactive player modal accessible from the Course Detail header.
+                  </p>
                 </div>
 
                 <div>
@@ -4631,95 +4930,6 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* MODAL 2.5: CREATE / EDIT ACADEMY ANNOUNCEMENTS */}
-      <AnimatePresence>
-        {showUpdateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowUpdateModal(false)} />
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-white">{editingUpdateId ? 'Modify Announcement' : 'Publish Announcement'}</h2>
-                  <p className="text-gray-400 text-xs">Reach all students instantly at their updates and notifications pane</p>
-                </div>
-                <button onClick={() => setShowUpdateModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleUpdateSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Announcement Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={updateForm.title}
-                    onChange={(e) => setUpdateForm({ ...updateForm, title: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-sans"
-                    placeholder="e.g. Platform Speed Optimization & Asset Releases"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Category</label>
-                    <select
-                      value={updateForm.category}
-                      onChange={(e) => setUpdateForm({ ...updateForm, category: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 appearance-none cursor-pointer"
-                    >
-                      <option value="Announcement">Announcement</option>
-                      <option value="Feature">Feature</option>
-                      <option value="News">News</option>
-                      <option value="Event">Event</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-end pb-2">
-                    <label className="relative flex items-center gap-3 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={updateForm.pinned}
-                        onChange={(e) => setUpdateForm({ ...updateForm, pinned: e.target.checked })}
-                        className="peer sr-only"
-                      />
-                      <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-450 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 peer-checked:after:bg-white relative" />
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Pin Announcement</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Content Body</label>
-                  <textarea
-                    required
-                    rows={5}
-                    value={updateForm.content}
-                    onChange={(e) => setUpdateForm({ ...updateForm, content: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-sans resize-none"
-                    placeholder="Provide description of announcement here..."
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loadingUpdates}
-                  className="w-full py-4 mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow flex items-center justify-center gap-2"
-                >
-                  {loadingUpdates && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{editingUpdateId ? 'Save Changes' : 'Publish Announcement'}</span>
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* MODAL: CREATE / EDIT HOMEPAGE STATISTICS */}
       <AnimatePresence>

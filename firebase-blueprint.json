@@ -260,6 +260,22 @@
         "createdAt": { "type": "string" }
       },
       "required": ["courseId", "chapter", "type", "timeInSeconds"]
+    },
+    "Region": {
+      "title": "Region Configuration",
+      "description": "Country or continent specific pricing, multiplier and payment methods",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "currency": { "type": "string" },
+        "symbol": { "type": "string" },
+        "multiplier": { "type": "number" },
+        "paymentMethods": { "type": "array" },
+        "overrides": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "currency", "symbol", "multiplier"]
     }
   },
   "firestore": {
@@ -330,6 +346,10 @@
     "resource_triggers/{triggerId}": {
       "schema": "ResourceTrigger",
       "description": "Resource notification triggers for video player"
+    },
+    "regions/{regionId}": {
+      "schema": "Region",
+      "description": "Region configuration documents"
     }
   }
 }

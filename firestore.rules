@@ -18,8 +18,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'aminerouabhia14@gmail.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.keys().contains('email') && 
+         request.auth.token.email.matches('(?i)^aminerouabhia14@gmail\\.com$')) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -147,6 +147,12 @@ service cloud.firestore {
 
     // Resource notification triggers
     match /resource_triggers/{triggerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Region configuration collection
+    match /regions/{regionId} {
       allow read: if true;
       allow write: if isAdmin();
     }

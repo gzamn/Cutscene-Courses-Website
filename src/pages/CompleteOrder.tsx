@@ -5,6 +5,7 @@ import { CreditCard, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock, Bui
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, collection, addDoc, query, where, getDocs, doc, getDoc, setDoc, DEFAULT_SPECIAL_OFFERS } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
+import { useRegion } from '../context/RegionContext';
 import AuthFlow from '../components/AuthFlow';
 import ValidationTooltip from '../components/ValidationTooltip';
 
@@ -13,15 +14,32 @@ export default function CompleteOrder() {
   const navigate = useNavigate();
   const { user, userProfile } = useAuth();
   const { t, language } = useLanguage();
+  const { currentRegion, getOfferPrice } = useRegion();
   const searchParams = new URLSearchParams(location.search);
   const offerId = searchParams.get('offerId') || 'bundle-creative';
   
   const [offer, setOffer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<'info' | 'payment'>('info');
-  const [selectedMethod, setSelectedMethod] = useState<'ccp' | 'baridimob'>('baridimob');
+  const [selectedMethod, setSelectedMethod] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [courses, setCourses] = useState<any[]>([]);
+
+  const getOfferOriginalPriceFormatted = (off: any) => {
+    if (!off) return '';
+    const baseOriginal = off.originalPrice !== undefined ? Number(off.originalPrice) : 0;
+    const converted = Math.round(baseOriginal * (currentRegion?.multiplier || 1));
+    return `${converted.toLocaleString()} ${currentRegion?.symbol || '$'}`;
+  };
+
+  useEffect(() => {
+    const activeMethods = currentRegion?.paymentMethods?.filter((m: any) => m.active) || [];
+    if (activeMethods.length > 0) {
+      setSelectedMethod(activeMethods[0].id);
+    } else {
+      setSelectedMethod('');
+    }
+  }, [currentRegion]);
 
   // Checkbox and receipt states
   const [termsAgreed, setTermsAgreed] = useState(false);
@@ -276,7 +294,9 @@ export default function CompleteOrder() {
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone,
-        totalPaid: offer.price,
+        totalPaid: getOfferPrice(offer).formatted,
+        currency: currentRegion.currency,
+        regionId: currentRegion.id,
         paid: false,
         receiptUrl: receiptBase64,
         paymentMethod: selectedMethod,
@@ -505,37 +525,27 @@ export default function CompleteOrder() {
                       >
                         {/* Selector of payment route */}
                         <div className="grid grid-cols-2 gap-4 pb-4">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMethod('baridimob')}
-                            className={`p-5 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-                              selectedMethod === 'baridimob' 
-                                ? 'bg-purple-950/30 border-purple-500 text-white shadow-lg' 
-                                : 'bg-black/40 border-purple-900/20 text-gray-400 hover:border-purple-500/20'
-                            }`}
-                          >
-                            <CreditCard className={`w-6 h-6 mb-4 ${selectedMethod === 'baridimob' ? 'text-purple-400 font-bold' : ''}`} />
-                            <div>
-                              <div className="text-xs font-black tracking-wide uppercase">BaridiMob</div>
-                              <div className="text-[9px] font-mono text-gray-500 uppercase mt-1">E-Transfer App</div>
-                            </div>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMethod('ccp')}
-                            className={`p-5 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-                              selectedMethod === 'ccp' 
-                                ? 'bg-purple-950/30 border-purple-500 text-white shadow-lg' 
-                                : 'bg-black/40 border-purple-900/20 text-gray-400 hover:border-purple-500/20'
-                            }`}
-                          >
-                            <Landmark className={`w-6 h-6 mb-4 ${selectedMethod === 'ccp' ? 'text-purple-400 font-bold' : ''}`} />
-                            <div>
-                              <div className="text-xs font-black tracking-wide uppercase">Algerie Post CCP</div>
-                              <div className="text-[9px] font-mono text-gray-500 uppercase mt-1">Sert-Virement Bulletin</div>
-                            </div>
-                          </button>
+                          {currentRegion?.paymentMethods?.filter((m: any) => m.active).map((method: any) => {
+                            const IconComp = method.id === 'ccp' || method.id === 'bank' ? Landmark : CreditCard;
+                            return (
+                              <button
+                                key={method.id}
+                                type="button"
+                                onClick={() => setSelectedMethod(method.id)}
+                                className={`p-5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                  selectedMethod === method.id 
+                                    ? 'bg-purple-950/30 border-purple-500 text-white shadow-lg' 
+                                    : 'bg-black/40 border-purple-900/20 text-gray-400 hover:border-purple-500/20'
+                                }`}
+                              >
+                                <IconComp className={`w-6 h-6 mb-4 ${selectedMethod === method.id ? 'text-purple-400 font-bold' : ''}`} />
+                                <div>
+                                  <div className="text-xs font-black tracking-wide uppercase">{method.name}</div>
+                                  <div className="text-[9px] font-mono text-gray-500 uppercase mt-1">E-Transfer App</div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
 
                         {/* Payment Guides Panel */}
@@ -543,70 +553,13 @@ export default function CompleteOrder() {
                           <div className="text-[10px] font-mono font-black text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
                             <Building2 className="w-3.5 h-3.5" />
                             <span>
-                              {selectedMethod === 'baridimob' ? 'Digital BaridiMob Transfer Info' : 'CCP Virement Details'}
+                              {currentRegion?.paymentMethods?.find((m: any) => m.id === selectedMethod)?.name || 'Payment Info'} Details
                             </span>
                           </div>
 
-                          {selectedMethod === 'baridimob' ? (
-                            <div className="space-y-4">
-                              <p className="text-xs text-gray-400">
-                                Send the amount directly to the RIP coordinates below using the Algérie Poste BaridiMob smartphone application:
-                              </p>
-                              
-                              <div className="space-y-3 font-mono text-[11px]">
-                                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                                  <span className="text-gray-500">RIP Number:</span>
-                                  <button 
-                                    type="button"
-                                    onClick={() => copyToClipboard('00799999004164129502')} 
-                                    className="text-white font-extrabold select-all text-xs bg-zinc-900/80 px-2.5 py-1 rounded border border-white/5 hover:border-purple-500 hover:text-purple-300 transition-colors"
-                                  >
-                                    00799999004164129502
-                                  </button>
-                                </div>
-                              </div>
-                              <p className="text-[10px] text-gray-500 italic">
-                                *Ensure you take a screenshot of the successful transfer receipt page and load it below.
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="space-y-4">
-                              <p className="text-xs text-gray-400">
-                                Make a CCP wire transfer (Virement) at any local Postal office using the following credentials:
-                              </p>
-                              
-                              <div className="space-y-3 font-mono text-[11px]">
-                                <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                                  <span className="text-gray-500">Account Name:</span>
-                                  <span className="text-white font-extrabold select-all">ROUABHIA AMINE</span>
-                                </div>
-                                <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                                  <span className="text-gray-500">CCP Number:</span>
-                                  <button 
-                                    type="button"
-                                    onClick={() => copyToClipboard('0041641295')}
-                                    className="text-white font-extrabold bg-zinc-900 px-2 rounded border border-white/5 hover:text-purple-300"
-                                  >
-                                    0041641295
-                                  </button>
-                                </div>
-                                <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                                  <span className="text-gray-500">Key:</span>
-                                  <button 
-                                    type="button"
-                                    onClick={() => copyToClipboard('02')}
-                                    className="text-white font-extrabold bg-zinc-900 px-2 rounded border border-white/5 hover:text-purple-300"
-                                  >
-                                    02
-                                  </button>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-gray-500">Postal Address:</span>
-                                  <span className="text-white font-extrabold select-all">BATNA, BATNA</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          <div className="space-y-1 bg-zinc-950 p-3.5 rounded-xl text-left whitespace-pre-wrap font-mono text-gray-300 text-xs leading-relaxed">
+                            {currentRegion?.paymentMethods?.find((m: any) => m.id === selectedMethod)?.instructions || 'No details required.'}
+                          </div>
                         </div>
 
                         {/* File Upload Box */}
@@ -817,7 +770,7 @@ export default function CompleteOrder() {
               <div className="space-y-3.5 border-t border-purple-900/15 pt-6 font-medium text-xs">
                 <div className="flex justify-between items-center text-gray-400">
                   <span>Regular Total Price</span>
-                  <span className="line-through">{offer.originalPrice?.toLocaleString()} {offer.currency}</span>
+                  <span className="line-through">{getOfferOriginalPriceFormatted(offer)}</span>
                 </div>
 
                 <div className="flex justify-between items-center text-emerald-400 font-semibold bg-emerald-500/5 border border-emerald-500/10 rounded-lg py-1.5 px-3">
@@ -830,8 +783,8 @@ export default function CompleteOrder() {
                     <span className="text-[10px] uppercase font-mono tracking-wider text-gray-500">Order Investment</span>
                     <span className="text-[9px] text-purple-500 italic">One-time payment, no recurring billing</span>
                   </div>
-                  <span className="text-2xl md:text-3xl font-black text-purple-400 leading-none">
-                    {offer.price?.toLocaleString()} {offer.currency}
+                  <span className="text-2xl md:text-3xl font-black text-purple-400 leading-none font-mono">
+                    {getOfferPrice(offer).formatted}
                   </span>
                 </div>
               </div>

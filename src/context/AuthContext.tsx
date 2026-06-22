@@ -61,11 +61,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } else {
             // Profile doc might not exist yet during sign-up
+            const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
             const defaultProfile = {
               uid: currUser.uid,
               email: currUser.email,
               displayName: currUser.displayName || '',
-              role: 'student',
+              role: isAdminEmail ? 'admin' : 'student',
               activePlan: 'Free Plan',
               activePlanPrice: '0 DA',
               hasPlan: true,
@@ -82,11 +83,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }, (error) => {
           console.error("Error loading user profile:", error);
           // Set a fallback profile to prevent the UI from blocking if firestore read fails
+          const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
           setUserProfile({
             uid: currUser.uid,
             email: currUser.email,
             displayName: currUser.displayName || '',
-            role: 'student',
+            role: isAdminEmail ? 'admin' : 'student',
             activePlan: 'Free Plan',
             activePlanPrice: '0 DA',
             hasPlan: true,

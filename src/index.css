@@ -304,3 +304,495 @@
   z-index: 0;
   overflow: hidden;
 }
+
+/* ==========================================================================
+   CUSTOM ADVANCED INTERACTIVE STYLES
+   ========================================================================== */
+
+/* EFFECT 1: SPARKLE / GLARE BUTTONS */
+.btn-sparkle {
+  --color: #9e3aeb; /* Brand Purple */
+  --shadow: #190230; /* Much darker purple for high-contrast, deep luxury shadow */
+  --glare: hsl(280 100% 90% / 0.85); /* Premium lavender glare tint */
+  --transition: 0.2s;
+  --hover: 0.4;
+  --pos: 0;
+  
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: transparent;
+  transition: background var(--transition);
+  background: rgba(24, 24, 27, 0.8);
+  border: 1px solid rgba(158, 58, 235, 0.2);
+  overflow: hidden;
+}
+
+.btn-sparkle:hover {
+  background: rgba(39, 39, 42, 0.8);
+  --hover: 1;
+  --pos: 1;
+}
+
+.btn-sparkle:active {
+  --hover: 0;
+}
+
+.btn-sparkle span.sparkle-text-base {
+  display: inline-block;
+  transition: all var(--transition);
+  text-decoration: none;
+  text-shadow:
+    calc(var(--hover) * -2px) calc(var(--hover) * 2px) var(--shadow),
+    calc(var(--hover) * -3px) calc(var(--hover) * 3px) var(--shadow),
+    calc(var(--hover) * -4px) calc(var(--hover) * 4px) var(--shadow);
+  transform: translate(calc(var(--hover) * 2px), calc(var(--hover) * -2px));
+}
+
+.btn-sparkle span.sparkle-text-glare {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    108deg,
+    transparent 0 55%,
+    var(--glare) 55% 60%,
+    transparent 60% 70%,
+    var(--glare) 70% 85%,
+    transparent 85%
+  ) calc(var(--pos) * -200%) 0% / 200% 100%, var(--color);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  z-index: 2;
+  text-shadow: none;
+  transform: translate(calc(var(--hover) * 2px), calc(var(--hover) * -2px));
+  transition: transform var(--transition), background-position 0s;
+}
+
+.btn-sparkle:hover span.sparkle-text-glare {
+  transition: transform var(--transition), background-position calc(var(--hover) * 1.5s) calc(var(--hover) * 0.25s);
+}
+
+.btn-sparkle:active span.sparkle-text-glare {
+  --hover: 0;
+  --pos: 1;
+}
+
+.btn-sparkle svg {
+	position: absolute;
+	z-index: 3;
+	width: 14px;
+	aspect-ratio: 1;
+  pointer-events: none;
+  --delay-step: 0.15;
+	top: calc(var(--y, 50) * 1%);
+	left:  calc(var(--x, 0) * 1%);
+	transform: translate(-50%, -50%) scale(0);
+}
+
+.btn-sparkle svg path {
+	fill: var(--glare);
+}
+
+.btn-sparkle:hover svg {
+	animation: sparkleAnimation 0.75s calc((var(--delay-step) * var(--d)) * 1s) both;
+}
+
+.btn-sparkle svg:nth-of-type(1) {
+	--x: 10;
+	--y: 20;
+	--s: 1.1;
+	--d: 1;
+}
+
+.btn-sparkle svg:nth-of-type(2) {
+	--x: 25;
+	--y: 80;
+	--s: 1.25;
+	--d: 2;
+}
+
+.btn-sparkle svg:nth-of-type(3) {
+	--x: 50;
+	--y: 40;
+	--s: 1.1;
+	--d: 3;
+}
+
+.btn-sparkle svg:nth-of-type(4) {
+	--x: 75;
+	--y: 60;
+	--s: 0.9;
+	--d: 2;
+}
+
+.btn-sparkle svg:nth-of-type(5) {
+	--x: 90;
+	--y: 30;
+	--s: 0.8;
+	--d: 4;
+}
+
+@keyframes sparkleAnimation {
+	50% {
+		transform: translate(-50%, -50%) scale(var(--s, 1));
+	}
+}
+
+
+/* EFFECT 2: FINGERPRINT LOGIN BUTTON */
+.btn-fingerprint-body {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  width: 100%;
+}
+
+.btn-fingerprint-container {
+  align-items: center;
+  background: #000;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.3); /* purple-500 */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  display: flex;
+  height: 50px;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.3s, background-color 0.3s;
+}
+
+.btn-fingerprint-container:hover {
+  border-color: rgba(139, 92, 246, 0.8);
+  background: #09090b;
+}
+
+.btn-fingerprint-container .fingertext {
+  color: white;
+  position: absolute;
+  transition: opacity 300ms;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.btn-fingerprint-container .fingerprint {
+  width: 44px;
+  height: 44px;
+  opacity: 0;
+  position: absolute;
+  stroke: #777;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: opacity 300ms;
+  pointer-events: none;
+}
+
+.btn-fingerprint-container .fingerprint-active {
+  stroke: #a78bfa; /* purple-400 */
+}
+
+.btn-fingerprint-container .fingerprint-out {
+  opacity: 1;
+}
+
+.btn-fingerprint-container .odd {
+  stroke-dasharray: 0px 50px;
+  stroke-dashoffset: 1px;
+  transition: stroke-dasharray 1ms;
+}
+
+.btn-fingerprint-container .even {
+  stroke-dasharray: 50px 50px;
+  stroke-dashoffset: -41px;
+  transition: stroke-dashoffset 1ms;
+}
+
+.btn-fingerprint-container .ok {
+  opacity: 0;
+  color: #10b981; /* green-500 */
+  font-weight: bold;
+  font-size: 16px;
+  position: absolute;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* STATES ON ACTIVE */
+.btn-fingerprint-container.active {
+  animation: 4s btnContainerAnimate forwards;
+}
+
+.btn-fingerprint-container.active .fingertext {
+  opacity: 0;
+  animation: 4s btnTextAnimate forwards;
+}
+
+.btn-fingerprint-container.active .fingerprint {
+  opacity: 1;
+  transition: opacity 300ms 100ms;
+}
+
+.btn-fingerprint-container.active .fingerprint-base .odd {
+  stroke-dasharray: 50px 50px;
+  transition: stroke-dasharray 800ms 100ms;
+}
+
+.btn-fingerprint-container.active .fingerprint-base .even {
+  stroke-dashoffset: 0px;
+  transition: stroke-dashoffset 800ms;
+}
+
+.btn-fingerprint-container.active .fingerprint-active .odd {
+  stroke-dasharray: 50px 50px;
+  transition: stroke-dasharray 2000ms 1000ms;
+}
+
+.btn-fingerprint-container.active .fingerprint-active .even {
+  stroke-dashoffset: 0px;
+  transition: stroke-dashoffset 2000ms 800ms;
+}
+
+.btn-fingerprint-container.active .fingerprint-out {
+  opacity: 0;
+  transition: opacity 300ms 3000ms;
+}
+
+.btn-fingerprint-container.active .ok {
+  opacity: 1;
+  animation: 4s btnOkAnimate forwards;
+}
+
+@keyframes btnContainerAnimate {
+  0% { width: 100% }
+  6% { width: 50px; border-radius: 99px; }
+  71% { transform: scale(1); width: 50px; border-radius: 99px; }
+  75% { transform: scale(1.2); width: 50px; border-radius: 99px; }
+  77% { transform: scale(1); width: 50px; border-radius: 99px; }
+
+  90% { width: 50px; border-radius: 99px; }
+  100% { width: 100%; border-radius: 12px; }
+}
+
+@keyframes btnTextAnimate {
+  0% { opacity: 1; transform: scale(1); }
+  6% { opacity: 0; transform: scale(0.5); }
+
+  90% { opacity: 0; transform: scale(0.5); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes btnOkAnimate {
+  0% { opacity: 0 }
+  65% { opacity: 0; transform: scale(0); }
+  70% { opacity: 1; transform: scale(1.1); }
+  72% { opacity: 1; transform: scale(1); }
+  85% { opacity: 1; transform: scale(1); }
+  92% { opacity: 0; transform: scale(0.5); }
+  100% { opacity: 0 }
+}
+
+
+/* EFFECT 3: RAINBOW GLOW BUTTONS */
+@keyframes rainbow-sweep {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.btn-rainbow {
+  all: unset;
+  background: transparent;
+  border-width: 0;
+  display: inline-block;
+  cursor: pointer;
+  transform: scale(var(--btn-scale, 1));
+  transition: transform 0.2s cubic-bezier(.76,-0.25,.51,1.13);
+  --btn-scale: 1;
+}
+
+.btn-rainbow:hover {
+  --btn-scale: 1.05;
+}
+
+.btn-rainbow:active {
+  --btn-scale: 0.98;
+}
+
+.btn-rainbow > .btn-rainbow-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8em 1.5em;
+  background: #000;
+  color: white;
+  border-radius: 12px;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  transition: box-shadow 0.3s ease;
+}
+
+.btn-rainbow:hover > .btn-rainbow-content {
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+.btn-rainbow > .btn-rainbow-content > span {
+  /* No transparent text-clipping! This protects internal nested layout/images/labels. */
+  color: #fff;
+  letter-spacing: 0.05ch;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(158, 58, 235, 0.45);
+  display: inline-flex;
+  align-items: center;
+  z-index: 5;
+}
+
+.btn-rainbow > .btn-rainbow-content:before {
+  content: "";
+  display: block;
+  position: absolute;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+  background: linear-gradient(
+    90deg,
+    #9e3aeb, /* Vibrant Brand Purple */
+    #c084fc, /* Soft lavender-purple */
+    #6b21a8, /* Deep dark violet */
+    #d8b4fe, /* Bright light lavender */
+    #4c1d95, /* Deep amethyst purple */
+    #a855f7, /* Bright neon purple */
+    #3b0764, /* Midnight plum purple */
+    #9e3aeb  /* Vibrant Brand purple loop */
+  );
+  background-size: 200% auto;
+  border-radius: 14px;
+  z-index: -1;
+  top: -2px;
+  left: -2px;
+  opacity: 0;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+  animation: rainbow-sweep 4s linear infinite;
+}
+
+/* Beautiful bottom glow shadow of the button */
+.btn-rainbow > .btn-rainbow-content:after {
+  display: block;
+  position: absolute;
+  content: "";
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    #9e3aeb, /* Vibrant Brand Purple */
+    #c084fc, /* Soft lavender-purple */
+    #6b21a8, /* Deep dark violet */
+    #d8b4fe, /* Bright light lavender */
+    #4c1d95, /* Deep amethyst purple */
+    #a855f7, /* Bright neon purple */
+    #3b0764, /* Midnight plum purple */
+    #9e3aeb  /* Vibrant Brand purple loop */
+  );
+  background-size: 200% auto;
+  transform: translateY(8px) scale(0.92);
+  left: 0;
+  top: 0;
+  z-index: -2;
+  filter: blur(14px);
+  opacity: 0;
+  border-radius: 12px;
+  transition: opacity 0.3s ease, filter 0.3s ease, transform 0.3s ease;
+  animation: rainbow-sweep 4s linear infinite;
+}
+
+.btn-rainbow:hover > .btn-rainbow-content:before {
+  opacity: 1;
+  filter: saturate(1.3);
+  animation-duration: 2s; /* Speed up the rotation on hover! */
+}
+
+.btn-rainbow:hover > .btn-rainbow-content:after {
+  opacity: 0.8;
+  filter: blur(20px) saturate(1.3);
+  transform: translateY(12px) scale(0.96);
+  animation-duration: 2s;
+}
+
+
+/* EFFECT 4: GLOWING BORDER CONTAINER FOR CARDS */
+.glowing-card {
+  --x: 0px;
+  --y: 0px;
+  position: relative;
+  z-index: 10;
+  background: rgba(9, 9, 11, 0.6);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.glowing-card-border {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px; /* border thickness */
+  background: radial-gradient(
+    350px circle at var(--x, 0px) var(--y, 0px),
+    rgba(167, 139, 250, 0.65), /* purple-400 */
+    transparent 45%
+  );
+  -webkit-mask: linear-gradient(#fff, #fff) content-box, linear-gradient(#fff, #fff);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.5s ease;
+  opacity: 0;
+}
+
+.glowing-card-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    350px circle at var(--x, 0px) var(--y, 0px),
+    rgba(167, 139, 250, 0.08),
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity 0.5s ease;
+  opacity: 0;
+}
+
+.glowing-card:hover .glowing-card-border,
+.glowing-card:hover .glowing-card-glow {
+  opacity: 1;
+}
+
+.bg-animation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
