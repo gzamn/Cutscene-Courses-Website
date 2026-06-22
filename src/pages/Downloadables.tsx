@@ -18,7 +18,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { SparkleButton, GlowingCard } from '../components/AnimatedButtons';
+import { SparkleButton, RainbowButton, GlowingCard } from '../components/AnimatedButtons';
 import { 
   db, 
   handleFirestoreError, 
@@ -409,13 +409,15 @@ export default function Downloadables() {
                 >
                   Browse Courses
                 </button>
-                <button
-                  onClick={() => navigate('/plans')}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-xs font-bold shadow-[0_0_15px_rgba(147,51,234,0.3)] transition-all text-white flex items-center gap-1.5"
+                <SparkleButton
+                  to="/plans"
+                  className="px-4 py-2 rounded-xl text-xs font-bold"
                 >
-                  <ShoppingBag className="w-4 h-4" />
-                  View Plans
-                </button>
+                  <span className="flex items-center gap-1.5 justify-center">
+                    <ShoppingBag className="w-3.5 h-3.5 inline-block" />
+                    <span>View Plans</span>
+                  </span>
+                </SparkleButton>
               </div>
             </div>
           )}
@@ -603,17 +605,16 @@ export default function Downloadables() {
 
               {/* Action Buttons */}
               <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLockModal(false);
-                    navigate('/plans');
-                  }}
-                  className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all focus:outline-none flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(147,51,234,0.4)]"
+                <RainbowButton
+                  to="/plans"
+                  onClick={() => setShowLockModal(false)}
+                  className="w-full py-3 text-sm font-bold"
                 >
-                  <ShoppingBag className="w-4 h-4" />
-                  View Premium Plans
-                </button>
+                  <span className="flex items-center gap-2 justify-center">
+                    <ShoppingBag className="w-4 h-4 inline-block mr-1" />
+                    <span>View Premium Plans</span>
+                  </span>
+                </RainbowButton>
                 <button
                   type="button"
                   onClick={() => {

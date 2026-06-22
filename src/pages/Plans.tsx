@@ -16,7 +16,7 @@ import {
   Landmark
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { GlowingCard, RainbowButton } from '../components/AnimatedButtons';
+import { GlowingCard, RainbowButton, SparkleButton } from '../components/AnimatedButtons';
 import { useRegion } from '../context/RegionContext';
 import { 
   db, 
@@ -414,12 +414,12 @@ export default function Plans() {
                   <p className="text-xs text-gray-500">Your profile details reflect full access to downloadables.</p>
                 </div>
               </div>
-              <button 
-                onClick={() => navigate('/downloadables')}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold transition-all text-white"
+              <SparkleButton 
+                to="/downloadables"
+                className="px-4 py-2 rounded-xl text-xs font-bold"
               >
                 Go to Downloads
-              </button>
+              </SparkleButton>
             </div>
           </motion.div>
         )}
@@ -455,12 +455,12 @@ export default function Plans() {
             </p>
 
             <div className="flex justify-center gap-4 pt-4 border-t border-purple-900/10">
-              <button
-                onClick={() => navigate('/courses')}
-                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/35 transition-all"
+              <SparkleButton
+                to="/courses"
+                className="px-6 py-3 text-xs uppercase tracking-wider rounded-xl font-bold"
               >
                 Browse Academy Courses
-              </button>
+              </SparkleButton>
             </div>
           </motion.div>
         ) : (
@@ -900,16 +900,15 @@ export default function Plans() {
                   <p className="text-sm text-gray-400 leading-relaxed mb-6">
                     Congratulations! Your subscription is now fully updated in our database. You have full unlock clearance to download premium softwares, audio elements, overlays, and stock videos.
                   </p>
-                  <button
-                    type="button"
+                  <SparkleButton
+                    to="/downloadables"
                     onClick={() => {
                       setCheckoutPlan(null);
-                      navigate('/downloadables');
                     }}
-                    className="px-8 py-3.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-purple-600/30"
+                    className="px-8 py-3.5 font-bold text-xs uppercase tracking-wider rounded-2xl"
                   >
                     Gain Assets Access
-                  </button>
+                  </SparkleButton>
                 </div>
               )}
             </motion.div>

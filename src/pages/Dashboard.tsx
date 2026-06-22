@@ -5,6 +5,7 @@ import { db, storage, handleFirestoreError, OperationType, collection, query, wh
 import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
@@ -597,27 +598,27 @@ export default function Dashboard() {
                     onChange={handleBunnyFileUpload} 
                   />
                   
-                  <button
+                  <SparkleButton
                     type="button"
                     disabled={bunnyUploading}
                     onClick={() => {
                       setBunnySuccessText(null);
                       bunnyFileInputRef.current?.click();
                     }}
-                    className="overflow-hidden px-4 py-2 text-xs font-bold uppercase tracking-widest text-white bg-purple-600 hover:bg-purple-500 rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-purple-900/20"
+                    className="overflow-hidden px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-xl"
                   >
                     {bunnyUploading ? (
-                      <>
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span className="flex items-center gap-2">
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block mr-1" />
                         <span>Uploading {bunnyUploadProgress}%</span>
-                      </>
+                      </span>
                     ) : (
-                      <>
-                        <Upload className="w-3.5 h-3.5" />
+                      <span className="flex items-center gap-2">
+                        <Upload className="w-3.5 h-3.5 inline-block mr-1" />
                         <span>Upload File</span>
-                      </>
+                      </span>
                     )}
-                  </button>
+                  </SparkleButton>
 
                   <button
                     type="button"
@@ -778,23 +779,23 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <button 
+                  <SparkleButton 
                     type="submit"
                     disabled={videoUploading || !uploadTitle.trim() || !videoFile}
-                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:hover:bg-purple-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 px-6 py-4 transition-colors cursor-pointer"
+                    className="w-full font-bold rounded-2xl flex items-center justify-center gap-3 py-4"
                   >
                     {videoUploading ? (
                       <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0 inline-block mr-2" />
                         <span>Uploading {videoUploadProgress}%</span>
                       </>
                     ) : (
                       <>
-                        <Upload className="w-5 h-5" />
+                        <Upload className="w-5 h-5 inline-block" />
                         <span>Upload Project Video</span>
                       </>
                     )}
-                  </button>
+                  </SparkleButton>
                 </form>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1097,13 +1098,13 @@ export default function Dashboard() {
                           ? "You haven't saved or downloaded any premium source files or software presets yet."
                           : "Try checking spelling or choosing another Category selection filter above."}
                       </p>
-                      <Link
+                      <SparkleButton
                         to="/downloadables"
                         onClick={() => setIsLibraryExpanded(false)}
-                        className="mt-6 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-2xl text-xs uppercase tracking-wider transition-all inline-block"
+                        className="mt-6 px-6 py-3 font-bold rounded-2xl text-xs uppercase tracking-wider inline-block"
                       >
                         Browse Premium Downloads
-                      </Link>
+                      </SparkleButton>
                     </div>
                   );
                 }

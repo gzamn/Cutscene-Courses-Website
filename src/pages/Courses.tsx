@@ -6,6 +6,7 @@ import { useRegion } from '../context/RegionContext';
 import { useEffect, useState } from 'react';
 import { client, urlFor } from '../lib/sanity';
 import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs } from '../firebase';
+import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 
 export default function Courses() {
   const { t, language } = useLanguage();
@@ -176,19 +177,19 @@ export default function Courses() {
                         </span>
                       ) : (
                         <>
-                          <Link 
+                          <SparkleButton 
                             to={`/courses/${course.id}`}
-                            className="w-full sm:w-auto px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border border-purple-900/30"
+                            className="w-full sm:w-auto px-8 py-4 font-bold flex items-center justify-center gap-2 rounded-2xl text-sm"
                           >
-                            {t('courses.details')}
-                          </Link>
-                          <Link 
+                            <span>{t('courses.details')}</span>
+                          </SparkleButton>
+                          <RainbowButton 
                             to={`/payment?courseId=${course.id}`}
-                            className="w-full sm:w-auto px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group/btn shadow-lg shadow-purple-600/20"
+                            className="w-full sm:w-auto px-10 py-4 font-bold flex items-center justify-center gap-2 rounded-2xl text-sm"
                           >
-                            {t('courses.getStarted')}
-                            <ArrowRight className={`w-5 h-5 group-hover/btn:translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-                          </Link>
+                            <span>{t('courses.getStarted')}</span>
+                            <ArrowRight className={`w-4 h-4 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
+                          </RainbowButton>
                         </>
                       )}
                     </div>

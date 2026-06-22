@@ -5,7 +5,7 @@ import { Clock, BarChart, CheckCircle2, ArrowRight, Play, Star, Users, ShieldChe
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
-import { RainbowButton } from '../components/AnimatedButtons';
+import { RainbowButton, SparkleButton } from '../components/AnimatedButtons';
 import { useRegion } from '../context/RegionContext';
 import { client, urlFor } from '../lib/sanity';
 
@@ -292,30 +292,32 @@ export default function CourseDetail() {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 {isEnrolled ? (
-                  <Link 
+                  <RainbowButton 
                     to={getContinueUrl()}
-                    className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                    className="px-10 py-4 font-bold text-lg"
                   >
-                    {t('dashboard.continue')}
-                    <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                  </Link>
+                    <span>{t('dashboard.continue')}</span>
+                    <ArrowRight className={`w-5 h-5 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  </RainbowButton>
                 ) : (
-                  <Link 
+                  <RainbowButton 
                     to={`/payment?courseId=${course.id}`}
-                    className="px-10 py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                    className="px-10 py-4 font-bold text-lg"
                   >
-                    {t('courses.getStarted')}
-                    <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                  </Link>
+                    <span>{t('courses.getStarted')}</span>
+                    <ArrowRight className={`w-5 h-5 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  </RainbowButton>
                 )}
                 {!isEnrolled && (
-                  <Link 
+                  <SparkleButton 
                     to={`/courses/${course.id}/video/1/session`}
-                    className="px-10 py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-lg transition-all border border-purple-900/30 flex items-center justify-center gap-2"
+                    className="px-10 py-4 font-bold text-lg"
                   >
-                    <Play className="w-5 h-5 text-purple-500 fill-current" />
-                    {language === 'ar' ? 'شاهد حصة واحدة مجاناً' : language === 'fr' ? 'Regarder 1 session GRATUITE' : 'Watch 1 FREE session'}
-                  </Link>
+                    <span className="flex items-center gap-2 justify-center">
+                      <Play className="w-5 h-5 text-purple-500 fill-current inline-block" />
+                      <span>{language === 'ar' ? 'شاهد حصة واحدة مجاناً' : language === 'fr' ? 'Regarder 1 session GRATUITE' : 'Watch 1 FREE session'}</span>
+                    </span>
+                  </SparkleButton>
                 )}
               </div>
             </motion.div>
@@ -905,13 +907,13 @@ export default function CourseDetail() {
                     </div>
                   )}
                   {isEnrolled ? (
-                    <Link 
+                    <RainbowButton 
                       to={getContinueUrl()}
-                      className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                      className="w-full py-4 text-white font-bold"
                     >
-                      {t('dashboard.continue')}
-                      <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                    </Link>
+                      <span>{t('dashboard.continue')}</span>
+                      <ArrowRight className={`w-5 h-5 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
+                    </RainbowButton>
                   ) : course.isComingSoon ? (
                     <button 
                       disabled
@@ -920,13 +922,13 @@ export default function CourseDetail() {
                       {t('course.comingSoon') || 'Coming Soon'}
                     </button>
                   ) : (
-                    <Link 
+                    <RainbowButton 
                       to={`/payment?courseId=${course.id}`}
-                      className="w-full py-4 bg-brand-radial hover:opacity-90 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                      className="w-full py-4 text-white font-bold"
                     >
-                      {t('courses.getStarted')}
-                      <ArrowRight className={`w-5 h-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                    </Link>
+                      <span>{t('courses.getStarted')}</span>
+                      <ArrowRight className={`w-5 h-5 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
+                    </RainbowButton>
                   )}
                 </div>
               </div>

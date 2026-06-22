@@ -8,6 +8,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 import AuthFlow from '../components/AuthFlow';
 import ValidationTooltip from '../components/ValidationTooltip';
+import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 
 export default function CompleteOrder() {
   const location = useLocation();
@@ -345,9 +346,9 @@ export default function CompleteOrder() {
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-4">Combo Offer Not Found</h2>
           <p className="text-gray-400 mb-6 font-medium">This package may have expired or is currently unavailable.</p>
-          <Link to="/" className="inline-block px-6 py-3 bg-purple-600 rounded-xl font-bold hover:bg-purple-500 transition-colors uppercase tracking-widest text-xs">
+          <SparkleButton to="/" className="inline-block px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-xs">
             Return to Homepage
-          </Link>
+          </SparkleButton>
         </div>
       </div>
     );
@@ -696,24 +697,24 @@ export default function CompleteOrder() {
                             Back
                           </button>
                           
-                          <button
+                          <RainbowButton
                             type="button"
                             disabled={processing}
                             onClick={handleReceiptPayment}
-                            className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-xs sm:text-sm shadow-xl shadow-purple-600/10 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                            className="flex-1 text-xs sm:text-sm font-black uppercase tracking-widest"
                           >
                             {processing ? (
                               <>
-                                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                                <Loader2 className="w-4 h-4 animate-spin shrink-0 inline-block mr-2" />
                                 <span>Processing enrollment...</span>
                               </>
                             ) : (
                               <>
-                                <Send className="w-4 h-4" />
+                                <Send className="w-4 h-4 inline-block mr-2" />
                                 <span>Submit Receipt & Complete Order</span>
                               </>
                             )}
-                          </button>
+                          </RainbowButton>
                         </div>
                       </motion.div>
                     )}
@@ -836,14 +837,13 @@ export default function CompleteOrder() {
                  'Thank you for enrolling in this promotional bundle! Your invoice/receipt has been queued for verification. The academy review staff will validate your transfer of funds and toggle your lifetime access to both curriculums inside your student workspace within 24 hours.'}
               </p>
 
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition-all hover:-translate-y-0.5"
+              <SparkleButton
+                to="/"
+                className="w-full font-black text-xs sm:text-sm uppercase tracking-wider py-4 rounded-xl"
               >
                 <span>Return to Homepage</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                <ArrowRight className="w-4 h-4 inline-block ml-2" />
+              </SparkleButton>
             </motion.div>
           </motion.div>
         )}
