@@ -57,7 +57,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.error("Failed to persist Free Plan to Firestore: ", e);
               }
             } else {
-              setUserProfile(data);
+              // Ensure aminerouabhia14@gmail.com is ALWAYS forced to admin role
+              const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
+              if (isAdminEmail && data.role !== 'admin') {
+                const adminMergedData = { ...data, role: 'admin' };
+                setUserProfile(adminMergedData);
+                try {
+                  await setDoc(userRef, { role: 'admin' }, { merge: true });
+                } catch (e) {
+                  console.error("Failed to force admin role in Firestore:", e);
+                }
+              } else {
+                setUserProfile(data);
+              }
             }
           } else {
             // Profile doc might not exist yet during sign-up

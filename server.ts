@@ -50,6 +50,72 @@ async function startServer() {
     }
   });
 
+  // Gemini Share Progress Image Generation
+  app.post("/api/share-progress", async (req, res) => {
+    try {
+      const { courseName, progressPercent, studentName } = req.body;
+      if (!courseName || progressPercent === undefined) {
+        return res.status(400).json({ error: "courseName and progressPercent are required." });
+      }
+
+      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+      if (!GEMINI_API_KEY) {
+        return res.status(500).json({ error: "Gemini API key is not configured." });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey: GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          }
+        }
+      });
+
+      const studentString = studentName ? `for student ${studentName}` : "";
+      const promptText = `Create a beautiful, professional, high-end 16:9 social media sharing card ${studentString} celebrating completing ${progressPercent}% of the course "${courseName}" at Cutscene Academy. The design must be extremely modern, clean, with a sleek dark slate background, elegant purple neon glows and light accents. It should display "CUTSCENE ACADEMY", the course title "${courseName}", and "${progressPercent}% COMPLETED" in bold, elegant, high-contrast futuristic typography. Minimalist, high quality, flat design UI dashboard style, photorealistic graphic design.`;
+
+      console.log(`Generating progress share image for "${courseName}" (${progressPercent}%) using gemini-2.5-flash-image...`);
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: {
+          parts: [
+            {
+              text: promptText,
+            },
+          ],
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "16:9",
+          },
+        },
+      });
+
+      let base64Image = null;
+      if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData?.data) {
+            base64Image = part.inlineData.data;
+            break;
+          }
+        }
+      }
+
+      if (base64Image) {
+        res.json({ success: true, image: `data:image/png;base64,${base64Image}` });
+      } else {
+        console.error("No inlineData image found in response parts.");
+        res.status(500).json({ error: "Failed to generate image bytes from Gemini." });
+      }
+    } catch (error: any) {
+      console.error("Gemini Image Gen Error:", error.message || error);
+      res.status(500).json({ error: "Failed to generate image via Gemini API." });
+    }
+  });
+
   const SIGNING_SECRET = "bunny-custom-signing-secret-123456";
 
   // Endpoint to issue a secure, signed upload URL/parameters

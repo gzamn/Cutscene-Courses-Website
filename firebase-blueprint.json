@@ -29,7 +29,8 @@
         "duration": { "type": "string" },
         "level": { "type": "string" },
         "instructor": { "type": "object" },
-        "chapters": { "type": "array" }
+        "chapters": { "type": "array" },
+        "isComingSoon": { "type": "boolean" }
       },
       "required": ["id", "title", "price"]
     },
@@ -148,20 +149,61 @@
       },
       "required": ["studentName", "thumbnail", "courseId", "courseTitle"]
     },
-    "Downloadable": {
-      "title": "Downloadable Asset",
-      "description": "Premium downloadable asset",
+    "StoreProduct": {
+      "title": "Store Product",
+      "description": "Products representing software subscriptions and services",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "category": { "type": "string", "enum": ["Softwares", "Videos", "Images", "Music", "Sound Effects"] },
-        "imageUrl": { "type": "string" },
-        "downloadUrl": { "type": "string" },
         "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "durations": { "type": "object" },
+        "active": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
-      "required": ["name", "category", "downloadUrl"]
+      "required": ["name", "description", "durations"]
+    },
+    "StorePurchase": {
+      "title": "Store Purchase",
+      "description": "Store product purchase requests and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "duration": { "type": "string" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "receiptUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "rejectionReason": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "reviewedAt": { "type": "string" },
+        "activeUntil": { "type": "string" }
+      },
+      "required": ["uid", "productId", "productName", "duration", "price", "receiptUrl", "status", "submittedAt"]
+    },
+    "UsefulResource": {
+      "title": "Useful Resource",
+      "description": "Curated links to external resources",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "url": { "type": "string" },
+        "order": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "url", "category"]
     },
     "Plan": {
       "title": "Membership Plan",
@@ -319,9 +361,17 @@
       "schema": "StudentWork",
       "description": "Students' project showcase items"
     },
-    "downloadables/{downloadableId}": {
-      "schema": "Downloadable",
-      "description": "Available downloadable assets for premium students"
+    "store_products/{productId}": {
+      "schema": "StoreProduct",
+      "description": "Dynamic store products for subscriptions/digital services"
+    },
+    "store_purchases/{purchaseId}": {
+      "schema": "StorePurchase",
+      "description": "Store purchase subscription receipts for verification"
+    },
+    "useful_resources/{resourceId}": {
+      "schema": "UsefulResource",
+      "description": "Curated external categorized links"
     },
     "plans/{planId}": {
       "schema": "Plan",

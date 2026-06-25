@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, ref, uploadBytes, getDownloadURL } from '../firebase';
-import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen } from 'lucide-react';
+import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen, Share2, Loader2, X, Sparkles, ShieldAlert, Award, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [progress, setProgress] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
@@ -36,6 +36,531 @@ export default function Dashboard() {
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [videoSuccessText, setVideoSuccessText] = useState<string | null>(null);
   const videoFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Share Progress states
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareImage, setShareImage] = useState<string | null>(null);
+  const [shareCourseName, setShareCourseName] = useState('');
+  const [shareProgressPercent, setShareProgressPercent] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareMode, setShareMode] = useState<'ai' | 'certificate'>('ai');
+
+  // View Certificate states
+  const [isViewingCert, setIsViewingCert] = useState(false);
+  const [certModalImage, setCertModalImage] = useState<string | null>(null);
+  const [certModalTitle, setCertModalTitle] = useState('');
+  const [isGeneratingCert, setIsGeneratingCert] = useState(false);
+  const [selectedCert, setSelectedCert] = useState<any>(null);
+
+  const generateCertificateCanvas = (courseTitle: string, studentName: string, issuedAtStr: string, certId: string) => {
+    return new Promise<string>((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1920;
+      canvas.height = 1080;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('');
+        return;
+      }
+
+      // Draw premium gradient background (Deep dark slate/indigo/purple)
+      const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
+      gradient.addColorStop(0, '#020005');
+      gradient.addColorStop(0.3, '#09090b');
+      gradient.addColorStop(0.7, '#04020a');
+      gradient.addColorStop(1, '#150624');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      // Subtle futuristic grid lines
+      ctx.strokeStyle = 'rgba(147, 51, 234, 0.04)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 1920; i += 60) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, 1080);
+        ctx.stroke();
+      }
+      for (let j = 0; j < 1080; j += 60) {
+        ctx.beginPath();
+        ctx.moveTo(0, j);
+        ctx.lineTo(1920, j);
+        ctx.stroke();
+      }
+
+      // Large soft decorative gradient circles for glowing background ambiance
+      const glow1 = ctx.createRadialGradient(1600, 200, 0, 1600, 200, 600);
+      glow1.addColorStop(0, 'rgba(168, 85, 247, 0.06)');
+      glow1.addColorStop(1, 'rgba(168, 85, 247, 0)');
+      ctx.fillStyle = glow1;
+      ctx.beginPath();
+      ctx.arc(1600, 200, 600, 0, Math.PI * 2);
+      ctx.fill();
+
+      const glow2 = ctx.createRadialGradient(300, 800, 0, 300, 800, 500);
+      glow2.addColorStop(0, 'rgba(139, 92, 246, 0.06)');
+      glow2.addColorStop(1, 'rgba(139, 92, 246, 0)');
+      ctx.fillStyle = glow2;
+      ctx.beginPath();
+      ctx.arc(300, 800, 500, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Dual Border Lines (Outer thin purple glow, Inner thin gold/neon gold line)
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.2)';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(40, 40, 1840, 1000);
+
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(48, 48, 1824, 984);
+
+      ctx.strokeStyle = 'rgba(234, 179, 8, 0.35)'; // Golden border accent
+      ctx.lineWidth = 2;
+      ctx.strokeRect(65, 65, 1790, 950);
+
+      // Corner geometric accent decorations
+      const drawCorner = (x: number, y: number, xDir: number, yDir: number) => {
+        ctx.fillStyle = 'rgba(234, 179, 8, 0.7)';
+        ctx.fillRect(x, y, xDir * 40, yDir * 4);
+        ctx.fillRect(x, y, xDir * 4, yDir * 40);
+      };
+      drawCorner(65, 65, 1, 1);
+      drawCorner(1855, 65, -1, 1);
+      drawCorner(65, 1015, 1, -1);
+      drawCorner(1855, 1015, -1, -1);
+
+      // --- Header text ---
+      ctx.fillStyle = '#a855f7';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('CUTSCENE ACADEMY', 960, 160);
+
+      // Small Divider Line
+      const gradLine = ctx.createLinearGradient(810, 0, 1110, 0);
+      gradLine.addColorStop(0, 'rgba(168, 85, 247, 0)');
+      gradLine.addColorStop(0.5, 'rgba(168, 85, 247, 0.8)');
+      gradLine.addColorStop(1, 'rgba(168, 85, 247, 0)');
+      ctx.fillStyle = gradLine;
+      ctx.fillRect(810, 185, 300, 3);
+
+      // Main Large Title
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 74px sans-serif';
+      ctx.fillText('CERTIFICATE OF COMPLETION', 960, 290);
+
+      // "This is proudly presented to"
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.85)';
+      ctx.font = 'italic 500 24px serif';
+      ctx.fillText('This certificate is proudly presented to', 960, 395);
+
+      // Student Name (Splendid elegant presentation)
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 64px sans-serif';
+      ctx.fillText(studentName, 960, 490);
+
+      // Underline for student name
+      const nameUnderline = ctx.createLinearGradient(660, 0, 1260, 0);
+      nameUnderline.addColorStop(0, 'rgba(234, 179, 8, 0.05)');
+      nameUnderline.addColorStop(0.5, 'rgba(234, 179, 8, 0.8)');
+      nameUnderline.addColorStop(1, 'rgba(234, 179, 8, 0.05)');
+      ctx.fillStyle = nameUnderline;
+      ctx.fillRect(660, 525, 600, 2);
+
+      // "for successfully completing..."
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.8)';
+      ctx.font = '500 22px sans-serif';
+      ctx.fillText('for successfully completing all curriculum, exercises, and projects for', 960, 580);
+
+      // Course Name (Glowing bold purple)
+      const courseTitleGrad = ctx.createLinearGradient(600, 0, 1320, 0);
+      courseTitleGrad.addColorStop(0, '#a855f7');
+      courseTitleGrad.addColorStop(0.5, '#c084fc');
+      courseTitleGrad.addColorStop(1, '#a855f7');
+      ctx.fillStyle = courseTitleGrad;
+      ctx.font = 'bold 48px sans-serif';
+      ctx.fillText(courseTitle, 960, 660);
+
+      // "under instruction of professional curriculum staff"
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.6)';
+      ctx.font = '500 18px sans-serif';
+      ctx.fillText('Authorized by the Board of Instructors at Cutscene Academy', 960, 715);
+
+      // Holographic Ribbon/Emblem Gold Seal on bottom center
+      const drawHologram = (cx: number, cy: number) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 75, 0, Math.PI * 2);
+        const sealGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 75);
+        sealGrad.addColorStop(0, '#fef08a');
+        sealGrad.addColorStop(0.5, '#eab308');
+        sealGrad.addColorStop(1, '#ca8a04');
+        ctx.fillStyle = sealGrad;
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 65, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ca8a04';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 70, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Stars inside seal
+        ctx.fillStyle = '#854d0e';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText('★ ★ ★', cx, cy - 10);
+
+        ctx.fillStyle = '#854d0e';
+        ctx.font = '900 11px monospace';
+        ctx.fillText('OFFICIAL', cx, cy + 15);
+        ctx.fillText('GRADUATE', cx, cy + 30);
+        ctx.restore();
+      };
+      drawHologram(960, 840);
+
+      // Signatures
+      // Left side Signature
+      ctx.strokeStyle = 'rgba(156, 163, 175, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(350, 890);
+      ctx.lineTo(600, 890);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'italic 24px serif';
+      ctx.fillText('Veteran Staff', 475, 875);
+      
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.8)';
+      ctx.font = '500 16px sans-serif';
+      ctx.fillText('Course Instructor', 475, 915);
+
+      // Right side Signature
+      ctx.beginPath();
+      ctx.moveTo(1320, 890);
+      ctx.lineTo(1570, 890);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'italic 24px serif';
+      ctx.fillText('Cutscene Director', 1445, 875);
+
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.8)';
+      ctx.font = '500 16px sans-serif';
+      ctx.fillText('Academy Director', 1445, 915);
+
+      // Footer Certificate ID and Date
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.5)';
+      ctx.font = '14px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`VERIFICATION_ID: ${certId}`, 100, 980);
+
+      ctx.textAlign = 'right';
+      const issuedDate = issuedAtStr ? new Date(issuedAtStr).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString();
+      ctx.fillText(`DATE ISSUED: ${issuedDate}`, 1820, 980);
+
+      resolve(canvas.toDataURL('image/png'));
+    });
+  };
+
+  const handleOpenCertificate = async (cert: any, triggerDownload = false) => {
+    setIsViewingCert(true);
+    setIsGeneratingCert(true);
+    setCertModalImage(null);
+    setCertModalTitle(cert.courseTitle);
+    setSelectedCert(cert);
+
+    try {
+      const sName = cert.userName || userProfile?.displayName || user?.displayName || user?.email || 'Cutscene Student';
+      const certId = cert.id || `CS-CERT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const issuedDate = cert.issuedAt || new Date().toISOString();
+      const imgData = await generateCertificateCanvas(cert.courseTitle, sName, issuedDate, certId);
+      setCertModalImage(imgData);
+      
+      if (triggerDownload) {
+        const link = document.createElement('a');
+        link.href = imgData;
+        link.download = `Certificate_${cert.courseTitle.replace(/\s+/g, '_')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.error("Failed to generate certificate:", err);
+    } finally {
+      setIsGeneratingCert(false);
+    }
+  };
+
+  const generateCanvasFallback = (courseName: string, progressPercent: number) => {
+    return new Promise<string>((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 675;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('');
+        return;
+      }
+
+      // Draw premium dark/neon gradient background
+      const gradient = ctx.createLinearGradient(0, 0, 1200, 675);
+      gradient.addColorStop(0, '#04020a');
+      gradient.addColorStop(0.5, '#09090b');
+      gradient.addColorStop(1, '#110521');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1200, 675);
+
+      // Cyberpunk grid backdrop
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.04)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 1200; i += 50) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, 675);
+        ctx.stroke();
+      }
+      for (let j = 0; j < 675; j += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, j);
+        ctx.lineTo(1200, j);
+        ctx.stroke();
+      }
+
+      // Large soft radial glow on the right
+      const glowRight = ctx.createRadialGradient(950, 330, 0, 950, 330, 350);
+      glowRight.addColorStop(0, 'rgba(147, 51, 234, 0.12)');
+      glowRight.addColorStop(1, 'rgba(147, 51, 234, 0)');
+      ctx.fillStyle = glowRight;
+      ctx.beginPath();
+      ctx.arc(950, 330, 350, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer border frame with corner accents
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.2)';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(30, 30, 1140, 615);
+
+      const drawSmallCorner = (x: number, y: number, xDir: number, yDir: number) => {
+        ctx.fillStyle = '#a855f7';
+        ctx.fillRect(x, y, xDir * 20, yDir * 3);
+        ctx.fillRect(x, y, xDir * 3, yDir * 20);
+      };
+      drawSmallCorner(30, 30, 1, 1);
+      drawSmallCorner(1170, 30, -1, 1);
+      drawSmallCorner(30, 645, 1, -1);
+      drawSmallCorner(1170, 645, -1, -1);
+
+      // Centered glass panel background for text content
+      ctx.fillStyle = 'rgba(15, 10, 25, 0.6)';
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.15)';
+      ctx.lineWidth = 1;
+      const panelX = 60;
+      const panelY = 60;
+      const panelW = 1080;
+      const panelH = 555;
+      
+      // Draw rounded rectangle for panel
+      const radius = 24;
+      ctx.beginPath();
+      ctx.moveTo(panelX + radius, panelY);
+      ctx.lineTo(panelX + panelW - radius, panelY);
+      ctx.quadraticCurveTo(panelX + panelW, panelY, panelX + panelW, panelY + radius);
+      ctx.lineTo(panelX + panelW, panelY + panelH - radius);
+      ctx.quadraticCurveTo(panelX + panelW, panelY + panelH, panelX + panelW - radius, panelY + panelH);
+      ctx.lineTo(panelX + radius, panelY + panelH);
+      ctx.quadraticCurveTo(panelX, panelY + panelH, panelX, panelY + panelH - radius);
+      ctx.lineTo(panelX, panelY + radius);
+      ctx.quadraticCurveTo(panelX, panelY, panelX + radius, panelY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Academy Logo on Left
+      ctx.fillStyle = '#c084fc';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('CUTSCENE ACADEMY', 100, 120);
+
+      // Subtle label
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.6)';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText('STUDENT MILESTONE RECORD', 100, 190);
+
+      // Student Name
+      const sName = userProfile?.displayName || user?.displayName || user?.email || 'Cutscene Student';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.fillText(sName, 100, 240);
+
+      // Divider Line
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+      ctx.fillRect(100, 275, 450, 1);
+
+      // Course Label
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.6)';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText('ACTIVE CURRICULUM', 100, 315);
+
+      // Course Title (wrapping)
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 44px sans-serif';
+      const words = courseName.split(' ');
+      let line = '';
+      let y = 370;
+      const maxWidth = 540;
+      const lineHeight = 55;
+
+      for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = ctx.measureText(testLine);
+        let testWidth = metrics.width;
+        if (testWidth > maxWidth && n > 0) {
+          ctx.fillText(line, 100, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, 100, y);
+
+      // Right Side: Beautiful Circular Progress Indicator
+      const centerX = 880;
+      const centerY = 280;
+      const outerRad = 120;
+
+      // Draw background ring
+      ctx.strokeStyle = 'rgba(24, 24, 27, 0.8)';
+      ctx.lineWidth = 18;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRad, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Draw active progress arc
+      const progressGradient = ctx.createLinearGradient(centerX - outerRad, centerY, centerX + outerRad, centerY);
+      progressGradient.addColorStop(0, '#7c3aed');
+      progressGradient.addColorStop(1, '#c084fc');
+      
+      ctx.strokeStyle = progressGradient;
+      ctx.lineWidth = 18;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      const startAngle = -Math.PI / 2;
+      const endAngle = startAngle + (Math.PI * 2 * progressPercent) / 100;
+      ctx.arc(centerX, centerY, outerRad, startAngle, endAngle);
+      ctx.stroke();
+
+      // Inner percentage text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 64px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${progressPercent}%`, centerX, centerY - 10);
+
+      ctx.fillStyle = '#c084fc';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('COMPLETED', centerX, centerY + 40);
+
+      // Reset alignment
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+
+      // Horizontal linear progress bar at the bottom of the panel
+      const barX = 100;
+      const barY = 510;
+      const barW = 1000;
+      const barH = 10;
+
+      ctx.fillStyle = 'rgba(24, 24, 27, 0.6)';
+      ctx.beginPath();
+      ctx.rect(barX, barY, barW, barH);
+      ctx.fill();
+
+      const activeW = Math.max(15, (barW * progressPercent) / 100);
+      const linGrad = ctx.createLinearGradient(barX, 0, barX + activeW, 0);
+      linGrad.addColorStop(0, '#7c3aed');
+      linGrad.addColorStop(1, '#a855f7');
+      ctx.fillStyle = linGrad;
+      ctx.beginPath();
+      ctx.rect(barX, barY, activeW, barH);
+      ctx.fill();
+
+      // Footer metadata
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.4)';
+      ctx.font = '13px monospace';
+      ctx.fillText(`VERIFIABLE_RECORD_ID: CS-${Math.random().toString(36).substr(2, 9).toUpperCase()}`, 100, 560);
+      
+      ctx.textAlign = 'right';
+      ctx.fillText(`DATE ISSUED: ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`, 1100, 560);
+
+      resolve(canvas.toDataURL('image/png'));
+    });
+  };
+
+  const handleShareProgress = async (courseName: string, progressPercent: number, forceCanvas = false) => {
+    setIsSharing(true);
+    setIsGenerating(true);
+    setShareImage(null);
+    setShareError(null);
+    setShareCourseName(courseName);
+    setShareProgressPercent(progressPercent);
+
+    const activeMode = forceCanvas ? 'certificate' : 'ai';
+    setShareMode(activeMode);
+
+    if (activeMode === 'certificate') {
+      try {
+        const imgData = await generateCanvasFallback(courseName, progressPercent);
+        setShareImage(imgData);
+        setIsGenerating(false);
+      } catch (err) {
+        setShareError("Failed to generate certificate card.");
+        setIsGenerating(false);
+      }
+      return;
+    }
+
+    // Try AI generation
+    try {
+      const response = await fetch("/api/share-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseName,
+          progressPercent,
+          studentName: userProfile?.displayName || user?.displayName || user?.email || 'Student'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("API call failed");
+      }
+
+      const data = await response.json();
+      if (data.success && data.image) {
+        setShareImage(data.image);
+      } else {
+        throw new Error(data.error || "No image returned");
+      }
+    } catch (error: any) {
+      console.warn("AI Share generation failed, falling back to certificate card:", error);
+      try {
+        setShareMode('certificate');
+        const imgData = await generateCanvasFallback(courseName, progressPercent);
+        setShareImage(imgData);
+      } catch (err) {
+        setShareError("Failed to generate sharing card.");
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Listen to courses collection
   useEffect(() => {
@@ -182,13 +707,13 @@ export default function Dashboard() {
     checkUserAccess();
   }, [user, userProfile]);
 
-  // Load downloadables list
+  // Load resources list
   useEffect(() => {
-    const unsubDownloadables = onSnapshot(collection(db, 'downloadables'), (snapshot) => {
+    const unsubDownloadables = onSnapshot(collection(db, 'useful_resources'), (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
       setDownloadables(list);
-    }, (error) => console.error("Error listening to downloadables:", error));
+    }, (error) => console.error("Error listening to useful_resources:", error));
     return () => unsubDownloadables();
   }, []);
 
@@ -495,7 +1020,8 @@ export default function Dashboard() {
                       key={enrollment.id}
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      whileHover={isLocked ? {} : { y: -5 }}
+                      whileHover={isLocked ? {} : { y: -5, scale: 1.02 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
                       className={`border rounded-3xl overflow-hidden group flex flex-col transition-all duration-300 ${isLocked ? 'bg-zinc-950/60 border-purple-900/10 grayscale-[35%]' : 'bg-zinc-950 border-purple-900/20'}`}
                     >
                       <div className="aspect-video relative overflow-hidden">
@@ -529,46 +1055,160 @@ export default function Dashboard() {
                           </div>
                         )}
                       </div>
-                      <div className="p-6 flex-grow flex flex-col">
-                        <h3 className={`font-bold text-lg mb-4 transition-colors ${isLocked ? 'text-gray-400' : 'group-hover:text-purple-400'}`}>{course.title}</h3>
+                      <div className="p-6 flex-grow flex flex-col justify-between">
+                        <div>
+                          <h3 className={`font-bold text-lg mb-4 transition-colors ${isLocked ? 'text-gray-400' : 'group-hover:text-purple-400'}`}>{course.title}</h3>
+                        </div>
                         
                         <div className="space-y-4 mt-auto">
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-400 font-medium">{t('dashboard.progress')}</span>
-                              <span className="text-purple-400 font-bold">{isLocked ? 0 : prog}%</span>
-                            </div>
-                            <div className="w-full bg-zinc-900 h-3 rounded-full overflow-hidden border border-purple-900/10 p-0.5">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: isLocked ? '0%' : `${prog}%` }}
-                                transition={{ duration: 1, ease: "easeOut" }}
-                                className="bg-brand-radial h-full rounded-full shadow-[0_0_10px_rgba(147,51,234,0.5)]" 
-                              />
-                            </div>
-                          </div>
+                          {/* Circular Progress & Info Section */}
+                          {(() => {
+                            const chaptersCount = chaptersCountMap[course.id] || (course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '3' ? 24 : 10);
+                            const totalLessons = chaptersCount * 3;
+                            const completedLessonsCount = isLocked ? 0 : courseLessons.length;
+                            
+                            const getLessonsLabel = () => {
+                              if (language === 'ar') return 'درس';
+                              if (language === 'fr') return 'leçons';
+                              return 'lessons';
+                            };
+                            const getCompletedLabel = () => {
+                              if (language === 'ar') return 'مكتمل';
+                              if (language === 'fr') return 'complétées';
+                              return 'completed';
+                            };
+                            const getRemainingLabel = () => {
+                              if (language === 'ar') return 'متبقي';
+                              if (language === 'fr') return 'restants';
+                              return 'remaining';
+                            };
+                            
+                            return (
+                              <div className="flex items-center gap-4 bg-zinc-900/40 border border-purple-900/10 p-4 rounded-2xl">
+                                {/* Circular Progress Indicator */}
+                                <div className="relative flex-shrink-0 w-16 h-16">
+                                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 72 72">
+                                    {/* Track Circle */}
+                                    <circle 
+                                      cx="36" 
+                                      cy="36" 
+                                      r="30" 
+                                      className="text-zinc-800" 
+                                      strokeWidth="4.5" 
+                                      fill="transparent" 
+                                      stroke="currentColor"
+                                    />
+                                    {/* Glow Underlay */}
+                                    <motion.circle 
+                                      cx="36" 
+                                      cy="36" 
+                                      r="30" 
+                                      className="text-purple-500/15" 
+                                      strokeWidth="6" 
+                                      fill="transparent" 
+                                      stroke="currentColor"
+                                      strokeDasharray="188.5"
+                                      initial={{ strokeDashoffset: 188.5 }}
+                                      animate={{ strokeDashoffset: 188.5 - (188.5 * (isLocked ? 0 : prog)) / 100 }}
+                                      transition={{ duration: 1.2, ease: "easeOut" }}
+                                      strokeLinecap="round"
+                                    />
+                                    {/* Active Progress Circle */}
+                                    <motion.circle 
+                                      cx="36" 
+                                      cy="36" 
+                                      r="30" 
+                                      className="text-purple-500" 
+                                      strokeWidth="4.5" 
+                                      fill="transparent" 
+                                      stroke="currentColor"
+                                      strokeDasharray="188.5"
+                                      initial={{ strokeDashoffset: 188.5 }}
+                                      animate={{ strokeDashoffset: 188.5 - (188.5 * (isLocked ? 0 : prog)) / 100 }}
+                                      transition={{ duration: 1.2, ease: "easeOut" }}
+                                      strokeLinecap="round"
+                                    />
+                                  </svg>
+                                  {/* Central text or lock icon */}
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    {isLocked ? (
+                                      <Lock className="w-4 h-4 text-gray-500" />
+                                    ) : (
+                                      <span className="text-xs font-black text-purple-300">{prog}%</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Progress Text / Stats */}
+                                <div className="flex-grow min-w-0">
+                                  <div className="text-xs font-semibold text-gray-400 mb-0.5">{t('dashboard.progress')}</div>
+                                  <div className="text-base font-black text-white leading-none mb-1">
+                                    {isLocked ? 0 : completedLessonsCount} <span className="text-xs font-normal text-gray-500">/ {totalLessons} {getLessonsLabel()}</span>
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 font-medium">
+                                    {prog === 100 && !isLocked ? (
+                                      <span className="text-yellow-500 font-bold flex items-center gap-1">🏆 {getCompletedLabel()}!</span>
+                                    ) : (
+                                      <span>{totalLessons - completedLessonsCount} {getRemainingLabel()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Lesson Indicators */}
-                          <div className="pt-4 border-t border-purple-900/10">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">{t('dashboard.completedLessons')}</div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {Array.from({ length: totalChapters }).map((_, i) => {
-                                const chapter = i + 1;
-                                const isChapterDone = courseLessons.some(p => p.chapter === chapter);
-                                return (
-                                  <motion.div
-                                    key={chapter}
-                                    initial={false}
-                                    animate={{ 
-                                      backgroundColor: isChapterDone ? '#9333ea' : '#18181b',
-                                      scale: isChapterDone ? 1.1 : 1
-                                    }}
-                                    className={`w-2 h-2 rounded-full border ${isChapterDone ? 'border-purple-400' : 'border-purple-900/20'}`}
-                                    title={`Chapter ${chapter}`}
-                                  />
-                                );
-                              })}
+                          <div className="pt-4 border-t border-purple-900/10 flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">{t('dashboard.completedLessons')}</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {Array.from({ length: totalChapters }).map((_, i) => {
+                                  const chapter = i + 1;
+                                  const isChapterDone = courseLessons.some(p => p.chapter === chapter);
+                                  return (
+                                    <motion.div
+                                      key={chapter}
+                                      initial={false}
+                                      animate={{ 
+                                        backgroundColor: isChapterDone ? '#9333ea' : '#18181b',
+                                        scale: isChapterDone ? 1.1 : 1
+                                      }}
+                                      className={`w-2 h-2 rounded-full border ${isChapterDone ? 'border-purple-400' : 'border-purple-900/20'}`}
+                                      title={`Chapter ${chapter}`}
+                                    />
+                                  );
+                                })}
+                              </div>
                             </div>
+
+                            {!isLocked && (
+                              <div className="flex gap-2 self-end">
+                                {prog === 100 && (
+                                  <button
+                                    onClick={() => {
+                                      const cert = certificates.find(c => c.courseId === course.id) || {
+                                        courseTitle: course.title,
+                                        userName: userProfile?.displayName || user?.displayName || user?.email || 'Cutscene Student',
+                                        issuedAt: new Date().toISOString(),
+                                        id: `CS-CERT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+                                      };
+                                      handleOpenCertificate(cert);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500 border border-yellow-500/30 hover:border-yellow-400 rounded-xl text-xs font-bold uppercase tracking-wider text-yellow-400 hover:text-black transition-all duration-300 select-none cursor-pointer"
+                                  >
+                                    <Trophy className="w-3.5 h-3.5 animate-pulse" />
+                                    <span>Certificate</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleShareProgress(course.title, prog)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/20 hover:bg-purple-600 border border-purple-500/20 hover:border-purple-550 rounded-xl text-xs font-bold uppercase tracking-wider text-purple-300 hover:text-white transition-all duration-300 select-none cursor-pointer"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                  <span>Share</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -720,9 +1360,9 @@ export default function Dashboard() {
                 <div className="bg-black/40 border border-dashed border-purple-900/25 p-12 rounded-2xl text-center">
                   <FolderOpen className="w-10 h-10 text-gray-650 mx-auto mb-3" />
                   <p className="text-gray-450 font-bold mb-2 text-sm text-gray-200">Your library is currently empty</p>
-                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed">Choose and download premium assets to populate your library feed.</p>
-                  <Link to="/downloadables" className="text-purple-400 font-extrabold hover:underline text-xs tracking-wider uppercase">
-                    Browse Premium Hub
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed">Choose and explore useful resources and creative tools.</p>
+                  <Link to="/resources" className="text-purple-400 font-extrabold hover:underline text-xs tracking-wider uppercase">
+                    Browse Resources Hub
                   </Link>
                 </div>
               )}
@@ -870,43 +1510,6 @@ export default function Dashboard() {
 
           {/* Sidebar: Certificates & Reviews */}
           <div className="space-y-8">
-            {/* Your Plan */}
-            <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
-              <h2 className="text-xl font-bold mb-6 flex items-center justify-between gap-3">
-                <span className="flex items-center gap-3">
-                  <Star className="w-6 h-6 text-purple-500" />
-                  Your Plan
-                </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  userProfile?.activePlan === 'Free Plan' ? 'bg-zinc-900 border border-purple-950/40 text-purple-400' : 'bg-purple-650 border border-purple-400 text-white'
-                }`}>
-                  {userProfile?.activePlan === 'Free Plan' ? 'Free-Tier' : 'Active'}
-                </span>
-              </h2>
-              
-              <div className="bg-black/40 border border-purple-900/10 p-5 rounded-2xl space-y-4">
-                <div>
-                  <div className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Plan Name</div>
-                  <div className="text-base font-black text-white mt-1 break-words">{userProfile?.activePlan || 'Free Plan'}</div>
-                </div>
-                
-                <div className="pt-4 border-t border-purple-900/10 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Pricing / Rate</div>
-                    <div className="text-xs font-bold text-purple-400 mt-1">{userProfile?.activePlanPrice ? `${userProfile.activePlanPrice}/month` : '0 DA/month'}</div>
-                  </div>
-                  {userProfile?.activePlan === 'Free Plan' && (
-                    <Link
-                      to="/plans"
-                      className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-purple-600/20 shrink-0"
-                    >
-                      Upgrade
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </section>
-
             {/* Certificates */}
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
@@ -926,23 +1529,20 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <a 
-                        href={cert.certificateUrl} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="flex-1 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-purple-900/30 transition-all"
+                      <button 
+                        onClick={() => handleOpenCertificate(cert)}
+                        className="flex-1 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-purple-900/30 transition-all cursor-pointer"
                       >
-                        <ExternalLink className="w-3 h-3" />
+                        <Award className="w-4 h-4 text-yellow-500" />
                         {t('dashboard.viewCert')}
-                      </a>
-                      <a 
-                        href={cert.certificateUrl} 
-                        download={`Certificate-${cert.courseTitle}.svg`}
-                        className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all"
+                      </button>
+                      <button 
+                        onClick={() => handleOpenCertificate(cert, true)}
+                        className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all cursor-pointer"
                         title="Download Certificate"
                       >
                         <Download className="w-4 h-4" />
-                      </a>
+                      </button>
                     </div>
                   </div>
                 )) : (
@@ -1025,7 +1625,7 @@ export default function Dashboard() {
 
               <div className="flex items-center gap-4">
                 <Link
-                  to="/downloadables"
+                  to="/resources"
                   onClick={() => setIsLibraryExpanded(false)}
                   className="px-5 py-2.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-405 font-bold rounded-2xl border border-purple-500/15 text-xs uppercase tracking-wider transition-all"
                 >
@@ -1099,11 +1699,11 @@ export default function Dashboard() {
                           : "Try checking spelling or choosing another Category selection filter above."}
                       </p>
                       <SparkleButton
-                        to="/downloadables"
+                        to="/resources"
                         onClick={() => setIsLibraryExpanded(false)}
                         className="mt-6 px-6 py-3 font-bold rounded-2xl text-xs uppercase tracking-wider inline-block"
                       >
-                        Browse Premium Downloads
+                        Browse Useful Resources
                       </SparkleButton>
                     </div>
                   );
@@ -1171,6 +1771,216 @@ export default function Dashboard() {
                 );
               })()}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SHARE PROGRESS MODAL */}
+      <AnimatePresence>
+        {isSharing && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-zinc-950 border border-purple-900/30 rounded-[2rem] p-8 max-w-xl w-full shadow-2xl relative flex flex-col items-center text-center overflow-hidden"
+            >
+              {/* Soft Ambient Glows inside Modal */}
+              <div className="absolute -top-12 -left-12 w-32 h-32 bg-purple-600/15 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+
+              {/* Close Button */}
+              <button 
+                onClick={() => setIsSharing(false)}
+                className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5 cursor-pointer z-10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2 text-purple-400 font-extrabold text-[10px] uppercase tracking-widest mb-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Showcase Your Achievement</span>
+              </div>
+              <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-wide">Share Your Progress</h2>
+              <p className="text-xs text-gray-400 mb-6 max-w-sm">Celebrate your learning milestones with friends & colleagues on social media.</p>
+
+              {isGenerating ? (
+                <div className="flex flex-col items-center py-12 w-full">
+                  <div className="relative mb-6">
+                    <div className="w-16 h-16 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+                    <Sparkles className="w-6 h-6 text-purple-400 absolute inset-0 m-auto animate-pulse" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-200">Generating sharing card...</h3>
+                  <p className="text-xs text-gray-500 mt-2 max-w-xs leading-relaxed">
+                    {shareMode === 'ai' 
+                      ? "Painting a custom AI social card celebrating your progress percentage"
+                      : "Designing your official Cutscene Academy achievement record"}
+                  </p>
+                </div>
+              ) : shareError ? (
+                <div className="py-8 w-full">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4 text-red-500">
+                    <ShieldAlert className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-200">Generation Failed</h3>
+                  <p className="text-xs text-gray-500 mt-1 mb-6 max-w-xs leading-relaxed">{shareError}</p>
+                  <button 
+                    onClick={() => handleShareProgress(shareCourseName, shareProgressPercent, shareMode === 'certificate')}
+                    className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                  >
+                    Retry Generation
+                  </button>
+                </div>
+              ) : shareImage ? (
+                <div className="w-full space-y-6">
+                  {/* Aspect-Ratio 16:9 Image Preview Container */}
+                  <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-purple-500/20 shadow-lg bg-zinc-900">
+                    <img 
+                      src={shareImage} 
+                      alt="Share Progress Preview" 
+                      className="w-full h-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  </div>
+
+                  {/* Mode Selector Toggle */}
+                  <div className="flex items-center justify-center p-1 bg-zinc-900/60 border border-white/5 rounded-2xl w-fit mx-auto">
+                    <button
+                      onClick={() => handleShareProgress(shareCourseName, shareProgressPercent, false)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        shareMode === 'ai' 
+                          ? 'bg-purple-600 text-white shadow-md' 
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      AI Art Card
+                    </button>
+                    <button
+                      onClick={() => handleShareProgress(shareCourseName, shareProgressPercent, true)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        shareMode === 'certificate' 
+                          ? 'bg-purple-600 text-white shadow-md' 
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Official Record
+                    </button>
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setIsSharing(false)}
+                      className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <a
+                      href={shareImage}
+                      download={`Cutscene_Academy_${shareCourseName.replace(/\s+/g, '_')}_Progress.png`}
+                      className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider text-center flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download Card
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Certificate View Modal */}
+      <AnimatePresence>
+        {isViewingCert && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-zinc-950 border border-yellow-500/20 rounded-[2rem] p-5 sm:p-8 max-w-2xl w-full shadow-2xl shadow-yellow-500/5 relative flex flex-col items-center text-center overflow-hidden my-4"
+            >
+              {/* Soft Ambient Gold/Purple Glows inside Modal */}
+              <div className="absolute -top-12 -left-12 w-36 h-36 bg-yellow-500/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-12 -right-12 w-36 h-36 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Close Button */}
+              <button 
+                onClick={() => setIsViewingCert(false)}
+                className="absolute top-5 right-5 text-gray-400 hover:text-white transition-colors p-1.5 rounded-xl hover:bg-white/5 cursor-pointer z-10 border border-white/5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5 text-yellow-500 font-extrabold text-[10px] uppercase tracking-widest mb-2">
+                <Trophy className="w-3.5 h-3.5 animate-bounce" />
+                <span>OFFICIAL GRADUATE DECREE</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-1.5 uppercase tracking-tight">Your Course Certificate</h2>
+              <p className="text-xs text-gray-400 mb-6 max-w-md leading-relaxed">
+                Congratulations on completing the rigorous requirements for <span className="text-yellow-400 font-bold">"{certModalTitle}"</span>! Here is your verified digital diploma from Cutscene Academy.
+              </p>
+
+              {isGeneratingCert ? (
+                <div className="flex flex-col items-center py-16 w-full">
+                  <div className="relative mb-5">
+                    <div className="w-12 h-12 border-4 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin" />
+                    <Award className="w-6 h-6 text-yellow-500 absolute inset-0 m-auto animate-pulse" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-200">Generating digital parchment...</h3>
+                  <p className="text-[11px] text-gray-500 mt-1.5 max-w-xs leading-relaxed">
+                    Structuring vector seals, signature credentials, and cryptographic certificates.
+                  </p>
+                </div>
+              ) : certModalImage ? (
+                <div className="w-full space-y-6">
+                  {/* High Quality Certificate Canvas Preview Container */}
+                  <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden border border-yellow-500/30 shadow-2xl bg-[#09090b] group">
+                    <img 
+                      src={certModalImage} 
+                      alt="Verified Completion Certificate" 
+                      className="w-full h-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                    {/* Corner accents inside the preview frame to make it feel super precious */}
+                    <div className="absolute top-2.5 left-2.5 w-2.5 h-2.5 border-t border-l border-yellow-500/40 pointer-events-none" />
+                    <div className="absolute top-2.5 right-2.5 w-2.5 h-2.5 border-t border-r border-yellow-500/40 pointer-events-none" />
+                    <div className="absolute bottom-2.5 left-2.5 w-2.5 h-2.5 border-b border-l border-yellow-500/40 pointer-events-none" />
+                    <div className="absolute bottom-2.5 right-2.5 w-2.5 h-2.5 border-b border-r border-yellow-500/40 pointer-events-none" />
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex flex-col sm:flex-row gap-3 w-full">
+                    <button
+                      onClick={() => setIsViewingCert(false)}
+                      className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      Close Window
+                    </button>
+                    <a
+                      href={certModalImage}
+                      download={`Cutscene_Academy_Certificate_${certModalTitle.replace(/\s+/g, '_')}.png`}
+                      className="flex-1 py-3 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black rounded-xl font-black text-xs uppercase tracking-wider text-center flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-yellow-500/10"
+                    >
+                      <Download className="w-3.5 h-3.5 text-black stroke-[3px]" />
+                      Download Diploma (PNG)
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2,
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 
 const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => {
@@ -64,6 +65,7 @@ export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
   const { user } = useAuth();
   const { t, language } = useLanguage();
+  const { toast } = useToast();
   const navigate = useNavigate();
   
   const [course, setCourse] = useState<any>(null);
@@ -72,6 +74,11 @@ export default function VideoPlayer() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  
+  // Personal notes states
+  const [personalNotes, setPersonalNotes] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [lastSavedNotesTime, setLastSavedNotesTime] = useState<string | null>(null);
   
   // Homework State
   const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
@@ -594,6 +601,57 @@ export default function VideoPlayer() {
     return () => unsubSubmissions();
   }, [user, id, chapter]);
 
+  // Load personal notes
+  useEffect(() => {
+    if (!user || !id || !chapter) return;
+    
+    const fetchNotes = async () => {
+      try {
+        const noteId = `${user.uid}-${id}-${chapter}`;
+        const noteDoc = await getDoc(doc(db, 'user_notes', noteId));
+        if (noteDoc.exists()) {
+          const data = noteDoc.data();
+          setPersonalNotes(data.content || '');
+          if (data.updatedAt) {
+            setLastSavedNotesTime(new Date(data.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          }
+        } else {
+          setPersonalNotes('');
+          setLastSavedNotesTime(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch personal notes:', err);
+      }
+    };
+    
+    fetchNotes();
+  }, [user, id, chapter]);
+
+  const handleSaveNotes = async () => {
+    if (!user || !id || !chapter) return;
+    
+    setIsSavingNotes(true);
+    try {
+      const noteId = `${user.uid}-${id}-${chapter}`;
+      const updatedAt = new Date().toISOString();
+      await setDoc(doc(db, 'user_notes', noteId), {
+        uid: user.uid,
+        courseId: id,
+        chapter: parseInt(chapter),
+        content: personalNotes,
+        updatedAt
+      }, { merge: true });
+      
+      setLastSavedNotesTime(new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      toast.success('Lecture notes saved successfully!');
+    } catch (err: any) {
+      console.error('Failed to save personal notes:', err);
+      toast.error('Failed to save lecture notes.');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
   const handleBunnyFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -650,10 +708,10 @@ export default function VideoPlayer() {
         setBunnyUploading(false);
       }, 1000);
 
-      alert(`"${file.name}" uploaded successfully! It is registered in your exercise submissions.`);
+      toast.success(`"${file.name}" uploaded successfully! Registered in your submissions.`);
     } catch (err: any) {
       console.error('Bunny upload failed:', err);
-      alert(`Upload failed: ${err.message || err}`);
+      toast.error(`Upload failed: ${err.message || err}`);
       setBunnyUploading(false);
       setBunnyUploadProgress(0);
     }
@@ -680,9 +738,10 @@ export default function VideoPlayer() {
       });
 
       setCommentInput('');
+      toast.success('Comment posted successfully!');
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert('Failed to add comment. Please try again.');
+      toast.error('Failed to post comment. Please try again.');
     } finally {
       setSubmittingComment(false);
     }
@@ -692,9 +751,10 @@ export default function VideoPlayer() {
     if (!window.confirm('Are you sure you want to delete this comment?')) return;
     try {
       await deleteDoc(doc(db, 'comments', commentId));
+      toast.info('Comment removed.');
     } catch (error) {
       console.error('Error deleting comment:', error);
-      alert('Failed to delete comment.');
+      toast.error('Failed to delete comment.');
     }
   };
 
@@ -717,11 +777,13 @@ export default function VideoPlayer() {
       }, { merge: true });
 
       setShowSuccessAlert(true);
+      toast.success('Lesson marked as complete! Progress saved.');
       setTimeout(() => {
         setShowSuccessAlert(false);
       }, 4500);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'progress');
+      toast.error('Failed to update progress.');
     } finally {
       setSubmitting(false);
     }
@@ -751,9 +813,10 @@ export default function VideoPlayer() {
         createdAt: new Date().toISOString()
       });
       setHomeworkLinkInput('');
+      toast.success('Homework link submitted successfully!');
     } catch (error) {
       console.error('Submission failed:', error);
-      alert('Submission failed. Please try again.');
+      toast.error('Submission failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -764,8 +827,10 @@ export default function VideoPlayer() {
     try {
       await deleteDoc(doc(db, 'homework_submissions', homeworkVideo.id));
       setHomeworkVideo(null);
+      toast.info('Homework submission deleted.');
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'homework_submissions');
+      toast.error('Failed to delete homework submission.');
     }
   };
 
@@ -1171,6 +1236,60 @@ export default function VideoPlayer() {
               )}
             </div>
 
+            {/* Interactive Lecture Notebook */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 mb-8 shadow-xl relative overflow-hidden"
+            >
+              {/* Soft Ambient Glow background */}
+              <div className="absolute top-0 right-0 w-36 h-36 bg-purple-600/5 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-2.5 text-white">
+                    <FileText className="w-5 h-5 text-purple-400" />
+                    <span>Personal Lecture Notes</span>
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1">Draft your custom lesson insights, markers, and code references privately.</p>
+                </div>
+                {lastSavedNotesTime && (
+                  <span className="text-[10px] text-purple-300 bg-purple-950/45 px-3 py-1 rounded-full border border-purple-800/20 font-mono self-start sm:self-center">
+                    Saved at {lastSavedNotesTime}
+                  </span>
+                )}
+              </div>
+
+              <textarea
+                value={personalNotes}
+                onChange={(e) => setPersonalNotes(e.target.value)}
+                placeholder="Take notes while watching the lesson... E.g., Key shortcut combinations, composition tips, or specific timestamps."
+                rows={5}
+                className="w-full bg-zinc-900/40 border border-purple-900/10 focus:border-purple-500/30 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-purple-500/20 placeholder-gray-500 transition-all resize-y"
+              />
+
+              <div className="flex justify-end mt-4">
+                <button
+                  type="button"
+                  onClick={handleSaveNotes}
+                  disabled={isSavingNotes}
+                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-950/20"
+                >
+                  {isSavingNotes ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Notes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Save Lecture Notes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+
             {/* Chapter Comments Discussion Section */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -1283,30 +1402,26 @@ export default function VideoPlayer() {
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
               <h3 className="text-xl font-bold mb-6">{t('course.resources')}</h3>
               <div className="space-y-4">
-                <SparkleButton
+                <button
                   onClick={() => triggerMockDownload(`Chapter_${chapter}_Notes.pdf`)}
-                  className="w-full text-left p-4 rounded-2xl text-white font-medium flex items-center justify-between"
+                  className="w-full flex items-center justify-between p-4 bg-zinc-900/40 hover:bg-zinc-900/80 border border-purple-900/10 hover:border-purple-500/30 rounded-2xl transition-all duration-300 group text-left"
                 >
-                  <span className="flex items-center justify-between w-full">
-                    <span className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-purple-500 shrink-0" />
-                      <span className="text-sm font-medium">Chapter {chapter} Notes.pdf</span>
-                    </span>
-                    <CheckCircle2 className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors" />
+                  <span className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-purple-500 shrink-0" />
+                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Chapter {chapter} Notes.pdf</span>
                   </span>
-                </SparkleButton>
-                <SparkleButton
+                  <CheckCircle2 className="w-4 h-4 text-gray-500 group-hover:text-purple-400 transition-colors" />
+                </button>
+                <button
                   onClick={() => triggerMockDownload('Exercise_Assets.zip')}
-                  className="w-full text-left p-4 rounded-2xl text-white font-medium flex items-center justify-between"
+                  className="w-full flex items-center justify-between p-4 bg-zinc-900/40 hover:bg-zinc-900/80 border border-purple-900/10 hover:border-purple-500/30 rounded-2xl transition-all duration-300 group text-left"
                 >
-                  <span className="flex items-center justify-between w-full">
-                    <span className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-purple-500 shrink-0" />
-                      <span className="text-sm font-medium">Exercise Assets.zip</span>
-                    </span>
-                    <CheckCircle2 className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors" />
+                  <span className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-purple-500 shrink-0" />
+                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Exercise Assets.zip</span>
                   </span>
-                </SparkleButton>
+                  <CheckCircle2 className="w-4 h-4 text-gray-500 group-hover:text-purple-400 transition-colors" />
+                </button>
               </div>
             </div>
 

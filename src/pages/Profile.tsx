@@ -4,10 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { db, storage, auth, doc, updateDoc, ref, uploadBytes, getDownloadURL, updateProfile, updateEmail, updatePassword } from '../firebase';
 import { User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2, Upload } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Profile() {
   const { user, userProfile } = useAuth();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const avatarUrl = userProfile?.photoURL || userProfile?.avatar || userProfile?.photoUrl || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`;
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -67,9 +69,11 @@ export default function Profile() {
       });
 
       setMessage({ type: 'success', text: 'Profile picture imported and saved successfully!' });
+      toast.success('Profile picture updated successfully!');
     } catch (err: any) {
       console.error('Avatar upload failed:', err);
       setMessage({ type: 'error', text: `Upload failed: ${err.message || err}` });
+      toast.error(`Upload failed: ${err.message || 'Error occurred'}`);
     } finally {
       setUploadingAvatar(false);
     }
@@ -90,6 +94,7 @@ export default function Profile() {
 
     if (newPassword && newPassword !== confirmPassword) {
       setMessage({ type: 'error', text: 'Passwords do not match' });
+      toast.warning('Passwords do not match');
       return;
     }
 
@@ -122,6 +127,7 @@ export default function Profile() {
       });
 
       setMessage({ type: 'success', text: t('profile.success') });
+      toast.success(t('profile.success') || 'Profile updated successfully!');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
@@ -131,6 +137,7 @@ export default function Profile() {
         errorText = 'This operation is sensitive and requires recent authentication. Please log in again.';
       }
       setMessage({ type: 'error', text: errorText });
+      toast.error(errorText || 'Failed to update profile');
     } finally {
       setLoading(false);
     }

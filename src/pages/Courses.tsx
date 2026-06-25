@@ -64,33 +64,38 @@ export default function Courses() {
             <p className="text-gray-500 text-sm">Please add courses from the Firebase Console dashboard.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {courses.map((course, i) => (
               <motion.div 
                 key={course.id}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] overflow-hidden flex flex-col lg:flex-row group"
+                whileHover={{ scale: 1.02, y: -4 }}
+                transition={{ 
+                  opacity: { delay: i * 0.1, duration: 0.4 },
+                  y: { delay: i * 0.1, duration: 0.4 },
+                  scale: { duration: 0.2, ease: "easeOut" }
+                }}
+                className="bg-zinc-950 border border-purple-900/20 rounded-[2rem] overflow-hidden flex flex-col group h-full shadow-xl hover:shadow-[0_0_30px_rgba(147,51,234,0.15)] transition-all duration-300"
               >
-                <Link to={`/courses/${course.id}`} className="lg:w-2/5 relative min-h-[300px] overflow-hidden">
+                <Link to={`/courses/${course.id}`} className="relative aspect-video overflow-hidden shrink-0">
                   <img 
                     src={course.image || 'https://picsum.photos/seed/course/800/600'} 
                     alt={course.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent lg:bg-gradient-to-r" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   {course.isComingSoon && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                      <div className="w-16 h-16 bg-black/60 border border-purple-500/30 rounded-full flex items-center justify-center shadow-2xl">
-                        <Lock className="w-8 h-8 text-purple-500" />
+                      <div className="w-12 h-12 bg-black/60 border border-purple-500/30 rounded-full flex items-center justify-center shadow-2xl">
+                        <Lock className="w-6 h-6 text-purple-500" />
                       </div>
                     </div>
                   )}
                   {!course.isComingSoon && (
-                    <div className="absolute top-6 left-6 flex flex-col gap-2">
-                      <span className={`px-4 py-1.5 text-xs font-bold rounded-full uppercase tracking-wider backdrop-blur-md ${
+                    <div className="absolute top-4 left-4 flex flex-col gap-1.5 items-start">
+                      <span className={`px-3 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-md ${
                         (course.level || '').toLowerCase() === 'beginner'
                           ? 'bg-green-500/10 border border-green-500/30 text-green-400'
                           : (course.level || '').toLowerCase() === 'advanced'
@@ -99,100 +104,77 @@ export default function Courses() {
                       }`}>
                         {course.level || 'Beginner'}
                       </span>
+                      {course.duration && (
+                        <span className="px-2.5 py-0.5 text-[9px] font-semibold rounded-md bg-zinc-950/80 border border-purple-500/20 text-purple-300 backdrop-blur-sm uppercase tracking-wider">
+                          {course.duration}
+                        </span>
+                      )}
                     </div>
                   )}
                 </Link>
                 
-                <div className="p-8 lg:p-12 flex-1 flex flex-col">
-                  <Link to={`/courses/${course.id}`} className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 group/title">
-                    <h3 className="text-3xl md:text-4xl font-bold text-white group-hover/title:text-purple-400 transition-colors">
-                      {course.title}
-                    </h3>
-                    <div className="text-3xl font-black text-purple-500 whitespace-nowrap">
-                      {course.isComingSoon ? (
-                        <span className="text-xl text-purple-400 uppercase tracking-widest">{t('course.comingSoon') || 'Coming Soon'}</span>
-                      ) : (
-                        getCoursePrice(course).formatted
-                      )}
-                    </div>
-                  </Link>
-
-                  <p className="text-gray-300 text-lg mb-8 leading-relaxed">
-                    {course.detailedDescription || course.description}
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-                    {/* requirements */}
-                    <div>
-                      <h4 className="text-white font-bold mb-4 flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-purple-500" />
-                        {t('course.requirements')}
-                      </h4>
-                      <ul className="space-y-2">
-                        {(course.requirements || []).map((pre: string, idx: number) => (
-                          <li key={idx} className="text-gray-400 text-sm flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-purple-900 mt-1.5 shrink-0" />
-                            {pre}
-                          </li>
-                        ))}
-                      </ul>
+                <div className="p-6 flex-1 flex flex-col justify-between">
+                  <div className="flex-1 flex flex-col mb-6">
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <Link to={`/courses/${course.id}`} className="group/title flex-1">
+                        <h3 className="text-xl font-bold text-white group-hover/title:text-purple-400 transition-colors line-clamp-1">
+                          {course.title}
+                        </h3>
+                      </Link>
+                      <div className="text-lg font-black text-purple-500 whitespace-nowrap">
+                        {course.isComingSoon ? (
+                          <span className="text-xs text-purple-400 uppercase tracking-widest">{t('course.comingSoon') || 'Coming Soon'}</span>
+                        ) : (
+                          getCoursePrice(course).formatted
+                        )}
+                      </div>
                     </div>
 
-                    {/* Instructor */}
-                    <div className="bg-purple-900/10 border border-purple-500/10 rounded-2xl p-6">
-                      <h4 className="text-white font-bold mb-4 flex items-center gap-2">
-                        <User className="w-5 h-5 text-purple-500" />
-                        {t('course.instructor')}
-                      </h4>
-                      <div className="flex items-center gap-4 mb-3">
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed line-clamp-2 flex-grow">
+                      {course.description || course.detailedDescription}
+                    </p>
+
+                     {/* Instructor Row */}
+                    <div className="flex items-center pt-4 border-t border-purple-900/10">
+                      <div className="flex items-center gap-3">
                         <img 
                           src={course.instructor?.avatar || 'https://picsum.photos/seed/instructor/200/200'} 
                           alt={course.instructor?.name || 'Amine Rouabhia'} 
-                          className="w-12 h-12 rounded-full object-cover border-2 border-purple-600"
+                          className="w-8 h-8 rounded-full object-cover border border-purple-600"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="font-bold text-white">{course.instructor?.name || 'Amine Rouabhia'}</div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider leading-none mb-1">Tutor</span>
+                          <div className="text-xs font-bold text-gray-300 leading-none">{course.instructor?.name || 'Amine Rouabhia'}</div>
+                        </div>
                       </div>
-                      <p className="text-gray-400 text-sm italic leading-relaxed">
-                        "{course.instructor?.bio || 'Professional instructor.'}"
-                      </p>
                     </div>
                   </div>
                   
-                  <div className="mt-auto pt-8 border-t border-purple-900/20 flex flex-col sm:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-6">
-                      {!course.isComingSoon && (
-                        <div className="flex items-center gap-2 text-gray-400">
-                          <BarChart className="w-5 h-5 text-purple-500" />
-                          <span className="font-medium">{course.level || 'Beginner'} {t('course.level')}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                      {course.isComingSoon ? (
-                        <span className="px-6 py-3.5 bg-purple-500/10 text-purple-400 text-sm font-bold uppercase tracking-wider rounded-2xl border border-purple-500/20 shadow-sm flex items-center gap-2 select-none">
-                          <span>🔮</span>
-                          <span>{t('course.comingSoon') || 'Coming Soon'}</span>
-                        </span>
-                      ) : (
-                        <>
-                          <SparkleButton 
-                            to={`/courses/${course.id}`}
-                            className="w-full sm:w-auto px-8 py-4 font-bold flex items-center justify-center gap-2 rounded-2xl text-sm"
-                          >
-                            <span>{t('courses.details')}</span>
-                          </SparkleButton>
-                          <RainbowButton 
-                            to={`/payment?courseId=${course.id}`}
-                            className="w-full sm:w-auto px-10 py-4 font-bold flex items-center justify-center gap-2 rounded-2xl text-sm"
-                          >
-                            <span>{t('courses.getStarted')}</span>
-                            <ArrowRight className={`w-4 h-4 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
-                          </RainbowButton>
-                        </>
-                      )}
-                    </div>
+                  {/* Buttons Section */}
+                  <div className="pt-4 border-t border-purple-900/10 flex flex-col gap-3">
+                    {course.isComingSoon ? (
+                      <div className="w-full py-3 bg-purple-500/10 text-purple-400 text-xs font-bold uppercase tracking-wider rounded-xl border border-purple-500/20 shadow-sm flex items-center justify-center gap-2 select-none">
+                        <span>🔮</span>
+                        <span>{t('course.comingSoon') || 'Coming Soon'}</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <SparkleButton 
+                          to={`/courses/${course.id}`}
+                          className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs"
+                        >
+                          <span>{t('courses.details')}</span>
+                        </SparkleButton>
+                        <RainbowButton 
+                          to={`/payment?courseId=${course.id}`}
+                          className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs"
+                        >
+                          <span>{t('courses.getStarted')}</span>
+                          <ArrowRight className={`w-3.5 h-3.5 inline-block shrink-0 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                        </RainbowButton>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>

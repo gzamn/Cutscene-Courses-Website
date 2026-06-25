@@ -665,6 +665,16 @@
   z-index: 5;
 }
 
+.btn-rainbow.text-left > .btn-rainbow-content {
+  justify-content: flex-start;
+}
+
+.btn-rainbow.text-left > .btn-rainbow-content > span {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+}
+
 .btn-rainbow > .btn-rainbow-content:before {
   content: "";
   display: block;

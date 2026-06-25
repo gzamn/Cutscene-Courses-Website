@@ -29,7 +29,7 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 
-type AdminTab = 'courses' | 'chapters' | 'downloadables' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions';
+type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions';
 
 interface Toast {
   id: string;
@@ -47,13 +47,15 @@ export default function AdminPanel() {
 
   // Multi-selection states for mass deletion
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
-  const [selectedDownloadableIds, setSelectedDownloadableIds] = useState<string[]>([]);
+  const [selectedStoreProductIds, setSelectedStoreProductIds] = useState<string[]>([]);
+  const [selectedUsefulResourceIds, setSelectedUsefulResourceIds] = useState<string[]>([]);
   const [selectedStudentWorkIds, setSelectedStudentWorkIds] = useState<string[]>([]);
 
   // Clear selections on tab swap
   useEffect(() => {
     setSelectedCourseIds([]);
-    setSelectedDownloadableIds([]);
+    setSelectedStoreProductIds([]);
+    setSelectedUsefulResourceIds([]);
     setSelectedStudentWorkIds([]);
   }, [activeTab]);
   
@@ -66,7 +68,9 @@ export default function AdminPanel() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
-  const [downloadables, setDownloadables] = useState<any[]>([]);
+  const [storeProducts, setStoreProducts] = useState<any[]>([]);
+  const [storePurchases, setStorePurchases] = useState<any[]>([]);
+  const [usefulResources, setUsefulResources] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [heroVideos, setHeroVideos] = useState<any[]>([]);
   const [websiteSettings, setWebsiteSettings] = useState<any>({
@@ -98,9 +102,9 @@ export default function AdminPanel() {
 
   // Direct Image upload handling states
   const [promoUploading, setPromoUploading] = useState(false);
-  const [downloadableUploading, setDownloadableUploading] = useState(false);
   const promoFileRef = useRef<HTMLInputElement>(null);
-  const downloadableFileRef = useRef<HTMLInputElement>(null);
+  const storeProductFileRef = useRef<HTMLInputElement>(null);
+  const usefulResourceFileRef = useRef<HTMLInputElement>(null);
 
   const uploadPromoImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -135,12 +139,15 @@ export default function AdminPanel() {
     }
   };
 
-  const uploadDownloadableImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [storeProductUploading, setStoreProductUploading] = useState(false);
+  const [usefulResourceUploading, setUsefulResourceUploading] = useState(false);
+
+  const uploadStoreProductImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const file = files[0];
     
-    setDownloadableUploading(true);
+    setStoreProductUploading(true);
     try {
       const signRes = await fetch('/api/bunny-upload-signed-url', {
         method: 'POST',
@@ -158,13 +165,46 @@ export default function AdminPanel() {
       if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
       const uploadResult = await uploadRes.json();
       
-      setDownloadableForm(prev => ({ ...prev, imageUrl: uploadResult.publicUrl }));
-      showToast('success', 'Downloadable Cover Image imported successfully!');
+      setStoreProductForm(prev => ({ ...prev, imageUrl: uploadResult.publicUrl }));
+      showToast('success', 'Store Product Image imported successfully!');
     } catch (err: any) {
       console.error('Image upload failed:', err);
       showToast('error', `Failed to upload image: ${err.message || err}`);
     } finally {
-      setDownloadableUploading(false);
+      setStoreProductUploading(false);
+    }
+  };
+
+  const uploadUsefulResourceLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    
+    setUsefulResourceUploading(true);
+    try {
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name })
+      });
+      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      const signData = await signRes.json();
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
+      });
+      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      const uploadResult = await uploadRes.json();
+      
+      setUsefulResourceForm(prev => ({ ...prev, logoUrl: uploadResult.publicUrl }));
+      showToast('success', 'Resource logo imported successfully!');
+    } catch (err: any) {
+      console.error('Logo upload failed:', err);
+      showToast('error', `Failed to upload logo: ${err.message || err}`);
+    } finally {
+      setUsefulResourceUploading(false);
     }
   };
 
@@ -318,7 +358,9 @@ export default function AdminPanel() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [loadingWorks, setLoadingWorks] = useState(false);
-  const [loadingDownloadables, setLoadingDownloadables] = useState(false);
+  const [loadingStoreProducts, setLoadingStoreProducts] = useState(false);
+  const [loadingStorePurchases, setLoadingStorePurchases] = useState(false);
+  const [loadingUsefulResources, setLoadingUsefulResources] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [loadingHeroVideos, setLoadingHeroVideos] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
@@ -339,7 +381,8 @@ export default function AdminPanel() {
     level: 'Beginner',
     duration: '8 weeks',
     certificateUrl: '',
-    trailerUrl: ''
+    trailerUrl: '',
+    is_coming_soon: false
   });
 
   const [showChapterModal, setShowChapterModal] = useState(false);
@@ -363,16 +406,26 @@ export default function AdminPanel() {
     session_name: ''
   });
 
-  const [showDownloadableModal, setShowDownloadableModal] = useState(false);
-  const [editingDownloadableId, setEditingDownloadableId] = useState<string | null>(null);
-  const [downloadableForm, setDownloadableForm] = useState({
+  const [showStoreProductModal, setShowStoreProductModal] = useState(false);
+  const [editingStoreProductId, setEditingStoreProductId] = useState<string | null>(null);
+  const [storeProductForm, setStoreProductForm] = useState({
     name: '',
-    category: 'Softwares',
-    imageUrl: '',
-    downloadUrl: '',
     description: '',
-    guideVideoUrl: '',
-    order: '1'
+    imageUrl: '',
+    durationsText: '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000',
+    active: true
+  });
+
+  const [showUsefulResourceModal, setShowUsefulResourceModal] = useState(false);
+  const [editingUsefulResourceId, setEditingUsefulResourceId] = useState<string | null>(null);
+  const [usefulResourceForm, setUsefulResourceForm] = useState({
+    name: '',
+    description: '',
+    category: 'Free Stock Footage',
+    logoUrl: '',
+    url: '',
+    order: '1',
+    active: true
   });
 
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -422,7 +475,9 @@ export default function AdminPanel() {
       fetchUsers();
       fetchStudentWorks();
       fetchEnrollments();
-      fetchDownloadables();
+      fetchStoreProducts();
+      fetchStorePurchases();
+      fetchUsefulResources();
       fetchPlans();
       fetchHeroVideos();
       fetchSettings();
@@ -619,21 +674,135 @@ export default function AdminPanel() {
     }
   };
 
-  const fetchDownloadables = async () => {
-    setLoadingDownloadables(true);
+  const fetchStoreProducts = async () => {
+    setLoadingStoreProducts(true);
     try {
-      const snap = await getDocs(collection(db, 'downloadables'));
+      const snap = await getDocs(collection(db, 'store_products'));
+      let list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      if (list.length === 0) {
+        console.log('Seeding store products from Admin...');
+        const defaults = [
+          {
+            name: "Adobe Creative Cloud",
+            description: "Get full student access to Adobe Creative Cloud Apps, including Premiere Pro, After Effects, Photoshop, Illustrator, and more with official license verification.",
+            imageUrl: "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=800&auto=format&fit=crop",
+            durations: {
+              "1 Month": 4500,
+              "3 Months": 12500,
+              "6 Months": 23000,
+              "12 Months": 42000
+            },
+            active: true,
+            createdAt: new Date().toISOString()
+          }
+        ];
+        for (const item of defaults) {
+          await addDoc(collection(db, 'store_products'), item);
+        }
+        const freshSnap = await getDocs(collection(db, 'store_products'));
+        list = freshSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      }
+      setStoreProducts(list);
+    } catch (err: any) {
+      console.error('Fetch store products error:', err);
+      showToast('error', 'Failed loading store products.');
+    } finally {
+      setLoadingStoreProducts(false);
+    }
+  };
+
+  const fetchStorePurchases = async () => {
+    setLoadingStorePurchases(true);
+    try {
+      const snap = await getDocs(collection(db, 'store_purchases'));
       const list = snap.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
-      setDownloadables(list);
+      list.sort((a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+      setStorePurchases(list);
     } catch (err: any) {
-      console.error('Fetch downloadables error:', err);
-      showToast('error', 'Failed loading downloadables from database.');
+      console.error('Fetch store purchases error:', err);
+      showToast('error', 'Failed loading store purchase receipts.');
     } finally {
-      setLoadingDownloadables(false);
+      setLoadingStorePurchases(false);
+    }
+  };
+
+  const fetchUsefulResources = async () => {
+    setLoadingUsefulResources(true);
+    try {
+      const snap = await getDocs(collection(db, 'useful_resources'));
+      let list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      if (list.length === 0) {
+        console.log('Seeding useful resources from Admin...');
+        const defaults = [
+          {
+            name: "Pexels Free Stock Footage",
+            description: "The best free stock videos, clips, and footage shared by the talented Pexels community.",
+            category: "Free Stock Footage",
+            logoUrl: "https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=200&auto=format&fit=crop",
+            url: "https://www.pexels.com/videos/",
+            active: true,
+            order: 1,
+            createdAt: new Date().toISOString()
+          },
+          {
+            name: "Adobe Firefly",
+            description: "Use generative AI and simple text prompts to create highest quality creative variations, vectors, and effects.",
+            category: "AI Tools",
+            logoUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=200&auto=format&fit=crop",
+            url: "https://firefly.adobe.com/",
+            active: true,
+            order: 2,
+            createdAt: new Date().toISOString()
+          },
+          {
+            name: "DaVinci Resolve Training",
+            description: "Official Blackmagic Design interactive lessons, training books, and certification resources.",
+            category: "Learning Resources",
+            logoUrl: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=200&auto=format&fit=crop",
+            url: "https://www.blackmagicdesign.com/products/davinciresolve/training",
+            active: true,
+            order: 3,
+            createdAt: new Date().toISOString()
+          },
+          {
+            name: "Mixkit Asset Hub",
+            description: "Awesome free assets for your next video project: Premiere Pro templates, transitions, sound effects, and stock music.",
+            category: "Free Stock Footage",
+            logoUrl: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=200&auto=format&fit=crop",
+            url: "https://mixkit.co/",
+            active: true,
+            order: 4,
+            createdAt: new Date().toISOString()
+          }
+        ];
+        for (const item of defaults) {
+          await addDoc(collection(db, 'useful_resources'), item);
+        }
+        const freshSnap = await getDocs(collection(db, 'useful_resources'));
+        list = freshSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      }
+      list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      setUsefulResources(list);
+    } catch (err: any) {
+      console.error('Fetch useful resources error:', err);
+      showToast('error', 'Failed loading useful resources.');
+    } finally {
+      setLoadingUsefulResources(false);
     }
   };
 
@@ -1017,6 +1186,7 @@ export default function AdminPanel() {
         duration: courseForm.duration,
         certificateUrl: courseForm.certificateUrl || '',
         trailerUrl: courseForm.trailerUrl || '',
+        isComingSoon: !!courseForm.is_coming_soon,
         updatedAt: serverTimestamp()
       };
 
@@ -1049,7 +1219,8 @@ export default function AdminPanel() {
         level: 'Beginner',
         duration: '8 weeks',
         certificateUrl: '',
-        trailerUrl: ''
+        trailerUrl: '',
+        is_coming_soon: false
       });
       fetchCourses();
     } catch (err: any) {
@@ -1071,7 +1242,8 @@ export default function AdminPanel() {
       level: course.level || 'Beginner',
       duration: course.duration || '8 weeks',
       certificateUrl: course.certificateUrl || '',
-      trailerUrl: course.trailerUrl || ''
+      trailerUrl: course.trailerUrl || '',
+      is_coming_soon: !!course.isComingSoon
     });
     setShowCourseModal(true);
   };
@@ -1390,102 +1562,243 @@ export default function AdminPanel() {
   };
 
 
-  // DOWNLOADABLES
-  const handleDownloadableSubmit = async (e: React.FormEvent) => {
+  // STORE PRODUCTS
+  const handleStoreProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Parse durationsText to durations object
+      const durationsMap: { [key: string]: number } = {};
+      storeProductForm.durationsText.split('\n').forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const key = parts[0].trim();
+          const value = Number(parts[1].trim());
+          if (key && !isNaN(value)) {
+            durationsMap[key] = value;
+          }
+        }
+      });
+
       const payload = {
-        name: downloadableForm.name,
-        category: downloadableForm.category,
-        imageUrl: downloadableForm.imageUrl,
-        downloadUrl: downloadableForm.downloadUrl,
-        guideVideoUrl: downloadableForm.guideVideoUrl,
-        order: Number(downloadableForm.order) || 1,
+        name: storeProductForm.name,
+        description: storeProductForm.description,
+        imageUrl: storeProductForm.imageUrl,
+        durations: durationsMap,
+        active: storeProductForm.active,
         updatedAt: new Date().toISOString()
       };
 
-      if (editingDownloadableId) {
-        await setDoc(doc(db, 'downloadables', editingDownloadableId), {
+      if (editingStoreProductId) {
+        await setDoc(doc(db, 'store_products', editingStoreProductId), {
           ...payload,
-          id: editingDownloadableId
+          id: editingStoreProductId
         }, { merge: true });
-        showToast('success', `Download "${downloadableForm.name}" updated successfully.`);
+        showToast('success', `Product "${storeProductForm.name}" updated successfully.`);
       } else {
-        const docRef = await addDoc(collection(db, 'downloadables'), payload);
+        const docRef = await addDoc(collection(db, 'store_products'), payload);
         await setDoc(docRef, { id: docRef.id }, { merge: true });
-        showToast('success', `Download "${downloadableForm.name}" created successfully.`);
+        showToast('success', `Product "${storeProductForm.name}" created successfully.`);
       }
 
-      setShowDownloadableModal(false);
-      setEditingDownloadableId(null);
-      setDownloadableForm({
+      setShowStoreProductModal(false);
+      setEditingStoreProductId(null);
+      setStoreProductForm({
         name: '',
-        category: 'Softwares',
-        imageUrl: '',
-        downloadUrl: '',
         description: '',
-        guideVideoUrl: '',
-        order: '1'
+        imageUrl: '',
+        durationsText: '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000',
+        active: true
       });
-      fetchDownloadables();
+      fetchStoreProducts();
     } catch (err: any) {
-      console.error('Downloadable save error:', err);
-      showToast('error', err.message || 'Error saving downloadable asset.');
+      console.error('Store Product save error:', err);
+      showToast('error', err.message || 'Error saving store product.');
     }
   };
 
-  const startEditDownloadable = (item: any) => {
-    setEditingDownloadableId(item.id);
-    setDownloadableForm({
+  const startEditStoreProduct = (item: any) => {
+    setEditingStoreProductId(item.id);
+    const text = item.durations 
+      ? Object.entries(item.durations).map(([k, v]) => `${k}: ${v}`).join('\n')
+      : '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000';
+    setStoreProductForm({
       name: item.name || '',
-      category: item.category || 'Softwares',
-      imageUrl: item.imageUrl || '',
-      downloadUrl: item.downloadUrl || '',
       description: item.description || '',
-      guideVideoUrl: item.guideVideoUrl || '',
-      order: item.order !== undefined ? String(item.order) : '1'
+      imageUrl: item.imageUrl || '',
+      durationsText: text,
+      active: item.active !== false
     });
-    setShowDownloadableModal(true);
+    setShowStoreProductModal(true);
   };
 
-  const handleDeleteDownloadable = async (id: string, name: string) => {
+  const handleDeleteStoreProduct = async (id: string, name: string) => {
     askConfirmation(
-      'Delete Downloadable Asset',
-      `Are you sure you want to permanently delete the asset "${name}"? Users with full access will no longer be able to download it.`,
+      'Delete Store Product',
+      `Are you sure you want to permanently delete the product "${name}"?`,
       async () => {
         try {
-          await deleteDoc(doc(db, 'downloadables', id));
-          showToast('success', 'Downloadable asset deleted successfully.');
-          fetchDownloadables();
+          await deleteDoc(doc(db, 'store_products', id));
+          showToast('success', 'Product deleted successfully.');
+          fetchStoreProducts();
         } catch (err: any) {
-          console.error('Delete downloadable failed:', err);
-          showToast('error', 'Failed to delete asset.');
+          console.error('Delete product failed:', err);
+          showToast('error', 'Failed to delete product.');
         }
       },
-      'Delete Asset',
+      'Delete Product',
       true
     );
   };
 
-  const handleMassDeleteDownloadables = () => {
-    if (selectedDownloadableIds.length === 0) return;
+  const handleMassDeleteStoreProducts = () => {
+    if (selectedStoreProductIds.length === 0) return;
     askConfirmation(
-      'Bulk Delete Downloadable Assets',
-      `Are you sure you want to permanently delete the ${selectedDownloadableIds.length} selected assets from the library? This action cannot be undone.`,
+      'Bulk Delete Products',
+      `Are you sure you want to permanently delete the ${selectedStoreProductIds.length} selected products?`,
       async () => {
         try {
-          await Promise.all(selectedDownloadableIds.map(id => deleteDoc(doc(db, 'downloadables', id))));
-          showToast('success', `${selectedDownloadableIds.length} downloadable assets successfully deleted.`);
-          setSelectedDownloadableIds([]);
-          fetchDownloadables();
+          await Promise.all(selectedStoreProductIds.map(id => deleteDoc(doc(db, 'store_products', id))));
+          showToast('success', 'Products successfully deleted.');
+          setSelectedStoreProductIds([]);
+          fetchStoreProducts();
         } catch (err: any) {
-          console.error('Bulk assets deletion failure:', err);
-          showToast('error', 'Failed to delete selected assets.');
+          console.error('Bulk deletion failure:', err);
+          showToast('error', 'Failed to delete selected products.');
         }
       },
       'Delete Selected',
       true
     );
+  };
+
+  // USEFUL RESOURCES
+  const handleUsefulResourceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: usefulResourceForm.name,
+        description: usefulResourceForm.description,
+        category: usefulResourceForm.category,
+        logoUrl: usefulResourceForm.logoUrl,
+        url: usefulResourceForm.url,
+        order: Number(usefulResourceForm.order) || 1,
+        active: usefulResourceForm.active,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (editingUsefulResourceId) {
+        await setDoc(doc(db, 'useful_resources', editingUsefulResourceId), {
+          ...payload,
+          id: editingUsefulResourceId
+        }, { merge: true });
+        showToast('success', `Resource "${usefulResourceForm.name}" updated successfully.`);
+      } else {
+        const docRef = await addDoc(collection(db, 'useful_resources'), payload);
+        await setDoc(docRef, { id: docRef.id }, { merge: true });
+        showToast('success', `Resource "${usefulResourceForm.name}" created successfully.`);
+      }
+
+      setShowUsefulResourceModal(false);
+      setEditingUsefulResourceId(null);
+      setUsefulResourceForm({
+        name: '',
+        description: '',
+        category: 'Free Stock Footage',
+        logoUrl: '',
+        url: '',
+        order: '1',
+        active: true
+      });
+      fetchUsefulResources();
+    } catch (err: any) {
+      console.error('Useful Resource save error:', err);
+      showToast('error', err.message || 'Error saving resource.');
+    }
+  };
+
+  const startEditUsefulResource = (item: any) => {
+    setEditingUsefulResourceId(item.id);
+    setUsefulResourceForm({
+      name: item.name || '',
+      description: item.description || '',
+      category: item.category || 'Free Stock Footage',
+      logoUrl: item.logoUrl || '',
+      url: item.url || '',
+      order: item.order !== undefined ? String(item.order) : '1',
+      active: item.active !== false
+    });
+    setShowUsefulResourceModal(true);
+  };
+
+  const handleDeleteUsefulResource = async (id: string, name: string) => {
+    askConfirmation(
+      'Delete Resource Link',
+      `Are you sure you want to permanently delete the resource link "${name}"?`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'useful_resources', id));
+          showToast('success', 'Resource link deleted successfully.');
+          fetchUsefulResources();
+        } catch (err: any) {
+          console.error('Delete resource failed:', err);
+          showToast('error', 'Failed to delete resource.');
+        }
+      },
+      'Delete Link',
+      true
+    );
+  };
+
+  const handleMassDeleteUsefulResources = () => {
+    if (selectedUsefulResourceIds.length === 0) return;
+    askConfirmation(
+      'Bulk Delete Resources',
+      `Are you sure you want to permanently delete the ${selectedUsefulResourceIds.length} selected resource links?`,
+      async () => {
+        try {
+          await Promise.all(selectedUsefulResourceIds.map(id => deleteDoc(doc(db, 'useful_resources', id))));
+          showToast('success', 'Resources successfully deleted.');
+          setSelectedUsefulResourceIds([]);
+          fetchUsefulResources();
+        } catch (err: any) {
+          console.error('Bulk resources deletion failure:', err);
+          showToast('error', 'Failed to delete selected resources.');
+        }
+      },
+      'Delete Selected',
+      true
+    );
+  };
+
+  // STORE PURCHASES VERIFICATION
+  const handleApproveStorePurchase = async (purchase: any) => {
+    try {
+      await setDoc(doc(db, 'store_purchases', purchase.id), {
+        status: 'approved',
+        approvedAt: new Date().toISOString()
+      }, { merge: true });
+      showToast('success', 'Store subscription purchase approved successfully!');
+      fetchStorePurchases();
+    } catch (err: any) {
+      console.error('Error approving store purchase:', err);
+      showToast('error', 'Error approving store purchase: ' + err.message);
+    }
+  };
+
+  const handleRejectStorePurchase = async (purchase: any) => {
+    const feedback = prompt('Enter rejection reason (displayed to student or logged):') || 'Receipt invalid or illegible';
+    try {
+      await setDoc(doc(db, 'store_purchases', purchase.id), {
+        status: 'rejected',
+        rejectionReason: feedback,
+        rejectedAt: new Date().toISOString()
+      }, { merge: true });
+      showToast('success', 'Store subscription purchase rejected.');
+      fetchStorePurchases();
+    } catch (err: any) {
+      console.error('Error rejecting store purchase:', err);
+      showToast('error', 'Error rejecting store purchase: ' + err.message);
+    }
   };
 
 
@@ -1747,8 +2060,9 @@ export default function AdminPanel() {
               { id: 'courses', name: 'Course Modules', icon: BookOpen },
               { id: 'chapters', name: 'Chapters & Tasks', icon: Layers },
               { id: 'offers', name: 'Special Bundles', icon: Sparkles },
-              { id: 'downloadables', name: 'Premium Assets', icon: Film },
-              { id: 'plans', name: 'Membership Plans', icon: Award },
+              { id: 'store-products', name: 'Store Products', icon: Icons.ShoppingBag },
+              { id: 'store-purchases', name: 'Store Receipts', icon: Receipt },
+              { id: 'useful-resources', name: 'Useful Resources', icon: Globe },
               { id: 'students', name: 'Students Ledger', icon: Users },
               { id: 'receipts', name: 'Receipt Verifications', icon: Receipt },
               { id: 'student-works', name: 'Showcase Gallery', icon: Film },
@@ -1838,7 +2152,8 @@ export default function AdminPanel() {
                       level: 'Beginner',
                       duration: '8 weeks',
                       certificateUrl: '',
-                      trailerUrl: ''
+                      trailerUrl: '',
+                      is_coming_soon: false
                     });
                     setShowCourseModal(true);
                   }}
@@ -1923,13 +2238,20 @@ export default function AdminPanel() {
                           </td>
                           <td className="py-4 px-6 text-xs text-gray-300 font-semibold">{course.instructorName || 'Academy Staff'}</td>
                           <td className="py-4 px-6">
-                            {course.isFree ? (
-                              <span className="text-green-400 text-xs font-bold bg-green-950/25 border border-green-500/20 px-2.5 py-1 rounded-lg">Free Sandbox</span>
-                            ) : (
-                              <span className="text-amber-400 text-xs font-bold bg-amber-950/25 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                                Premium ({course.price} DZD)
-                              </span>
-                            )}
+                            <div className="flex flex-col gap-1.5 items-start">
+                              {course.isComingSoon && (
+                                <span className="text-orange-400 text-[10px] uppercase font-black bg-orange-950/40 border border-orange-500/30 px-2 py-0.5 rounded-md tracking-wider animate-pulse">
+                                  Coming Soon
+                                </span>
+                              )}
+                              {course.isFree ? (
+                                <span className="text-green-400 text-xs font-bold bg-green-950/25 border border-green-500/20 px-2.5 py-1 rounded-lg">Free Sandbox</span>
+                              ) : (
+                                <span className="text-amber-400 text-xs font-bold bg-amber-950/25 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                                  Premium ({course.price} DZD)
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6 text-right space-x-1.5">
                             <button
@@ -2547,55 +2869,53 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* TAB 4.1: PREMIUM ASSETS MANAGER */}
-        {activeTab === 'downloadables' && (
+        {/* TAB 4.1: STORE PRODUCTS MANAGER */}
+        {activeTab === 'store-products' && (
           <div className="space-y-8 animate-fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-black text-white tracking-tight">Premium Assets Library</h1>
-                <p className="text-gray-400 text-xs mt-1">Manage downloadable utilities, creative templates, softwares, and audio overlays</p>
+                <h1 className="text-3xl font-black text-white tracking-tight">Software Store Products</h1>
+                <p className="text-gray-400 text-xs mt-1">Manage subscription products, images, active durations, and pricing</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {selectedDownloadableIds.length > 0 && (
+                {selectedStoreProductIds.length > 0 && (
                   <button
-                    onClick={handleMassDeleteDownloadables}
+                    onClick={handleMassDeleteStoreProducts}
                     className="inline-flex items-center gap-2 px-5 py-3 bg-red-950/40 hover:bg-red-900/40 border border-red-500/30 text-red-500 font-bold rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Delete Selected ({selectedDownloadableIds.length})
+                    Delete Selected ({selectedStoreProductIds.length})
                   </button>
                 )}
                 <button
                   onClick={() => {
-                    setEditingDownloadableId(null);
-                    setDownloadableForm({
+                    setEditingStoreProductId(null);
+                    setStoreProductForm({
                       name: '',
-                      category: 'Softwares',
-                      imageUrl: '',
-                      downloadUrl: '',
                       description: '',
-                      guideVideoUrl: '',
-                      order: '1'
+                      imageUrl: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=800&auto=format&fit=crop',
+                      durationsText: '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000',
+                      active: true
                     });
-                    setShowDownloadableModal(true);
+                    setShowStoreProductModal(true);
                   }}
                   className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
                 >
                   <PlusCircle className="w-4 h-4" />
-                  Add Premium Asset
+                  Add Product
                 </button>
               </div>
             </div>
 
-            {loadingDownloadables ? (
+            {loadingStoreProducts ? (
               <div className="py-20 flex justify-center">
                 <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
               </div>
-            ) : downloadables.length === 0 ? (
+            ) : storeProducts.length === 0 ? (
               <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
                 <PlusCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
-                <p className="text-gray-400 font-bold">No assets found in the premium database</p>
-                <p className="text-xs text-gray-650 mt-1">Click the top button to seed or list your first tool!</p>
+                <p className="text-gray-400 font-bold">No products found in the store database</p>
+                <p className="text-xs text-gray-650 mt-1">Click the top button to seed or list your first product!</p>
               </div>
             ) : (
               <div className="bg-zinc-950/40 border border-purple-950/20 rounded-[2.5rem] overflow-hidden">
@@ -2607,37 +2927,36 @@ export default function AdminPanel() {
                           <input 
                             type="checkbox"
                             className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
-                            checked={downloadables.length > 0 && selectedDownloadableIds.length === downloadables.length}
+                            checked={storeProducts.length > 0 && selectedStoreProductIds.length === storeProducts.length}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedDownloadableIds(downloadables.map(item => item.id));
+                                setSelectedStoreProductIds(storeProducts.map(item => item.id));
                               } else {
-                                setSelectedDownloadableIds([]);
+                                setSelectedStoreProductIds([]);
                               }
                             }}
                           />
                         </th>
                         <th className="py-4 px-6">Image</th>
-                        <th className="py-4 px-6">Asset Name</th>
-                        <th className="py-4 px-6">Category</th>
-                        <th className="py-4 px-6">Order</th>
-                        <th className="py-4 px-6">Bunny File Path</th>
+                        <th className="py-4 px-6">Product Name</th>
+                        <th className="py-4 px-6">Durations & Prices (DA)</th>
+                        <th className="py-4 px-6">Status</th>
                         <th className="py-4 px-6 text-right">Operations</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-purple-950/15">
-                      {downloadables.map((item) => (
+                      {storeProducts.map((item) => (
                         <tr key={item.id} className="hover:bg-white/5 transition-colors">
                           <td className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
                             <input 
                               type="checkbox"
                               className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
-                              checked={selectedDownloadableIds.includes(item.id)}
+                              checked={selectedStoreProductIds.includes(item.id)}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedDownloadableIds([...selectedDownloadableIds, item.id]);
+                                  setSelectedStoreProductIds([...selectedStoreProductIds, item.id]);
                                 } else {
-                                  setSelectedDownloadableIds(selectedDownloadableIds.filter(id => id !== item.id));
+                                  setSelectedStoreProductIds(selectedStoreProductIds.filter(id => id !== item.id));
                                 }
                               }}
                             />
@@ -2652,10 +2971,278 @@ export default function AdminPanel() {
                           </td>
                           <td className="py-4 px-6">
                             <div className="font-bold text-white text-sm line-clamp-1">{item.name}</div>
-                            <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{item.description || 'No description provided.'}</div>
+                            <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{item.description}</div>
                           </td>
                           <td className="py-4 px-6">
-                            <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5 text-[10px] font-bold text-gray-300 uppercase">
+                            <div className="flex flex-wrap gap-1.5 max-w-xs">
+                              {item.durations && Object.entries(item.durations).map(([dur, price]: any) => (
+                                <span key={dur} className="px-2 py-0.5 rounded-md bg-zinc-900 border border-purple-950/35 text-[10px] font-mono text-gray-300">
+                                  {dur}: <strong className="text-purple-400">{price} DA</strong>
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                              item.active !== false 
+                                ? 'bg-emerald-950/40 border border-emerald-500/20 text-emerald-400' 
+                                : 'bg-red-950/40 border border-red-500/20 text-red-400'
+                            }`}>
+                              {item.active !== false ? 'Active' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-right space-x-2 shrink-0">
+                            <button
+                              onClick={() => startEditStoreProduct(item)}
+                              className="p-2 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Edit Product"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStoreProduct(item.id, item.name)}
+                              className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Delete Product"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4.2: STORE PURCHASES (RECEIPTS) */}
+        {activeTab === 'store-purchases' && (
+          <div className="space-y-8 animate-fade-in">
+            <div>
+              <h1 className="text-3xl font-black text-white tracking-tight">Software Receipts</h1>
+              <p className="text-gray-400 text-xs mt-1">Verify payment screenshots and receipts uploaded by students for software subscriptions</p>
+            </div>
+
+            {loadingStorePurchases ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+              </div>
+            ) : storePurchases.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                <Receipt className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
+                <p className="text-gray-400 font-bold">No store receipts found</p>
+                <p className="text-xs text-gray-650 mt-1">Receipts will appear here when students request premium software subscriptions.</p>
+              </div>
+            ) : (
+              <div className="bg-zinc-950/40 border border-purple-950/20 rounded-[2.5rem] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-950/30 text-gray-400 text-[10px] uppercase font-bold tracking-widest bg-zinc-950/60">
+                        <th className="py-4 px-6">Student Info</th>
+                        <th className="py-4 px-6">Product Details</th>
+                        <th className="py-4 px-6">Gateway</th>
+                        <th className="py-4 px-6">Amount Paid</th>
+                        <th className="py-4 px-6">Receipt</th>
+                        <th className="py-4 px-6">Status</th>
+                        <th className="py-4 px-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/15">
+                      {storePurchases.map((item) => (
+                        <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-white text-sm">{item.displayName}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{item.email}</div>
+                            <div className="text-[10px] font-mono text-purple-350 mt-1">{item.phone}</div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-extrabold text-white text-sm">{item.productName}</div>
+                            <div className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-950/40 border border-purple-500/20 text-[10px] text-purple-300 font-bold mt-1">
+                              {item.duration}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 text-xs uppercase font-bold text-gray-300">
+                            {item.paymentMethod || 'CCP / BaridiMob'}
+                          </td>
+                          <td className="py-4 px-6 font-mono text-sm font-black text-purple-400">
+                            {item.price} {item.currency || 'DZD'}
+                          </td>
+                          <td className="py-4 px-6">
+                            {item.receiptUrl ? (
+                              <button
+                                onClick={() => setEnlargedReceiptUrl(item.receiptUrl)}
+                                className="w-14 h-10 overflow-hidden rounded-lg border border-purple-950 cursor-pointer hover:border-purple-500 transition-colors"
+                              >
+                                <img
+                                  src={item.receiptUrl}
+                                  alt="Receipt Screenshot"
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-650 italic">No File</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                              item.status === 'approved'
+                                ? 'bg-emerald-950/40 border border-emerald-500/20 text-emerald-400'
+                                : item.status === 'rejected'
+                                  ? 'bg-red-950/40 border border-red-500/20 text-red-400'
+                                  : 'bg-amber-950/40 border border-amber-500/20 text-amber-400 animate-pulse'
+                            }`}>
+                              {item.status}
+                            </span>
+                            {item.status === 'rejected' && item.rejectionReason && (
+                              <p className="text-[10px] text-red-550 italic mt-1 max-w-[150px] truncate" title={item.rejectionReason}>
+                                Reason: {item.rejectionReason}
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-right space-x-2 shrink-0">
+                            {item.status === 'pending' ? (
+                              <>
+                                <button
+                                  onClick={() => handleApproveStorePurchase(item)}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase cursor-pointer"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRejectStorePurchase(item)}
+                                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-bold uppercase cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-550 italic">Completed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4.3: USEFUL RESOURCES MANAGER */}
+        {activeTab === 'useful-resources' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Useful Resources</h1>
+                <p className="text-gray-400 text-xs mt-1">Manage external resources, links, categories, and logos for students</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedUsefulResourceIds.length > 0 && (
+                  <button
+                    onClick={handleMassDeleteUsefulResources}
+                    className="inline-flex items-center gap-2 px-5 py-3 bg-red-950/40 hover:bg-red-900/40 border border-red-500/30 text-red-500 font-bold rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedUsefulResourceIds.length})
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditingUsefulResourceId(null);
+                    setUsefulResourceForm({
+                      name: '',
+                      description: '',
+                      category: 'Free Stock Footage',
+                      logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80',
+                      url: '',
+                      order: '1',
+                      active: true
+                    });
+                    setShowUsefulResourceModal(true);
+                  }}
+                  className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Resource Link
+                </button>
+              </div>
+            </div>
+
+            {loadingUsefulResources ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+              </div>
+            ) : usefulResources.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                <PlusCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
+                <p className="text-gray-400 font-bold">No useful resources found</p>
+                <p className="text-xs text-gray-650 mt-1">Click the top button to add your first useful creative website link!</p>
+              </div>
+            ) : (
+              <div className="bg-zinc-950/40 border border-purple-950/20 rounded-[2.5rem] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-950/30 text-gray-400 text-[10px] uppercase font-bold tracking-widest bg-zinc-950/60">
+                        <th className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                          <input 
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                            checked={usefulResources.length > 0 && selectedUsefulResourceIds.length === usefulResources.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUsefulResourceIds(usefulResources.map(item => item.id));
+                              } else {
+                                setSelectedUsefulResourceIds([]);
+                              }
+                            }}
+                          />
+                        </th>
+                        <th className="py-4 px-6">Logo</th>
+                        <th className="py-4 px-6">Resource Name</th>
+                        <th className="py-4 px-6">Category</th>
+                        <th className="py-4 px-6">Display Order</th>
+                        <th className="py-4 px-6">URL</th>
+                        <th className="py-4 px-6">Status</th>
+                        <th className="py-4 px-6 text-right">Operations</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/15">
+                      {usefulResources.map((item) => (
+                        <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-6 w-12 text-center border-r border-purple-950/20">
+                            <input 
+                              type="checkbox"
+                              className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                              checked={selectedUsefulResourceIds.includes(item.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedUsefulResourceIds([...selectedUsefulResourceIds, item.id]);
+                                } else {
+                                  setSelectedUsefulResourceIds(selectedUsefulResourceIds.filter(id => id !== item.id));
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="py-4 px-6">
+                            <img
+                              src={item.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80'}
+                              alt=""
+                              className="w-10 h-10 object-cover rounded-xl border border-purple-950"
+                              referrerPolicy="no-referrer"
+                            />
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-white text-sm line-clamp-1">{item.name}</div>
+                            <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{item.description}</div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5 text-[10px] font-bold text-purple-300 uppercase">
                               {item.category}
                             </span>
                           </td>
@@ -2663,22 +3250,36 @@ export default function AdminPanel() {
                             {item.order !== undefined ? item.order : '1'}
                           </td>
                           <td className="py-4 px-6">
-                            <div className="text-xs text-purple-400 truncate max-w-[200px]" title={item.downloadUrl}>
-                              {item.downloadUrl}
-                            </div>
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-purple-400 hover:underline truncate max-w-[150px] inline-block"
+                            >
+                              {item.url}
+                            </a>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                              item.active !== false 
+                                ? 'bg-emerald-950/40 border border-emerald-500/20 text-emerald-400' 
+                                : 'bg-red-950/40 border border-red-500/20 text-red-400'
+                            }`}>
+                              {item.active !== false ? 'Active' : 'Disabled'}
+                            </span>
                           </td>
                           <td className="py-4 px-6 text-right space-x-2 shrink-0">
                             <button
-                              onClick={() => startEditDownloadable(item)}
+                              onClick={() => startEditUsefulResource(item)}
                               className="p-2 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer inline-flex"
-                              title="Edit Asset"
+                              title="Edit Resource"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDeleteDownloadable(item.id, item.name)}
+                              onClick={() => handleDeleteUsefulResource(item.id, item.name)}
                               className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer inline-flex"
-                              title="Delete Asset"
+                              title="Delete Resource"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -4312,6 +4913,16 @@ export default function AdminPanel() {
                     />
                   </div>
 
+                  <div className="flex items-center justify-between pt-2 border-t border-purple-950/25">
+                    <span className="text-xs font-bold text-gray-300">Flag as "Coming Soon"?</span>
+                    <input
+                      type="checkbox"
+                      checked={courseForm.is_coming_soon || false}
+                      onChange={(e) => setCourseForm({ ...courseForm, is_coming_soon: e.target.checked })}
+                      className="w-4 h-4 accent-purple-600 rounded"
+                    />
+                  </div>
+
                   {!courseForm.is_free && (
                     <div className="pt-2 border-t border-purple-950/25">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Tuition Price (DZD)</label>
@@ -4600,11 +5211,11 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* MODAL 2.1: ADD / EDIT PREMIUM DOWNLOADABLE */}
+      {/* MODAL 2.1: ADD / EDIT STORE PRODUCT */}
       <AnimatePresence>
-        {showDownloadableModal && (
+        {showStoreProductModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowDownloadableModal(false)} />
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowStoreProductModal(false)} />
             
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -4614,48 +5225,181 @@ export default function AdminPanel() {
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-bold text-white">{editingDownloadableId ? 'Edit Asset Document' : 'Publish Asset Document'}</h2>
-                  <p className="text-gray-400 text-xs">Fill out file locations and download specs</p>
+                  <h2 className="text-xl font-bold text-white">{editingStoreProductId ? 'Edit Store Product' : 'Add Store Product'}</h2>
+                  <p className="text-gray-400 text-xs">Configure durations, pricing, and cover image</p>
                 </div>
-                <button onClick={() => setShowDownloadableModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                <button onClick={() => setShowStoreProductModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleDownloadableSubmit} className="space-y-4">
+              <form onSubmit={handleStoreProductSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Asset File Name / Title</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Product Name</label>
                   <input
                     type="text"
                     required
-                    value={downloadableForm.name}
-                    onChange={(e) => setDownloadableForm({ ...downloadableForm, name: e.target.value })}
+                    value={storeProductForm.name}
+                    onChange={(e) => setStoreProductForm({ ...storeProductForm, name: e.target.value })}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-                    placeholder="e.g. Cinematic Sound Effects Library"
+                    placeholder="e.g. Adobe Creative Cloud"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Description</label>
+                  <textarea
+                    required
+                    value={storeProductForm.description}
+                    onChange={(e) => setStoreProductForm({ ...storeProductForm, description: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-20"
+                    placeholder="e.g. Professional creative applications suite membership"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Cover Image</label>
+                  <div className="flex items-center gap-3">
+                    {storeProductForm.imageUrl ? (
+                      <img 
+                        src={storeProductForm.imageUrl} 
+                        alt="Product Thumbnail" 
+                        className="w-10 h-10 object-cover rounded-lg border border-purple-900/40 bg-black shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg border border-dashed border-purple-900/30 flex items-center justify-center text-gray-600 bg-black/50 text-[9px] uppercase font-mono shrink-0">
+                        None
+                      </div>
+                    )}
+                    <input 
+                      type="file"
+                      accept="image/*"
+                      ref={storeProductFileRef}
+                      className="hidden"
+                      onChange={uploadStoreProductImage}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => storeProductFileRef.current?.click()}
+                      disabled={storeProductUploading}
+                      className="flex-1 px-3 py-2.5 bg-purple-650 hover:bg-purple-600 border border-purple-500/20 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {storeProductUploading ? (
+                        <Icons.Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Icons.Upload className="w-3.5 h-3.5" />
+                      )}
+                      {storeProductForm.imageUrl ? 'Replace Image' : 'Import Image File'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Durations & Prices (DA)</label>
+                  <textarea
+                    required
+                    value={storeProductForm.durationsText}
+                    onChange={(e) => setStoreProductForm({ ...storeProductForm, durationsText: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-24 font-mono"
+                    placeholder="1 Month: 4500&#10;3 Months: 12500&#10;6 Months: 23000&#10;12 Months: 42000"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Enter subscription options line-by-line in the format: "Duration: Price".
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="storeProductActive"
+                    checked={storeProductForm.active}
+                    onChange={(e) => setStoreProductForm({ ...storeProductForm, active: e.target.checked })}
+                    className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                  />
+                  <label htmlFor="storeProductActive" className="text-xs text-gray-350 cursor-pointer select-none">
+                    Enable this product in the Software Store catalog
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow"
+                >
+                  Save Store Product
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2.2: ADD / EDIT USEFUL RESOURCE */}
+      <AnimatePresence>
+        {showUsefulResourceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowUsefulResourceModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{editingUsefulResourceId ? 'Edit Resource Link' : 'Add Resource Link'}</h2>
+                  <p className="text-gray-400 text-xs">Configure external URL directory listings</p>
+                </div>
+                <button onClick={() => setShowUsefulResourceModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUsefulResourceSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Website Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={usefulResourceForm.name}
+                    onChange={(e) => setUsefulResourceForm({ ...usefulResourceForm, name: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                    placeholder="e.g. Unsplash Stock Images"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Description</label>
+                  <textarea
+                    required
+                    value={usefulResourceForm.description}
+                    onChange={(e) => setUsefulResourceForm({ ...usefulResourceForm, description: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-20"
+                    placeholder="e.g. Beautiful, free images and photos that you can download and use..."
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Category Subsection</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Category Directory</label>
                     <select
-                      value={downloadableForm.category}
-                      onChange={(e) => setDownloadableForm({ ...downloadableForm, category: e.target.value })}
+                      value={usefulResourceForm.category}
+                      onChange={(e) => setUsefulResourceForm({ ...usefulResourceForm, category: e.target.value })}
                       className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-350 focus:outline-none"
                     >
-                      <option value="Softwares">Softwares</option>
-                      <option value="Videos/Images">Videos/Images</option>
-                      <option value="Music/SFX">Music/SFX</option>
+                      <option value="Free Stock Footage">Free Stock Footage</option>
+                      <option value="AI Tools">AI Tools</option>
+                      <option value="Learning Resources">Learning Resources</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Cover Image</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Website Logo</label>
                     <div className="flex items-center gap-3">
-                      {downloadableForm.imageUrl ? (
+                      {usefulResourceForm.logoUrl ? (
                         <img 
-                          src={downloadableForm.imageUrl} 
-                          alt="Cover Thumbnail" 
+                          src={usefulResourceForm.logoUrl} 
+                          alt="Logo Thumbnail" 
                           className="w-10 h-10 object-cover rounded-lg border border-purple-900/40 bg-black shrink-0"
                         />
                       ) : (
@@ -4666,76 +5410,69 @@ export default function AdminPanel() {
                       <input 
                         type="file"
                         accept="image/*"
-                        ref={downloadableFileRef}
+                        ref={usefulResourceFileRef}
                         className="hidden"
-                        onChange={uploadDownloadableImage}
+                        onChange={uploadUsefulResourceLogo}
                       />
                       <button
                         type="button"
-                        onClick={() => downloadableFileRef.current?.click()}
-                        disabled={downloadableUploading}
+                        onClick={() => usefulResourceFileRef.current?.click()}
+                        disabled={usefulResourceUploading}
                         className="flex-1 px-3 py-2.5 bg-purple-650 hover:bg-purple-600 border border-purple-500/20 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                       >
-                        {downloadableUploading ? (
+                        {usefulResourceUploading ? (
                           <Icons.Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <Icons.Upload className="w-3.5 h-3.5" />
                         )}
-                        {downloadableForm.imageUrl ? 'Replace' : 'Import File'}
+                        {usefulResourceForm.logoUrl ? 'Replace Logo' : 'Import Logo File'}
                       </button>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Bunny File Path</label>
-                  <input
-                    type="text"
-                    required
-                    value={downloadableForm.downloadUrl}
-                    onChange={(e) => setDownloadableForm({ ...downloadableForm, downloadUrl: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-                    placeholder="e.g. courses/session1-resources.zip"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Path inside Bunny Storage (e.g., courses/session1-resources.zip).
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Guide Video URL / Stream Embed</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">External Website URL</label>
                   <input
                     type="url"
-                    value={downloadableForm.guideVideoUrl}
-                    onChange={(e) => setDownloadableForm({ ...downloadableForm, guideVideoUrl: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                    placeholder="e.g. Bunny stream link, watch URL, or YouTube embed..."
+                    required
+                    value={usefulResourceForm.url}
+                    onChange={(e) => setUsefulResourceForm({ ...usefulResourceForm, url: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                    placeholder="https://unsplash.com"
                   />
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Configures the direct walkthrough player displayed when users tap the "Guide" button.
-                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Ordering Index List Position</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Display Order Position</label>
                   <input
                     type="number"
                     required
-                    value={downloadableForm.order}
-                    onChange={(e) => setDownloadableForm({ ...downloadableForm, order: e.target.value })}
+                    value={usefulResourceForm.order}
+                    onChange={(e) => setUsefulResourceForm({ ...usefulResourceForm, order: e.target.value })}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
                     placeholder="e.g. 1"
                   />
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Defines the order of elements displayed in the library (ascending, 1 shows first).
-                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="usefulResourceActive"
+                    checked={usefulResourceForm.active}
+                    onChange={(e) => setUsefulResourceForm({ ...usefulResourceForm, active: e.target.checked })}
+                    className="w-4 h-4 rounded text-purple-600 border-purple-950 bg-zinc-900 cursor-pointer accent-purple-600"
+                  />
+                  <label htmlFor="usefulResourceActive" className="text-xs text-gray-350 cursor-pointer select-none">
+                    Enable this website link directory listing
+                  </label>
                 </div>
 
                 <button
                   type="submit"
                   className="w-full py-4 mt-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow"
                 >
-                  Save Asset Document
+                  Save Resource Link
                 </button>
               </form>
             </motion.div>

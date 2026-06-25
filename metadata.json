@@ -1,5 +1,6 @@
 {
-  "name": "Cutscene",
+  "name": "Cutscene Academy",
   "description": "Cutscene Academy: we help you Innovate, Create, Elevate. A premium platform for video editing and motion design.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

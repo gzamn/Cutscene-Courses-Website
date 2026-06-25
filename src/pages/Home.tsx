@@ -573,7 +573,8 @@ export default function Home() {
               courses.map((course) => (
                 <motion.div 
                   key={course.id}
-                  whileHover={{ y: -10 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   className="h-full"
                 >
                   <GlowingCard className="bg-black border border-purple-900/20 rounded-2xl overflow-hidden group flex flex-col h-full">

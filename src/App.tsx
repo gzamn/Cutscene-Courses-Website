@@ -13,8 +13,8 @@ import Profile from './pages/Profile';
 import StudioPage from './pages/Studio';
 import AdminPanel from './pages/Admin';
 import StudentWork from './pages/StudentWork';
-import Downloadables from './pages/Downloadables';
-import Plans from './pages/Plans';
+import Store from './pages/Store';
+import Resources from './pages/Resources';
 import TermsAndConditions from './pages/TermsAndConditions';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CompleteOrder from './pages/CompleteOrder';
@@ -22,6 +22,7 @@ import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { RegionProvider } from './context/RegionContext';
+import { ToastProvider } from './context/ToastContext';
 import { useEffect } from 'react';
 import { runOneTimeMigration } from './firebase';
 
@@ -48,55 +49,57 @@ function App() {
   return (
     <LanguageProvider>
       <RegionProvider>
-        <AuthProvider>
-          <Router>
-          <ScrollToTop />
-          <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
-            {/* Global Background Gradients */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-              <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px]" />
-              <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] bg-purple-900/5 rounded-full blur-[100px]" />
-              <div className="absolute bottom-[10%] left-[20%] w-[35%] h-[35%] bg-purple-600/5 rounded-full blur-[120px]" />
-              
-              {/* Custom Background Stars/Dust Particles */}
-              <div className="bg-animation">
-                <div id="stars" />
-                <div id="stars2" />
-                <div id="stars3" />
-                <div id="stars4" />
+        <ToastProvider>
+          <AuthProvider>
+            <Router>
+            <ScrollToTop />
+            <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
+              {/* Global Background Gradients */}
+              <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+                <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px]" />
+                <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] bg-purple-900/5 rounded-full blur-[100px]" />
+                <div className="absolute bottom-[10%] left-[20%] w-[35%] h-[35%] bg-purple-600/5 rounded-full blur-[120px]" />
+                
+                {/* Custom Background Stars/Dust Particles */}
+                <div className="bg-animation">
+                  <div id="stars" />
+                  <div id="stars2" />
+                  <div id="stars3" />
+                  <div id="stars4" />
+                </div>
+              </div>
+
+              <div className="relative z-10">
+                <Navbar />
+                <main>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/courses" element={<Courses />} />
+                    <Route path="/store" element={<Store />} />
+                    <Route path="/resources" element={<Resources />} />
+                    <Route path="/student-work" element={<StudentWork />} />
+                    <Route path="/courses/:id" element={<CourseDetail />} />
+                    <Route path="/support" element={<Support />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/payment" element={<Payment />} />
+                    <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
+                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                    <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+                    <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                    <Route path="/complete-order" element={<CompleteOrder />} />
+                    <Route path="/studio/*" element={<StudioPage />} />
+                    {/* Catch-all route to redirect back to home */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </main>
+                <Footer />
               </div>
             </div>
-
-            <div className="relative z-10">
-              <Navbar />
-              <main>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/courses" element={<Courses />} />
-                  <Route path="/downloadables" element={<Downloadables />} />
-                  <Route path="/plans" element={<Plans />} />
-                  <Route path="/student-work" element={<StudentWork />} />
-                  <Route path="/courses/:id" element={<CourseDetail />} />
-                  <Route path="/support" element={<Support />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/payment" element={<Payment />} />
-                  <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
-                  <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                  <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
-                  <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
-                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                  <Route path="/complete-order" element={<CompleteOrder />} />
-                  <Route path="/studio/*" element={<StudioPage />} />
-                  {/* Catch-all route to redirect back to home */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </main>
-              <Footer />
-            </div>
-          </div>
-        </Router>
-      </AuthProvider>
+          </Router>
+        </AuthProvider>
+      </ToastProvider>
     </RegionProvider>
   </LanguageProvider>
   );

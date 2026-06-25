@@ -484,7 +484,7 @@ export default function CourseDetail() {
                                   <RainbowButton
                                     key={sNum}
                                     to={`/courses/${course.id}/video/${sNum}/session`}
-                                    className="w-full block"
+                                    className="w-full block text-left"
                                   >
                                     <span className="flex items-center gap-4 w-full text-left">
                                       <span className="relative w-24 aspect-video bg-zinc-950 rounded-xl overflow-hidden shrink-0 border border-purple-900/20 inline-block">
@@ -741,7 +741,7 @@ export default function CourseDetail() {
                                       <RainbowButton
                                         key={item.type}
                                         to={`/courses/${course.id}/video/${chapter}/${item.type}`}
-                                        className="w-full block"
+                                        className="w-full block text-left"
                                       >
                                         <span className="flex items-center gap-4 w-full text-left">
                                           <span className="relative w-24 aspect-video bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-purple-900/20 inline-block">
