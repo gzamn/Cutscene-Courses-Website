@@ -93,6 +93,10 @@ export default function VideoPlayer() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
+  // Watch progress states & refs
+  const [initialSeekTime, setInitialSeekTime] = useState<number | null>(null);
+  const lastSavedTimeRef = useRef<number>(0);
+
   // BunnyCDN upload states
   const [bunnyUploading, setBunnyUploading] = useState(false);
   const [bunnyUploadProgress, setBunnyUploadProgress] = useState(0);
@@ -372,7 +376,7 @@ export default function VideoPlayer() {
     };
   }, []);
 
-  // Save/Update "Continue Watching" progress in local storage
+  // Save/Update "Continue Watching" progress in local storage & Firestore
   useEffect(() => {
     if (!course || !id || !chapter || !type || videoCurrentTime <= 5) return;
 
@@ -401,7 +405,26 @@ export default function VideoPlayer() {
     };
 
     localStorage.setItem('continue_watching', JSON.stringify(item));
-  }, [videoCurrentTime, videoDuration, course, id, chapter, type, isVideoEditingCourse, orderedLessons, language]);
+
+    // Save to Firestore periodically (every 5 seconds)
+    if (user && Math.abs(videoCurrentTime - lastSavedTimeRef.current) >= 5) {
+      lastSavedTimeRef.current = videoCurrentTime;
+      const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
+      const progressRef = doc(db, 'progress', lessonId);
+      
+      setDoc(progressRef, {
+        uid: user.uid,
+        courseId: id,
+        chapter: parseInt(chapter),
+        type: type,
+        currentTime: videoCurrentTime,
+        duration: videoDuration || 600,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(err => {
+        console.error('Failed to save watch progress to Firestore:', err);
+      });
+    }
+  }, [videoCurrentTime, videoDuration, course, id, chapter, type, isVideoEditingCourse, orderedLessons, language, user]);
 
   // Performs real-world dynamic file creation and download inside the Sandbox sandbox
   const triggerMockDownload = (filename: string) => {
@@ -448,10 +471,46 @@ export default function VideoPlayer() {
   useEffect(() => {
     if (!id || !chapter || !type) {
       setLoading(false);
+      setInitialSeekTime(0);
       return;
     }
 
+    setInitialSeekTime(null);
+    lastSavedTimeRef.current = 0;
+
     let isSubscribed = true;
+
+    // Fetch initial seek time from Firestore progress doc
+    const fetchInitialSeekTime = async () => {
+      if (!user) {
+        if (isSubscribed) setInitialSeekTime(0);
+        return;
+      }
+      try {
+        const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
+        const progressRef = doc(db, 'progress', lessonId);
+        const progressSnap = await getDoc(progressRef);
+        if (isSubscribed) {
+          if (progressSnap.exists()) {
+            const data = progressSnap.data();
+            const savedTime = data.currentTime || 0;
+            const durationVal = data.duration || 600;
+            if (savedTime > 2 && savedTime < durationVal - 10) {
+              setInitialSeekTime(savedTime);
+              lastSavedTimeRef.current = savedTime;
+            } else {
+              setInitialSeekTime(0);
+            }
+          } else {
+            setInitialSeekTime(0);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching initial seek time:', error);
+        if (isSubscribed) setInitialSeekTime(0);
+      }
+    };
+    fetchInitialSeekTime();
 
     // Fetch Course doc from Firestore
     const fetchCourse = async () => {
@@ -834,7 +893,7 @@ export default function VideoPlayer() {
     }
   };
 
-  if (loading) {
+  if (loading || initialSeekTime === null) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
@@ -939,7 +998,7 @@ export default function VideoPlayer() {
                     {isWindowFocused ? (
                       <iframe
                         ref={iframeRef}
-                        src={getLessonVideoUrl(course, chapter || '1', type || 'session') ? `${getLessonVideoUrl(course, chapter || '1', type || 'session')}${getLessonVideoUrl(course, chapter || '1', type || 'session')?.includes('?') ? '&' : '?'}enablejsapi=1` : ''}
+                        src={getLessonVideoUrl(course, chapter || '1', type || 'session') ? `${getLessonVideoUrl(course, chapter || '1', type || 'session')}${getLessonVideoUrl(course, chapter || '1', type || 'session')?.includes('?') ? '&' : '?'}enablejsapi=1${initialSeekTime && initialSeekTime > 0 ? `&start=${Math.floor(initialSeekTime)}` : ''}` : ''}
                         title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

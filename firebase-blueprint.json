@@ -58,6 +58,8 @@
         "chapter": { "type": "string" },
         "type": { "type": "string" },
         "completed": { "type": "boolean" },
+        "currentTime": { "type": "number" },
+        "duration": { "type": "number" },
         "updatedAt": { "type": "string" }
       },
       "required": ["uid", "courseId", "chapter", "type"]
@@ -318,6 +320,34 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name", "currency", "symbol", "multiplier"]
+    },
+    "UserVideo": {
+      "title": "User Video",
+      "description": "User uploaded/recorded videos",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "title", "url"]
+    },
+    "UserDownload": {
+      "title": "User Download",
+      "description": "User saved downloadable files",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "downloadableId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "savedAt": { "type": "string" }
+      },
+      "required": ["uid", "downloadableId", "name", "downloadUrl"]
     }
   },
   "firestore": {
@@ -400,6 +430,14 @@
     "regions/{regionId}": {
       "schema": "Region",
       "description": "Region configuration documents"
+    },
+    "videos/{videoId}": {
+      "schema": "UserVideo",
+      "description": "User uploaded/recorded videos"
+    },
+    "user_downloads/{downloadId}": {
+      "schema": "UserDownload",
+      "description": "User saved downloadable files"
     }
   }
 }
