@@ -28,14 +28,14 @@ import { runOneTimeMigration } from './firebase';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-[#0D0B1E] flex items-center justify-center text-white">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, userProfile, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-[#0D0B1E] flex items-center justify-center text-white">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (!userProfile || userProfile.role !== 'admin') return <Navigate to="/" replace />;
   return <>{children}</>;
@@ -53,7 +53,7 @@ function App() {
           <AuthProvider>
             <Router>
             <ScrollToTop />
-            <div className="min-h-screen bg-black text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
+            <div className="min-h-screen text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
               {/* Global Background Gradients */}
               <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
                 <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px]" />

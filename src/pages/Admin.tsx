@@ -2015,7 +2015,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row relative pt-20">
+    <div className="min-h-screen bg-transparent text-white flex flex-col md:flex-row relative pt-20">
       
       {/* GLOBAL HUD TOAST NOTIFIER */}
       <div className="fixed top-24 right-6 z-50 flex flex-col gap-3 pointer-events-none max-w-sm w-full">
@@ -2042,7 +2042,7 @@ export default function AdminPanel() {
       </div>
 
       {/* DASHBOARD SIDEBAR PANEL */}
-      <aside className="w-full md:w-80 bg-black border-r border-purple-950/30 flex flex-col justify-between p-6 shrink-0 z-10">
+      <aside className="w-full md:w-80 bg-black/30 backdrop-blur-md border-r border-purple-950/30 flex flex-col justify-between p-6 shrink-0 z-10">
         <div className="space-y-8">
           
           <div className="flex items-center gap-3">

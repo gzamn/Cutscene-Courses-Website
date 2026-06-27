@@ -256,7 +256,7 @@ export default function Home() {
   };
 
   return (
-    <div className="bg-black text-white">
+    <div className="bg-transparent text-white">
       {/* Hero Section */}
       <section className="relative pt-20 pb-12 overflow-hidden w-full">
         <div className="absolute inset-0 z-0 pointer-events-none">
@@ -338,7 +338,7 @@ export default function Home() {
 
       {/* Special Offers Section */}
       {specialOffers && specialOffers.length > 0 && (
-        <section className="py-12 relative overflow-hidden bg-black border-y border-purple-900/10">
+        <section className="py-12 relative overflow-hidden bg-transparent border-y border-purple-900/10">
           <div className="absolute inset-0 z-0 pointer-events-none">
             <div className="absolute -top-[10%] right-[10%] w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[130px] animate-pulse" />
             <div className="absolute -bottom-[10%] left-[5%] w-[350px] h-[350px] bg-purple-950/15 rounded-full blur-[120px]" />
@@ -548,7 +548,7 @@ export default function Home() {
       </AnimatePresence>
 
       {/* Featured Courses Preview */}
-      <section className="py-12 bg-zinc-950">
+      <section className="py-12 bg-transparent">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-end mb-8">
             <div>
@@ -695,7 +695,7 @@ export default function Home() {
 
 
       {/* Students Work Section */}
-      <section id="students-work" className="py-12 bg-black relative overflow-hidden">
+      <section id="students-work" className="py-12 bg-transparent relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full">
           <div className="absolute top-0 left-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[120px]" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-900/5 rounded-full blur-[120px]" />

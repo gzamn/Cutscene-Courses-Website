@@ -144,7 +144,7 @@ export default function Support() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white pt-40 pb-20">
+    <div className="min-h-screen bg-transparent text-white pt-40 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-20">
           <motion.div
@@ -207,7 +207,7 @@ export default function Support() {
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto bg-zinc-950 border border-purple-900/30 rounded-[2.5rem] overflow-hidden">
+        <div className="max-w-4xl mx-auto bg-zinc-950/40 backdrop-blur-md border border-purple-900/30 rounded-[2.5rem] overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2">
             <div className="p-12 bg-purple-600 text-white flex flex-col justify-center">
               <h2 className="text-3xl font-bold mb-6">{t('support.sendMessage')}</h2>

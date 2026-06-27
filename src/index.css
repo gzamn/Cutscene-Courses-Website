@@ -55,9 +55,26 @@
   }
   
   body {
-    @apply bg-black text-white antialiased;
-    background: radial-gradient(circle at 50% -20%, #1a0b2e 0%, #000000 100%);
+    @apply text-white antialiased;
+    background: #0D0B1E;
     background-attachment: fixed;
+    position: relative;
+  }
+  
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124, 58, 237, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 58, 237, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  main > * {
+    background-color: transparent !important;
   }
 
   /* Global interactive cursor */

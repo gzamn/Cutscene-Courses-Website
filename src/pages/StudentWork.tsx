@@ -264,7 +264,7 @@ export default function StudentWork() {
   };
 
   return (
-    <div className="min-h-screen pt-32 pb-24 px-4 sm:px-6 lg:px-8 bg-black">
+    <div className="min-h-screen pt-32 pb-24 px-4 sm:px-6 lg:px-8 bg-transparent">
       <div className="max-w-7xl mx-auto">
         
         {/* HERO TITLE GRID */}
