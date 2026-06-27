@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/Home';
@@ -25,6 +25,7 @@ import { RegionProvider } from './context/RegionContext';
 import { ToastProvider } from './context/ToastContext';
 import { useEffect } from 'react';
 import { runOneTimeMigration } from './firebase';
+import { motion, AnimatePresence } from 'motion/react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -39,6 +40,45 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!user) return <Navigate to="/login" replace />;
   if (!userProfile || userProfile.role !== 'admin') return <Navigate to="/" replace />;
   return <>{children}</>;
+}
+
+function AnimatedRoutes() {
+  const location = useLocation();
+  
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.35, ease: [0.21, 1.02, 0.43, 1.01] }}
+        className="w-full"
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Home />} />
+          <Route path="/courses" element={<Courses />} />
+          <Route path="/store" element={<Store />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/student-work" element={<StudentWork />} />
+          <Route path="/courses/:id" element={<CourseDetail />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/payment" element={<Payment />} />
+          <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/complete-order" element={<CompleteOrder />} />
+          <Route path="/studio/*" element={<StudioPage />} />
+          {/* Catch-all route to redirect back to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 function App() {
@@ -72,27 +112,7 @@ function App() {
               <div className="relative z-10">
                 <Navbar />
                 <main>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/courses" element={<Courses />} />
-                    <Route path="/store" element={<Store />} />
-                    <Route path="/resources" element={<Resources />} />
-                    <Route path="/student-work" element={<StudentWork />} />
-                    <Route path="/courses/:id" element={<CourseDetail />} />
-                    <Route path="/support" element={<Support />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/payment" element={<Payment />} />
-                    <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
-                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                    <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
-                    <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
-                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                    <Route path="/complete-order" element={<CompleteOrder />} />
-                    <Route path="/studio/*" element={<StudioPage />} />
-                    {/* Catch-all route to redirect back to home */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
+                  <AnimatedRoutes />
                 </main>
                 <Footer />
               </div>

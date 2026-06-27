@@ -223,15 +223,94 @@ export default function CourseDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-transparent text-white pt-32 pb-20 animate-pulse">
+        {/* Hero Skeleton */}
+        <section className="relative py-20 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+              <div>
+                {/* Badge skeleton */}
+                <div className="h-6 w-24 bg-zinc-800/80 rounded-full mb-6" />
+
+                {/* Star rating skeleton */}
+                <div className="h-4 w-32 bg-zinc-900/60 rounded mb-6" />
+
+                {/* Title skeleton */}
+                <div className="space-y-3 mb-6">
+                  <div className="h-12 w-full bg-zinc-800/80 rounded-xl" />
+                  <div className="h-12 w-3/4 bg-zinc-800/80 rounded-xl" />
+                </div>
+
+                {/* Description skeleton */}
+                <div className="space-y-2.5 mb-8">
+                  <div className="h-4 w-full bg-zinc-900/60 rounded" />
+                  <div className="h-4 w-full bg-zinc-900/60 rounded" />
+                  <div className="h-4 w-5/6 bg-zinc-900/60 rounded" />
+                </div>
+
+                {/* Level / Students count skeleton */}
+                <div className="flex gap-6 mb-10">
+                  <div className="h-5 w-28 bg-zinc-900/60 rounded" />
+                  <div className="h-5 w-28 bg-zinc-900/60 rounded" />
+                </div>
+
+                {/* Buttons skeleton */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="h-14 w-44 bg-zinc-850/80 rounded-2xl" />
+                  <div className="h-14 w-44 bg-zinc-900/60 rounded-2xl" />
+                </div>
+              </div>
+
+              {/* Big Video/Image Box on the Right */}
+              <div className="aspect-video w-full rounded-3xl bg-zinc-900/60 border border-purple-950/10" />
+            </div>
+          </div>
+        </section>
+
+        {/* Content Skeleton */}
+        <section className="py-20 border-t border-purple-900/10 animate-pulse">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
+              <div className="lg:col-span-2 space-y-12">
+                <div>
+                  {/* Learning outcomes title skeleton */}
+                  <div className="h-8 w-48 bg-zinc-800/80 rounded-lg mb-8" />
+                  
+                  {/* Outcomes cards skeleton */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-20 w-full bg-zinc-950/40 border border-purple-950/10 rounded-2xl" />
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  {/* Curriculum title skeleton */}
+                  <div className="h-8 w-48 bg-zinc-800/80 rounded-lg mb-8" />
+                  
+                  {/* Curriculum lines skeleton */}
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-16 w-full bg-zinc-950/40 border border-purple-950/10 rounded-2xl" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar skeletons */}
+              <div className="space-y-8">
+                <div className="h-64 w-full bg-zinc-950/40 border border-purple-950/10 rounded-3xl" />
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
 
   if (!course) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+      <div className="min-h-screen bg-transparent flex items-center justify-center text-white">
         <div className="text-center">
           <h2 className="text-4xl font-bold mb-4">Course Not Found</h2>
           <Link to="/courses" className="text-purple-400 hover:text-purple-300">Return to Courses</Link>
@@ -241,7 +320,7 @@ export default function CourseDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pt-32 pb-20">
+    <div className="min-h-screen bg-transparent text-white pt-32 pb-20">
       {/* Hero Section */}
       <section className="relative py-20 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl">

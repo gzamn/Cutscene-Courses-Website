@@ -497,10 +497,33 @@ export default function Store() {
           </motion.p>
         </div>
 
-        {/* Loading Spinner */}
+        {/* Loading Skeleton */}
         {loading ? (
-          <div className="py-24 flex justify-center">
-            <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 justify-center">
+            {[1, 2, 3].map((i) => (
+              <div 
+                key={i} 
+                className="bg-zinc-950/40 rounded-[2.5rem] border border-purple-950/10 p-6 flex flex-col justify-between overflow-hidden shadow-2xl relative animate-pulse"
+              >
+                <div>
+                  {/* Image Skeleton */}
+                  <div className="aspect-video w-full rounded-2xl bg-zinc-900/60 mb-6" />
+
+                  {/* Title Skeleton */}
+                  <div className="h-7 w-2/3 bg-zinc-800/80 rounded-lg mb-4" />
+
+                  {/* Description Skeleton */}
+                  <div className="space-y-2.5 mb-6">
+                    <div className="h-3 w-full bg-zinc-900/60 rounded" />
+                    <div className="h-3 w-5/6 bg-zinc-900/60 rounded" />
+                    <div className="h-3 w-4/5 bg-zinc-900/60 rounded" />
+                  </div>
+                </div>
+
+                {/* Button Skeleton */}
+                <div className="h-12 w-full bg-zinc-900/80 rounded-2xl" />
+              </div>
+            ))}
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/15 max-w-md mx-auto">
