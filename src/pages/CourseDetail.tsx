@@ -7,7 +7,6 @@ import { db, handleFirestoreError, OperationType, collection, query, where, onSn
 import { useLanguage } from '../context/LanguageContext';
 import { RainbowButton, SparkleButton } from '../components/AnimatedButtons';
 import { useRegion } from '../context/RegionContext';
-import { client, urlFor } from '../lib/sanity';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();

@@ -4,7 +4,6 @@ import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-r
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 import { useEffect, useState } from 'react';
-import { client, urlFor } from '../lib/sanity';
 import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs } from '../firebase';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 

@@ -10,46 +10,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Chargily Checkout API
-  app.post("/api/create-checkout", async (req, res) => {
-    try {
-      const { amount, currency, courseTitle, successUrl, failureUrl } = req.body;
-
-      const CHARGILY_SECRET_KEY = process.env.CHARGILY_SECRET_KEY;
-      
-      if (!CHARGILY_SECRET_KEY) {
-        return res.status(500).json({ error: "Chargily secret key is not configured." });
-      }
-
-      const response = await axios.post(
-        "https://pay.chargily.net/test/api/v2/checkouts",
-        {
-          amount: amount,
-          currency: currency.toLowerCase(),
-          success_url: successUrl,
-          failure_url: failureUrl,
-          metadata: [
-            {
-              name: "course_title",
-              value: courseTitle,
-            },
-          ],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${CHARGILY_SECRET_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      res.json({ checkout_url: response.data.checkout_url });
-    } catch (error: any) {
-      console.error("Chargily Error:", error.response?.data || error.message);
-      res.status(500).json({ error: "Failed to create checkout session." });
-    }
-  });
-
   // Gemini Share Progress Image Generation
   app.post("/api/share-progress", async (req, res) => {
     try {

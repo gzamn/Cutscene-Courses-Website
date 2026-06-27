@@ -10,7 +10,6 @@ import Payment from './pages/Payment';
 import VideoPlayer from './pages/VideoPlayer';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
-import StudioPage from './pages/Studio';
 import AdminPanel from './pages/Admin';
 import StudentWork from './pages/StudentWork';
 import Store from './pages/Store';
@@ -72,7 +71,6 @@ function AnimatedRoutes() {
           <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/complete-order" element={<CompleteOrder />} />
-          <Route path="/studio/*" element={<StudioPage />} />
           {/* Catch-all route to redirect back to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
