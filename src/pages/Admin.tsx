@@ -6,7 +6,7 @@ import {
   Layers, ChevronRight, Users, Film, Settings, Trash2, Edit2, 
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
   Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
-  Star, ShieldCheck, Trophy
+  Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -369,6 +369,18 @@ export default function AdminPanel() {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [enlargedReceiptUrl, setEnlargedReceiptUrl] = useState<string | null>(null);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomRotation, setZoomRotation] = useState(0);
+  const [sidebarSearch, setSidebarSearch] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!enlargedReceiptUrl) {
+      setZoomScale(1);
+      setZoomRotation(0);
+    }
+  }, [enlargedReceiptUrl]);
+
   const [activeReceiptFilter, setActiveReceiptFilter] = useState<'all' | 'pending' | 'approved'>('pending');
   const [courseForm, setCourseForm] = useState({
     title: '',
@@ -413,6 +425,7 @@ export default function AdminPanel() {
     description: '',
     imageUrl: '',
     durationsText: '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000',
+    defaultDuration: '1 Month',
     active: true
   });
 
@@ -1568,6 +1581,7 @@ export default function AdminPanel() {
     try {
       // Parse durationsText to durations object
       const durationsMap: { [key: string]: number } = {};
+      const durationKeysOrder: string[] = [];
       storeProductForm.durationsText.split('\n').forEach(line => {
         const parts = line.split(':');
         if (parts.length >= 2) {
@@ -1575,6 +1589,7 @@ export default function AdminPanel() {
           const value = Number(parts[1].trim());
           if (key && !isNaN(value)) {
             durationsMap[key] = value;
+            durationKeysOrder.push(key);
           }
         }
       });
@@ -1584,6 +1599,8 @@ export default function AdminPanel() {
         description: storeProductForm.description,
         imageUrl: storeProductForm.imageUrl,
         durations: durationsMap,
+        durationKeysOrder,
+        defaultDuration: storeProductForm.defaultDuration || durationKeysOrder[0] || '1 Month',
         active: storeProductForm.active,
         updatedAt: new Date().toISOString()
       };
@@ -1607,6 +1624,7 @@ export default function AdminPanel() {
         description: '',
         imageUrl: '',
         durationsText: '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000',
+        defaultDuration: '1 Month',
         active: true
       });
       fetchStoreProducts();
@@ -1618,14 +1636,16 @@ export default function AdminPanel() {
 
   const startEditStoreProduct = (item: any) => {
     setEditingStoreProductId(item.id);
+    const keys = item.durationKeysOrder || Object.keys(item.durations || {});
     const text = item.durations 
-      ? Object.entries(item.durations).map(([k, v]) => `${k}: ${v}`).join('\n')
+      ? keys.map(k => `${k}: ${item.durations[k]}`).join('\n')
       : '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000';
     setStoreProductForm({
       name: item.name || '',
       description: item.description || '',
       imageUrl: item.imageUrl || '',
       durationsText: text,
+      defaultDuration: item.defaultDuration || keys[0] || '1 Month',
       active: item.active !== false
     });
     setShowStoreProductModal(true);
@@ -2014,6 +2034,88 @@ export default function AdminPanel() {
     return null;
   }
 
+  interface NavTab {
+    id: string;
+    name: string;
+    icon: any;
+    badge?: string;
+  }
+
+  // Navigation groupings for improved usability & efficiency
+  const navGroups: Array<{
+    title: string;
+    id: string;
+    icon: any;
+    tabs: NavTab[];
+  }> = [
+    {
+      title: 'Curriculum & Core',
+      id: 'curriculum',
+      icon: BookOpen,
+      tabs: [
+        { id: 'courses', name: 'Course Modules', icon: BookOpen },
+        { id: 'chapters', name: 'Chapters & Tasks', icon: Layers },
+        { id: 'student-works', name: 'Showcase Gallery', icon: Film },
+      ]
+    },
+    {
+      title: 'Sales & Products',
+      id: 'sales',
+      icon: Icons.ShoppingBag,
+      tabs: [
+        { id: 'store-products', name: 'Store Products', icon: Icons.ShoppingBag },
+        { id: 'store-purchases', name: 'Store Receipts', icon: Receipt, badge: 'store-purchases' },
+        { id: 'offers', name: 'Special Bundles', icon: Sparkles },
+        { id: 'plans', name: 'Membership Plans', icon: Trophy },
+        { id: 'regions', name: 'Regions & Currency', icon: Globe },
+      ]
+    },
+    {
+      title: 'Students & Verifications',
+      id: 'students_verif',
+      icon: Users,
+      tabs: [
+        { id: 'students', name: 'Students Ledger', icon: Users },
+        { id: 'receipts', name: 'Receipt Verifications', icon: Receipt, badge: 'receipts' },
+      ]
+    },
+    {
+      title: 'Site Content & Settings',
+      id: 'system',
+      icon: Settings,
+      tabs: [
+        { id: 'useful-resources', name: 'Useful Resources', icon: Globe },
+        { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
+        { id: 'statistics', name: 'Homepage Statistics', icon: Activity },
+        { id: 'settings', name: 'Console Settings', icon: Settings },
+      ]
+    }
+  ];
+
+  const getTabBadge = (badgeType?: string) => {
+    if (!badgeType) return null;
+    if (badgeType === 'receipts') {
+      const count = enrollments.filter(e => !e.paid && e.status !== 'rejected').length;
+      return count > 0 ? count : null;
+    }
+    if (badgeType === 'store-purchases') {
+      const count = storePurchases.filter(p => p.status === 'pending').length;
+      return count > 0 ? count : null;
+    }
+    return null;
+  };
+
+  const pendingEnrollmentsCount = enrollments.filter(e => !e.paid && e.status !== 'rejected').length;
+  const pendingStorePurchasesCount = storePurchases.filter(p => p.status === 'pending').length;
+
+  const filteredNavGroups = navGroups.map(group => {
+    const matchingTabs = group.tabs.filter(tab => 
+      tab.name.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+      group.title.toLowerCase().includes(sidebarSearch.toLowerCase())
+    );
+    return { ...group, tabs: matchingTabs };
+  }).filter(group => group.tabs.length > 0);
+
   return (
     <div className="min-h-screen bg-transparent text-white flex flex-col md:flex-row relative pt-20">
       
@@ -2042,52 +2144,141 @@ export default function AdminPanel() {
       </div>
 
       {/* DASHBOARD SIDEBAR PANEL */}
-      <aside className="w-full md:w-80 bg-black/30 backdrop-blur-md border-r border-purple-950/30 flex flex-col justify-between p-6 shrink-0 z-10">
-        <div className="space-y-8">
+      <aside className="w-full md:w-80 bg-zinc-950/45 backdrop-blur-md border-r border-purple-950/20 flex flex-col justify-between p-5 shrink-0 z-10 min-h-[calc(100vh-5rem)]">
+        <div className="space-y-6">
           
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-900/30 font-bold border border-purple-500/30 rounded-2xl flex items-center justify-center text-purple-400 shadow-md">
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Master Console</span>
-              <h2 className="text-lg font-black tracking-tight text-white leading-none mt-0.5">ADMIN HUD</h2>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">Master Console</span>
+              <h2 className="text-base font-black tracking-tight text-white leading-none mt-0.5">ADMIN HUD</h2>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            {[
-              { id: 'courses', name: 'Course Modules', icon: BookOpen },
-              { id: 'chapters', name: 'Chapters & Tasks', icon: Layers },
-              { id: 'offers', name: 'Special Bundles', icon: Sparkles },
-              { id: 'store-products', name: 'Store Products', icon: Icons.ShoppingBag },
-              { id: 'store-purchases', name: 'Store Receipts', icon: Receipt },
-              { id: 'useful-resources', name: 'Useful Resources', icon: Globe },
-              { id: 'students', name: 'Students Ledger', icon: Users },
-              { id: 'receipts', name: 'Receipt Verifications', icon: Receipt },
-              { id: 'student-works', name: 'Showcase Gallery', icon: Film },
-              { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
-              { id: 'settings', name: 'Console Settings', icon: Settings },
-              { id: 'statistics', name: 'Homepage Statistics', icon: Activity },
-              { id: 'regions', name: 'Regions & Currency', icon: Globe },
-            ].map(tab => {
-              const Icon = tab.icon;
+          {/* COCKPIT STATUS OVERVIEW */}
+          <div className="bg-zinc-950/60 border border-purple-950/15 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold text-purple-300 uppercase tracking-widest">Console Cockpit</span>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+              <div className="bg-zinc-900/40 border border-white/5 p-1.5 rounded-xl text-center">
+                <div className="text-gray-400 font-medium text-[9px]">Students</div>
+                <div className="text-sm font-black text-white mt-0.5">{usersList.length}</div>
+              </div>
+              <div className="bg-zinc-900/40 border border-white/5 p-1.5 rounded-xl text-center">
+                <div className="text-gray-400 font-medium text-[9px]">Courses</div>
+                <div className="text-sm font-black text-white mt-0.5">{courses.length}</div>
+              </div>
+              <div className="bg-zinc-900/40 border border-white/5 p-1.5 rounded-xl text-center relative">
+                <div className="text-gray-400 font-medium text-[9px] leading-tight">Course Pnd</div>
+                <div className={`text-sm font-black mt-0.5 ${pendingEnrollmentsCount > 0 ? 'text-amber-400' : 'text-gray-400'}`}>
+                  {pendingEnrollmentsCount}
+                </div>
+              </div>
+              <div className="bg-zinc-900/40 border border-white/5 p-1.5 rounded-xl text-center relative">
+                <div className="text-gray-400 font-medium text-[9px] leading-tight">Store Pnd</div>
+                <div className={`text-sm font-black mt-0.5 ${pendingStorePurchasesCount > 0 ? 'text-purple-400' : 'text-gray-400'}`}>
+                  {pendingStorePurchasesCount}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SEARCH BAR */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+            <input
+              type="text"
+              value={sidebarSearch}
+              onChange={(e) => setSidebarSearch(e.target.value)}
+              placeholder="Search console pages..."
+              className="w-full pl-9 pr-8 py-2 bg-zinc-950/50 hover:bg-zinc-950/80 focus:bg-zinc-950 border border-purple-950/30 rounded-xl text-xs text-white placeholder-gray-500 outline-none focus:border-purple-500/50 transition-all"
+            />
+            {sidebarSearch && (
+              <button
+                onClick={() => setSidebarSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* GROUPED NAVIGATION */}
+          <div className="space-y-4">
+            {filteredNavGroups.map(group => {
+              const isCollapsed = collapsedGroups[group.id] && !sidebarSearch;
+              
+              const groupBadgeCount = group.tabs.reduce((acc, tab) => {
+                const b = getTabBadge(tab.badge);
+                return acc + (b || 0);
+              }, 0);
+
               return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as AdminTab)}
-                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-                    activeTab === tab.id
-                      ? 'bg-purple-950/40 text-purple-300 border border-purple-500/20 shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4" />
-                    <span>{tab.name}</span>
-                  </div>
-                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${activeTab === tab.id ? 'translate-x-0.5' : 'text-gray-600'}`} />
-                </button>
+                <div key={group.id} className="space-y-1">
+                  <button
+                    onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
+                    className="w-full flex items-center justify-between px-1 py-1 text-[9px] font-extrabold uppercase tracking-widest text-purple-400/80 hover:text-purple-350 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{group.title}</span>
+                      {groupBadgeCount > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      )}
+                    </div>
+                    {!sidebarSearch && (
+                      <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isCollapsed ? '-rotate-90 text-gray-500' : 'text-purple-400'}`} />
+                    )}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {!isCollapsed && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-0.5 overflow-hidden"
+                      >
+                        {group.tabs.map(tab => {
+                          const Icon = tab.icon;
+                          const badgeVal = getTabBadge(tab.badge);
+                          const isActive = activeTab === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              onClick={() => setActiveTab(tab.id as AdminTab)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer ${
+                                isActive
+                                  ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Icon className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate max-w-[150px] text-[11px] font-medium tracking-wide normal-case">{tab.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {badgeVal && (
+                                  <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${isActive ? 'bg-purple-600 text-white' : 'bg-amber-500/20 text-amber-300 border border-amber-500/15'}`}>
+                                    {badgeVal}
+                                  </span>
+                                )}
+                                <ChevronRight className={`w-3 h-3 transition-transform ${isActive ? 'translate-x-0.5 text-purple-300' : 'text-gray-600 opacity-40'}`} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
           </div>
@@ -2095,22 +2286,22 @@ export default function AdminPanel() {
         </div>
 
         {/* User Identity bottom footer */}
-        <div className="pt-6 border-t border-purple-950/20 mt-8 flex flex-col gap-3">
+        <div className="pt-4 border-t border-purple-950/20 mt-6 flex flex-col gap-2">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-650 rounded-full flex items-center justify-center text-white text-xs font-bold border border-purple-500/30 uppercase">
+            <div className="w-8 h-8 bg-purple-650 rounded-full flex items-center justify-center text-white text-xs font-bold border border-purple-500/30 uppercase">
               {userProfile?.fullName?.slice(0, 2) || user?.email?.slice(0, 2) || 'AD'}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-bold text-white truncate">{userProfile?.fullName || 'Full Admin'}</div>
-              <div className="text-[10px] text-gray-500 truncate">{user?.email}</div>
+              <div className="text-[11px] font-bold text-white truncate">{userProfile?.fullName || 'Full Admin'}</div>
+              <div className="text-[9px] text-gray-500 truncate">{user?.email}</div>
             </div>
           </div>
 
           <button
             onClick={() => navigate('/')}
-            className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-gray-300 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all inline-flex items-center justify-center gap-2 border border-white/5 cursor-pointer"
+            className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 text-gray-300 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all inline-flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-3 h-3" />
             Home Website
           </button>
         </div>
@@ -2689,43 +2880,6 @@ export default function AdminPanel() {
                 );
               })()
             )}
-
-            {/* LIGHTBOX POPUP SPECIFIC */}
-            <AnimatePresence>
-              {enlargedReceiptUrl && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 md:p-8"
-                  onClick={() => setEnlargedReceiptUrl(null)}
-                >
-                  <button
-                    onClick={() => setEnlargedReceiptUrl(null)}
-                    className="absolute top-6 right-6 p-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-full border border-white/10 transition-all shadow-lg cursor-pointer"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                  <motion.div
-                    initial={{ scale: 0.9, y: 15 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 15 }}
-                    className="max-w-3xl max-h-[85vh] overflow-auto bg-zinc-950 border border-white/5 rounded-3xl p-2 shadow-2xl relative"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <img
-                      src={enlargedReceiptUrl}
-                      alt="Enlarged Receipt Document"
-                      className="max-w-full max-h-[75vh] object-contain rounded-2xl mx-auto"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="p-4 text-center">
-                      <span className="text-xs text-gray-400 font-mono">User Submitted Receipt Voucher Document</span>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         )}
 
@@ -2895,6 +3049,7 @@ export default function AdminPanel() {
                       description: '',
                       imageUrl: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=800&auto=format&fit=crop',
                       durationsText: '1 Month: 4500\n3 Months: 12500\n6 Months: 23000\n12 Months: 42000',
+                      defaultDuration: '1 Month',
                       active: true
                     });
                     setShowStoreProductModal(true);
@@ -5308,6 +5463,21 @@ export default function AdminPanel() {
                   </p>
                 </div>
 
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Default Selected Duration</label>
+                  <input
+                    type="text"
+                    required
+                    value={storeProductForm.defaultDuration}
+                    onChange={(e) => setStoreProductForm({ ...storeProductForm, defaultDuration: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                    placeholder="e.g. 1 Month (must match one of the durations above)"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    This duration will be pre-selected in the checkout and will also display on top of the "Buy" button in the Store card.
+                  </p>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -5892,9 +6062,95 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
+      {/* LIGHTBOX POPUP SPECIFIC WITH INTERACTIVE ZOOM & ROTATION CONTROLS */}
+      <AnimatePresence>
+        {enlargedReceiptUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 md:p-8 select-none"
+            onClick={() => setEnlargedReceiptUrl(null)}
+          >
+            {/* Top Toolbar */}
+            <div className="absolute top-6 left-6 right-6 flex items-center justify-between pointer-events-none z-10">
+              <div className="bg-zinc-900/90 border border-white/5 backdrop-blur-md rounded-2xl px-4 py-2.5 flex items-center gap-2 pointer-events-auto shadow-xl">
+                <span className="text-xs text-purple-300 font-extrabold uppercase tracking-widest mr-2">Voucher Inspector</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-mono text-gray-400">Scale: {(zoomScale * 100).toFixed(0)}% | Rot: {zoomRotation}°</span>
+              </div>
 
+              <div className="flex items-center gap-3 pointer-events-auto">
+                {/* Control Panel */}
+                <div className="flex items-center bg-zinc-900/90 border border-white/5 backdrop-blur-md rounded-2xl p-1 gap-1 shadow-xl">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoomScale(s => Math.min(s + 0.25, 4)); }}
+                    className="p-2 hover:bg-zinc-850 text-gray-300 hover:text-white rounded-xl transition-all cursor-pointer inline-flex items-center justify-center"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoomScale(s => Math.max(s - 0.25, 0.5)); }}
+                    className="p-2 hover:bg-zinc-850 text-gray-300 hover:text-white rounded-xl transition-all cursor-pointer inline-flex items-center justify-center"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoomRotation(r => (r + 90) % 360); }}
+                    className="p-2 hover:bg-zinc-850 text-gray-300 hover:text-white rounded-xl transition-all cursor-pointer inline-flex items-center justify-center"
+                    title="Rotate 90° Clockwise"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setZoomScale(1); setZoomRotation(0); }}
+                    className="p-2 hover:bg-zinc-850 text-gray-300 hover:text-white rounded-xl transition-all cursor-pointer inline-flex items-center justify-center border-l border-white/5"
+                    title="Reset Zoom & Rotation"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
 
+                <button
+                  onClick={() => setEnlargedReceiptUrl(null)}
+                  className="p-3 bg-zinc-900/90 hover:bg-zinc-800 text-white rounded-full border border-white/10 transition-all shadow-xl cursor-pointer"
+                  title="Close Inspector"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
 
+            {/* Interactive Image Container */}
+            <div className="w-full h-full flex items-center justify-center overflow-hidden p-8">
+              <motion.div
+                initial={{ scale: 0.9, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 15 }}
+                className="relative bg-zinc-950 border border-white/5 rounded-[2rem] p-3 shadow-2xl overflow-hidden max-w-4xl max-h-[80vh] flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="overflow-auto max-h-[72vh] flex items-center justify-center">
+                  <img
+                    src={enlargedReceiptUrl}
+                    alt="Enlarged Receipt Document"
+                    className="max-w-full max-h-[68vh] object-contain rounded-2xl transition-all duration-200"
+                    style={{ transform: `scale(${zoomScale}) rotate(${zoomRotation}deg)` }}
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              </motion.div>
+            </div>
+            
+            {/* Help Info Footer */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900/80 border border-white/5 backdrop-blur-md rounded-xl px-4 py-2 text-[11px] text-gray-400 font-medium">
+              Use control panel at the top right to zoom or rotate the receipt image. Click outside to dismiss.
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

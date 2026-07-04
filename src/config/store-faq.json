@@ -1,0 +1,54 @@
+[
+  {
+    "id": "faq-1",
+    "question": {
+      "en": "How do I activate my premium student subscription?",
+      "fr": "Comment puis-je activer mon abonnement étudiant premium ?",
+      "ar": "كيف يمكنني تفعيل اشتراكي الطلابي المميز؟"
+    },
+    "answer": {
+      "en": "After submitting your payment receipt, our admins will review your request. Once verified (usually within 15-30 minutes), your subscription will be activated automatically and you will gain full access.",
+      "fr": "Après avoir soumis votre reçu de paiement, nos administrateurs examineront votre demande. Une fois vérifié (généralement dans les 15 à 30 minutes), votre abonnement sera activé automatiquement.",
+      "ar": "بعد إرسال وصل الدفع، سيقوم المشرفون بمراجعة طلبك. بمجرد التحقق منه (عادة في غضون 15-30 دقيقة)، سيتم تفعيل اشتراكك تلقائياً وستحصل على الصلاحية الكاملة."
+    }
+  },
+  {
+    "id": "faq-2",
+    "question": {
+      "en": "What payment methods are supported?",
+      "fr": "Quels modes de paiement sont acceptés ?",
+      "ar": "ما هي طرق الدفع المدعومة؟"
+    },
+    "answer": {
+      "en": "We support multiple regional and international methods including bank transfers (Baridimob/CCP for Algeria), card payments, and online wallets. You can view specific guides during checkout.",
+      "fr": "Nous acceptons plusieurs méthodes régionales et internationales, y compris les virements bancaires (Baridimob/CCP pour l'Algérie), les cartes bancaires et les portefeuilles en ligne.",
+      "ar": "نحن ندعم طرق دفع متعددة محلية ودولية بما في ذلك التحويلات البنكية (بريدي موب/CCP للجزائر)، والدفع بالبطاقات والمحافظ الإلكترونية. يمكنك الاطلاع على دليل الدفع عند إتمام الطلب."
+    }
+  },
+  {
+    "id": "faq-3",
+    "question": {
+      "en": "Can I upgrade or extend my current subscription?",
+      "fr": "Puis-je mettre à niveau ou prolonger mon abonnement ?",
+      "ar": "هل يمكنني ترقية أو تمديد اشتراكي الحالي؟"
+    },
+    "answer": {
+      "en": "Yes! You can purchase a new duration at any time. The new duration will be added to your current active subscription duration seamlessly.",
+      "fr": "Oui ! Vous pouvez acheter une nouvelle durée à tout moment. La nouvelle durée sera ajoutée à votre abonnement actif actuel de manière transparente.",
+      "ar": "نعم! يمكنك شراء مدة جديدة في أي وقت. وسيتم إضافة المدة الجديدة إلى مدة اشتراكك النشط الحالي بسلاسة."
+    }
+  },
+  {
+    "id": "faq-4",
+    "question": {
+      "en": "How does the refund policy work?",
+      "fr": "Comment fonctionne la politique de remboursement ?",
+      "ar": "كيف تعمل سياسة استرداد الأموال؟"
+    },
+    "answer": {
+      "en": "If your subscription fails to activate or you experience issues that cannot be resolved by our support team, you are eligible for a full refund within 7 days of purchase.",
+      "fr": "Si votre abonnement ne s'active pas ou si vous rencontrez des problèmes qui ne peuvent pas être résolus par notre équipe d'assistance, vous avez droit à un remboursement complet dans les 7 jours suivant l'achat.",
+      "ar": "إذا لم يتم تفعيل اشتراكك أو واجهت مشكلات لم يتمكن فريق الدعم لدينا من حلها، فيحق لك استرداد كامل المبلغ في غضون 7 أيام من الشراء."
+    }
+  }
+]

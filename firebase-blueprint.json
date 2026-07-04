@@ -161,6 +161,8 @@
         "description": { "type": "string" },
         "imageUrl": { "type": "string" },
         "durations": { "type": "object" },
+        "durationKeysOrder": { "type": "array" },
+        "defaultDuration": { "type": "string" },
         "active": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },

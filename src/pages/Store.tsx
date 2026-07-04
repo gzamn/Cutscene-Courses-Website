@@ -16,7 +16,8 @@ import {
   Lock,
   ArrowLeft,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -33,6 +34,7 @@ import {
 } from '../firebase';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 import AuthFlow from '../components/AuthFlow';
+import faqsData from '../config/store-faq.json';
 
 interface StoreProduct {
   id: string;
@@ -40,6 +42,8 @@ interface StoreProduct {
   description: string;
   imageUrl: string;
   durations: { [key: string]: number }; // duration label (e.g. "1 Month") -> price in DA
+  durationKeysOrder?: string[];
+  defaultDuration?: string;
   active: boolean;
 }
 
@@ -66,6 +70,7 @@ export default function Store() {
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDurations, setSelectedDurations] = useState<{ [productId: string]: string }>({});
+  const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
   
   // Checkout & Modal states
   const [checkoutProduct, setCheckoutProduct] = useState<StoreProduct | null>(null);
@@ -309,9 +314,9 @@ export default function Store() {
         // Set default durations
         const defaultDurations: { [productId: string]: string } = {};
         activeList.forEach(p => {
-          const keys = Object.keys(p.durations);
+          const keys = p.durationKeysOrder || Object.keys(p.durations);
           if (keys.length > 0) {
-            defaultDurations[p.id] = keys[0];
+            defaultDurations[p.id] = p.defaultDuration || keys[0];
           }
         });
         setSelectedDurations(defaultDurations);
@@ -539,8 +544,14 @@ export default function Store() {
                   key={product.id}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  whileHover={{ y: -6 }}
-                  className="bg-zinc-950/40 rounded-[2.5rem] border border-purple-950/25 p-6 flex flex-col justify-between overflow-hidden shadow-2xl relative group"
+                  whileHover={{ 
+                    scale: 1.03, 
+                    y: -10, 
+                    borderColor: 'rgba(168, 85, 247, 0.45)',
+                    boxShadow: '0 25px 50px -12px rgba(147, 51, 234, 0.25)'
+                  }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="bg-zinc-950/40 rounded-[2.5rem] border border-purple-950/25 p-6 flex flex-col justify-between overflow-hidden shadow-2xl relative group cursor-pointer"
                 >
                   <div>
                     {/* Image */}
@@ -564,6 +575,16 @@ export default function Store() {
                   </div>
 
                   <div>
+                    {selectedDurations[product.id] && product.durations[selectedDurations[product.id]] && (
+                      <div className="text-center mb-4 pb-2 border-b border-purple-950/20">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-extrabold mr-1.5">
+                          {selectedDurations[product.id]}:
+                        </span>
+                        <span className="text-sm font-black text-white font-mono">
+                          {formatPrice(product.durations[selectedDurations[product.id]])}
+                        </span>
+                      </div>
+                    )}
                     <RainbowButton
                       onClick={() => handleStartCheckout(product)}
                       className="w-full py-4 text-xs font-black uppercase tracking-wider text-center"
@@ -576,6 +597,71 @@ export default function Store() {
             })}
           </div>
         )}
+
+        {/* FAQ Section */}
+        <div className="mt-28 border-t border-purple-950/20 pt-20 max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="w-12 h-12 bg-purple-950/30 border border-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <HelpCircle className="w-6 h-6 text-purple-400" />
+            </div>
+            <h2 className="text-3xl font-black text-white tracking-tight mb-2">
+              {language === 'ar' ? 'الأسئلة الشائعة' : language === 'fr' ? 'Questions Fréquentes' : 'Frequently Asked Questions'}
+            </h2>
+            <p className="text-gray-400 text-xs sm:text-sm">
+              {language === 'ar' ? 'كل ما تحتاج لمعرفته حول خطط الاشتراك والدفع والتفعيل' : language === 'fr' ? 'Tout ce que vous devez savoir sur les plans d\'abonnement, le paiement et l\'activation' : 'Everything you need to know about subscription plans, payment, and activation'}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {faqsData.map((faq) => {
+              const isExpanded = expandedFaqId === faq.id;
+              const questionText = faq.question[language as 'en' | 'fr' | 'ar'] || faq.question['en'];
+              const answerText = faq.answer[language as 'en' | 'fr' | 'ar'] || faq.answer['en'];
+
+              return (
+                <div 
+                  key={faq.id} 
+                  className="bg-zinc-950/20 rounded-3xl border border-purple-950/20 overflow-hidden transition-all duration-300 hover:border-purple-800/40"
+                >
+                  <button
+                    onClick={() => setExpandedFaqId(isExpanded ? null : faq.id)}
+                    className="w-full flex items-center justify-between p-5 text-left cursor-pointer transition-colors duration-200 hover:bg-white/[0.01]"
+                    dir={language === 'ar' ? 'rtl' : 'ltr'}
+                  >
+                    <span className="text-xs sm:text-sm font-bold text-gray-200 pr-4 text-left">
+                      {questionText}
+                    </span>
+                    <motion.div
+                      animate={{ rotate: isExpanded ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-purple-400 shrink-0"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </motion.div>
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                      >
+                        <div 
+                          className="px-5 pb-5 text-[11px] sm:text-xs text-gray-400 leading-relaxed border-t border-purple-950/10 pt-3"
+                          dir={language === 'ar' ? 'rtl' : 'ltr'}
+                        >
+                          {answerText}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
       </div>
 
@@ -733,7 +819,7 @@ export default function Store() {
                           <button
                             type="button"
                             onClick={() => {
-                              const durationKeys = Object.keys(checkoutProduct.durations);
+                              const durationKeys = checkoutProduct.durationKeysOrder || Object.keys(checkoutProduct.durations);
                               const currentIndex = durationKeys.indexOf(checkoutDuration);
                               if (durationKeys.length > 1) {
                                 const newIndex = (currentIndex - 1 + durationKeys.length) % durationKeys.length;
@@ -755,7 +841,7 @@ export default function Store() {
                           <button
                             type="button"
                             onClick={() => {
-                              const durationKeys = Object.keys(checkoutProduct.durations);
+                              const durationKeys = checkoutProduct.durationKeysOrder || Object.keys(checkoutProduct.durations);
                               const currentIndex = durationKeys.indexOf(checkoutDuration);
                               if (durationKeys.length > 1) {
                                 const newIndex = (currentIndex + 1) % durationKeys.length;
