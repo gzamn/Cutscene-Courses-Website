@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 import ProgressAnalytics from '../components/ProgressAnalytics';
+import Resources from './Resources';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [userDownloads, setUserDownloads] = useState<any[]>([]);
   const [storePurchases, setStorePurchases] = useState<any[]>([]);
   const [shippedAccounts, setShippedAccounts] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('overview');
 
 
   // Direct video upload states
@@ -739,6 +741,17 @@ export default function Dashboard() {
     return () => unsubDownloads();
   }, [user]);
 
+  // Listen to user's shipped accounts (Adobe credentials etc)
+  useEffect(() => {
+    if (!user) return;
+    const qShipped = query(collection(db, 'shipped_accounts'), where('uid', '==', user.uid));
+    const unsubShipped = onSnapshot(qShipped, (snapshot) => {
+      setShippedAccounts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error("Error listening to shipped accounts:", error));
+
+    return () => unsubShipped();
+  }, [user]);
+
   const handleDownload = async (item: any) => {
     if (!hasDownloadAccess) {
       alert('This downloadable asset is locked! Kindly upgrade your plan to unlock downloads.');
@@ -976,18 +989,99 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          {/* Left Sidebar - Navigation Rail */}
+          <div className="w-full lg:w-64 shrink-0 space-y-2">
+            <div className="bg-zinc-950 border border-purple-900/15 rounded-3xl p-4 space-y-1">
+              <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest px-3 mb-3">Student Menu</div>
+              
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'overview'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Overview & Stats</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('courses')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'courses'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <PlayCircle className="w-4 h-4" />
+                <span>My Courses</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('adobe')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'adobe'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Key className="w-4 h-4" />
+                <span>Adobe Cloud Licenses</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('certificates')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'certificates'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Trophy className="w-4 h-4" />
+                <span>My Certificates</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('resources')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'resources'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Download className="w-4 h-4" />
+                <span>Useful Resources</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('submissions')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'submissions'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span>Showcase Gallery</span>
+              </button>
+            </div>
+          </div>
+
           {/* Main Content: Courses & Videos */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Progress Analytics Visualizer */}
-            <ProgressAnalytics 
-              enrollments={enrollments} 
-              progress={progress} 
-              courses={firestoreCourses} 
-              chaptersCountMap={chaptersCountMap} 
-            />
+          <div className="flex-grow min-w-0 w-full space-y-8">
+            {activeTab === 'overview' && (
+              <ProgressAnalytics 
+                enrollments={enrollments} 
+                progress={progress} 
+                courses={firestoreCourses} 
+                chaptersCountMap={chaptersCountMap} 
+              />
+            )}
 
             {/* Enrolled Courses */}
+            {activeTab === 'courses' && (
             <section>
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <PlayCircle className="w-6 h-6 text-purple-500" />
@@ -1211,10 +1305,12 @@ export default function Dashboard() {
                 )}
               </div>
             </section>
+            )}
 
 
 
             {/* Video Upload Section */}
+            {activeTab === 'submissions' && (
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 <Upload className="w-6 h-6 text-purple-500" />
@@ -1352,8 +1448,10 @@ export default function Dashboard() {
                 </div>
               </div>
             </section>
+            )}
 
             {/* PURCHASE TRANSACTION AUDIT LOG */}
+            {activeTab === 'overview' && (
             <section className="bg-zinc-950/60 border border-purple-900/15 rounded-[2.5rem] p-8 space-y-6">
               <div>
                 <div className="flex items-center justify-between">
@@ -1463,12 +1561,10 @@ export default function Dashboard() {
                 </div>
               )}
             </section>
-          </div>
+            )}
 
-          {/* Sidebar: Certificates & Reviews */}
-          <div className="space-y-8">
             {/* SOFTWARE LICENSES SECTION */}
-            {purchasedItems.length > 0 && (
+            {activeTab === 'adobe' && purchasedItems.length > 0 && (
               <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 space-y-6">
                 <div>
                   <h2 className="text-xl font-bold flex items-center gap-3">
@@ -1605,6 +1701,7 @@ export default function Dashboard() {
             )}
 
             {/* Certificates */}
+            {activeTab === 'certificates' && (
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                 <Trophy className="w-6 h-6 text-yellow-500" />
@@ -1644,10 +1741,19 @@ export default function Dashboard() {
                 )}
               </div>
             </section>
+            )}
+
+            {/* Useful Resources */}
+            {activeTab === 'resources' && (
+              <div className="-mt-24">
+                <Resources />
+              </div>
+            )}
 
 
 
             {/* Latest Activity */}
+            {activeTab === 'overview' && (
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                 <Clock className="w-6 h-6 text-purple-500" />
@@ -1685,6 +1791,7 @@ export default function Dashboard() {
                 )}
               </div>
             </section>
+            )}
           </div>
         </div>
       </div>

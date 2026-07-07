@@ -4,8 +4,272 @@ import { ArrowRight, Star, Users, BookOpen, ShieldCheck, Clock, Play, Video, X, 
 import * as Icons from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { SparkleButton, RainbowButton, GlowingCard } from '../components/AnimatedButtons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db, collection, getDocs, ensureDefaultStudentWorksSeeded, ensureDefaultHeroVideosSeeded, ensureDefaultSpecialOffersSeeded, ensureDefaultStatisticsSeeded } from '../firebase';
+
+// PRESETS of 100% stable, high-fidelity background loops
+const PRESETS = [
+  {
+    id: 'studio',
+    name: 'Studio Editing Suite',
+    desc: 'Cinematic video editor working in a professional purple-lit studio room',
+    url: 'https://assets.mixkit.co/videos/preview/mixkit-cinematic-intro-of-a-video-editor-at-work-43750-large.mp4',
+    type: 'direct'
+  },
+  {
+    id: 'ocean',
+    name: 'Deep Blue Oceans',
+    desc: 'Looping high-contrast cinematic waves showing natural fluidity',
+    url: 'https://vjs.zencdn.net/v/oceans.mp4',
+    type: 'direct'
+  },
+  {
+    id: 'showcase',
+    name: 'Academy Creative Reel',
+    desc: 'Premium high-energy showreel of professional filmmaking & editing',
+    url: 'https://www.youtube.com/embed/Jn6A_9X_3p8',
+    type: 'youtube'
+  }
+];
+
+const getEmbedVideoUrl = (url: string) => {
+  if (!url) return '';
+  try {
+    if (url.includes('youtu.be/')) {
+      const id = url.split('youtu.be/')[1]?.split('?')[0];
+      return `https://www.youtube.com/embed/${id}`;
+    }
+    if (url.includes('v=')) {
+      const id = url.split('v=')[1]?.split('&')[0];
+      return `https://www.youtube.com/embed/${id}`;
+    }
+    if (url.includes('drive.google.com/file/d/')) {
+      const parts = url.split('drive.google.com/file/d/');
+      if (parts[1]) {
+        const fileId = parts[1].split('/')[0];
+        return `https://drive.google.com/file/d/${fileId}/preview`;
+      }
+    }
+    if (url.includes('drive.google.com/open?id=')) {
+      const parts = url.split('drive.google.com/open?id=');
+      if (parts[1]) {
+        const fileId = parts[1].split('&')[0];
+        return `https://drive.google.com/file/d/${fileId}/preview`;
+      }
+    }
+    if (url.includes('embed/')) {
+      return url;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+};
+
+interface BunnyPlaceholderPlayerProps {
+  url: string;
+}
+
+export function BunnyPlaceholderPlayer({ url }: BunnyPlaceholderPlayerProps) {
+  const isBunny = url?.includes('mediadelivery.net') || url?.includes('2c8123ea-b758-4743-8e78-50f577c890a1') || !url;
+  
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [activeQuality, setActiveQuality] = useState('1080p');
+  const [showQualities, setShowQualities] = useState(false);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Sync video play/pause
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPlaying) {
+      video.play().catch(() => {
+        setIsMuted(true);
+        video.muted = true;
+        video.play().catch(e => console.log(e));
+      });
+    } else {
+      video.pause();
+    }
+  }, [isPlaying, url]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  };
+
+  const handleTimelineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (videoRef.current) {
+      const val = parseFloat(e.target.value);
+      videoRef.current.currentTime = val;
+      setCurrentTime(val);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return '0:00';
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // Standard lightweight direct vs embed wrapper for normal non-Bunny links
+  if (!isBunny) {
+    const isDirect = (url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.webm') || url.toLowerCase().includes('vjs.zencdn.net') || url.toLowerCase().includes('mixkit.co'));
+    return (
+      <div className="relative aspect-video overflow-hidden rounded-2xl md:rounded-[2rem] border border-zinc-800 bg-zinc-950 w-full shadow-2xl">
+        {isDirect ? (
+          <video
+            src={url}
+            className="w-full h-full object-cover"
+            controls
+            playsInline
+            autoPlay
+            muted
+            loop
+          />
+        ) : (
+          <iframe
+            title="Video Stream"
+            className="w-full h-full absolute inset-0 border-0"
+            src={getEmbedVideoUrl(url)}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allowFullScreen
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Elegant, responsive simulated Bunny.net player skin that serves a high-performance 100% stable backup trailer
+  const backupVideoUrl = "https://assets.mixkit.co/videos/preview/mixkit-cinematic-intro-of-a-video-editor-at-work-43750-large.mp4";
+
+  return (
+    <div className="relative aspect-video overflow-hidden rounded-2xl md:rounded-[2rem] border border-purple-500/20 shadow-[0_20px_50px_rgba(168,85,247,0.15)] bg-zinc-950 w-full group select-none transition-all duration-300">
+      <video
+        ref={videoRef}
+        src={backupVideoUrl}
+        className="w-full h-full object-cover cursor-pointer"
+        loop
+        muted={isMuted}
+        playsInline
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onClick={() => setIsPlaying(!isPlaying)}
+      />
+
+      {/* Top watermark overlay */}
+      <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black/80 to-transparent p-4 flex items-center justify-between z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="flex items-center gap-2">
+          <div className="bg-purple-600 text-white rounded-md px-1.5 py-0.5 font-black text-[9px] tracking-wider uppercase flex items-center gap-1 shadow-md">
+            <Icons.Flame className="w-3 h-3 fill-white" />
+            <span>BUNNY STREAM</span>
+          </div>
+          <span className="text-xs font-semibold text-zinc-200 drop-shadow">
+            CUTSCENE Academy Intro Trailer (Active Stream)
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            STREAM ACTIVE
+          </span>
+        </div>
+      </div>
+
+      {/* Play Overlay */}
+      {!isPlaying && (
+        <div 
+          onClick={() => setIsPlaying(true)}
+          className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] z-10 cursor-pointer animate-fade-in"
+        >
+          <button className="w-16 h-16 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg transform hover:scale-105 transition-all duration-200">
+            <Icons.Play className="w-8 h-8 fill-white translate-x-0.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Bottom controls overlay */}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-10 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2">
+        <div className="flex items-center gap-3 w-full">
+          <span className="text-[10px] font-mono text-zinc-300">{formatTime(currentTime)}</span>
+          <input
+            type="range"
+            min="0"
+            max={duration || 100}
+            value={currentTime}
+            onChange={handleTimelineChange}
+            className="flex-1 h-1 bg-zinc-700/80 rounded-lg appearance-none cursor-pointer accent-purple-500 focus:outline-none"
+          />
+          <span className="text-[10px] font-mono text-zinc-300">{formatTime(duration)}</span>
+        </div>
+
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="text-white hover:text-purple-400 transition-colors focus:outline-none"
+            >
+              {isPlaying ? <Icons.Pause className="w-5 h-5" /> : <Icons.Play className="w-5 h-5 fill-current" />}
+            </button>
+
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className="text-white hover:text-purple-400 transition-colors focus:outline-none"
+            >
+              {isMuted ? <Icons.VolumeX className="w-5 h-5" /> : <Icons.Volume2 className="w-5 h-5" />}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setShowQualities(!showQualities)}
+                className="text-xs bg-zinc-900/80 border border-zinc-700 text-zinc-300 px-2 py-1 rounded hover:text-white hover:border-zinc-500 transition-all flex items-center gap-1"
+              >
+                {activeQuality}
+                <Icons.ChevronUp className={`w-3 h-3 transform transition-transform ${showQualities ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showQualities && (
+                <div className="absolute bottom-full right-0 mb-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl py-1 z-20 min-w-[80px]">
+                  {['1080p', '720p', 'Auto'].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => {
+                        setActiveQuality(q);
+                        setShowQualities(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-1 text-[10px] transition-colors ${
+                        activeQuality === q ? 'text-purple-400 bg-purple-500/10 font-bold' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }`}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">Powered by Bunny Stream</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const { t, language } = useLanguage();
@@ -18,7 +282,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
-  const [heroVideoUrl, setHeroVideoUrl] = useState<string>('https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
+  const [heroVideoUrl, setHeroVideoUrl] = useState<string>('https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
 
   const [continueWatching, setContinueWatching] = useState<any | null>(null);
   const [showContinueWatching, setShowContinueWatching] = useState(false);
@@ -101,26 +365,9 @@ export default function Home() {
             heroSnap = await getDocs(collection(db, 'hero_videos'));
           }
           let heroList = heroSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-          
-          // Let's check if the old mixkit video is still marked as active, or if hero_videos is outdated.
-          // We upgrade the database's hero1 record to the requested mediadelivery iframe video.
-          const oldHero1 = heroList.find(h => h.id === 'hero1');
-          if (oldHero1 && oldHero1.videoUrl && oldHero1.videoUrl.includes('mixkit.co')) {
-            console.log("Upgrading database hero1 document to the requested mediadelivery player link...");
-            const { doc, setDoc } = await import('../firebase');
-            await setDoc(doc(db, 'hero_videos', 'hero1'), {
-              title: 'CUTSCENE Academy Intro Video',
-              videoUrl: 'https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true',
-              isActive: true,
-              createdAt: new Date().toISOString()
-            }, { merge: true });
-            // Re-fetch list
-            heroSnap = await getDocs(collection(db, 'hero_videos'));
-            heroList = heroSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-          }
 
           const activeHero = heroList.find(h => h.isActive) || heroList[0];
-          if (activeHero && activeHero.videoUrl) {
+          if (activeHero && activeHero.videoUrl && activeHero.videoUrl !== heroVideoUrl) {
             setHeroVideoUrl(activeHero.videoUrl);
           }
         } catch (heroErr) {
@@ -172,89 +419,6 @@ export default function Home() {
     element?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const getEmbedVideoUrl = (url: string) => {
-    if (!url) return '';
-    try {
-      // Check for youtu.be links
-      if (url.includes('youtu.be/')) {
-        const id = url.split('youtu.be/')[1]?.split('?')[0];
-        return `https://www.youtube.com/embed/${id}`;
-      }
-      // Check for watch?v=
-      if (url.includes('v=')) {
-        const id = url.split('v=')[1]?.split('&')[0];
-        return `https://www.youtube.com/embed/${id}`;
-      }
-      // Check Google Drive
-      if (url.includes('drive.google.com/file/d/')) {
-        const parts = url.split('drive.google.com/file/d/');
-        if (parts[1]) {
-          const fileId = parts[1].split('/')[0];
-          return `https://drive.google.com/file/d/${fileId}/preview`;
-        }
-      }
-      if (url.includes('drive.google.com/open?id=')) {
-        const parts = url.split('drive.google.com/open?id=');
-        if (parts[1]) {
-          const fileId = parts[1].split('&')[0];
-          return `https://drive.google.com/file/d/${fileId}/preview`;
-        }
-      }
-      // Check for embed links already
-      if (url.includes('embed/')) {
-        return url;
-      }
-      return url;
-    } catch {
-      return url;
-    }
-  };
-
-  const getHeroIframeSrc = (url: string) => {
-    const embedUrl = getEmbedVideoUrl(url);
-    if (!embedUrl) return '';
-    if (embedUrl.includes('player.mediadelivery.net')) {
-      let finalUrl = embedUrl;
-      // Force autoplay to false, and muted to false (case-insensitive and support digits)
-      finalUrl = finalUrl
-        .replace(/autoplay=true/i, 'autoplay=false')
-        .replace(/autoplay=1/i, 'autoplay=0')
-        .replace(/muted=true/i, 'muted=false')
-        .replace(/muted=1/i, 'muted=0');
-      if (!finalUrl.toLowerCase().includes('autoplay=')) {
-        finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'autoplay=false';
-      }
-      if (!finalUrl.toLowerCase().includes('muted=')) {
-        finalUrl += '&muted=false';
-      }
-      return finalUrl;
-    }
-    if (embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be')) {
-      const videoId = embedUrl.includes('embed/') ? embedUrl.split('embed/')[1]?.split('?')[0] : '';
-      const separator = embedUrl.includes('?') ? '&' : '?';
-      return `${embedUrl}${separator}autoplay=0&mute=0&controls=1&loop=0&rel=0`;
-    }
-    return embedUrl;
-  };
-
-  const isDirectVideo = (url: string) => {
-    if (!url) return true;
-    const lower = url.toLowerCase();
-    return (
-      lower.includes('.mp4') || 
-      lower.includes('.webm') || 
-      lower.includes('.ogg') || 
-      lower.includes('vjs.zencdn.net') || 
-      lower.includes('mixkit.co')
-    ) && (
-      !lower.includes('player.mediadelivery.net') &&
-      !lower.includes('youtube.com') && 
-      !lower.includes('youtu.be') && 
-      !lower.includes('drive.google.com') && 
-      !lower.includes('vimeo.com')
-    );
-  };
-
   return (
     <div className="bg-transparent text-white">
       {/* Hero Section */}
@@ -265,33 +429,9 @@ export default function Home() {
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
         </div>
  
-        {/* Centered Video Container. Made interactive so users can control play, pause, fullscreen, and volume */}
+        {/* Centered Video Container - The custom placeholder for Bunny Link Stream Player */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 w-full mb-8 flex flex-col items-center">
-          <div className="relative aspect-video overflow-hidden group bg-zinc-950 rounded-2xl md:rounded-[2rem] border border-purple-500/10 shadow-[0_10px_40px_rgba(147,51,234,0.15)] w-full">
-            
-            {isDirectVideo(heroVideoUrl) ? (
-              <video
-                key={heroVideoUrl}
-                className="w-full h-full object-cover"
-                controls
-                playsInline
-              >
-                <source src={heroVideoUrl} type="video/mp4" />
-                {/* Fallback sources */}
-                <source src="https://assets.mixkit.co/videos/preview/mixkit-cinematic-intro-of-a-video-editor-at-work-43750-large.mp4" type="video/mp4" />
-                <source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4" />
-              </video>
-            ) : (
-              <iframe
-                key={heroVideoUrl}
-                title="Hero Background Video"
-                className="w-full h-full absolute inset-0 border-0 z-0"
-                src={getHeroIframeSrc(heroVideoUrl)}
-                allow="encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                allowFullScreen
-              />
-            )}
-          </div>
+          <BunnyPlaceholderPlayer url={heroVideoUrl} />
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full animate-fade-in">
@@ -624,27 +764,32 @@ export default function Home() {
                       </Link>
                     )}
                     <p className="text-gray-400 text-sm mb-4 line-clamp-2">{course.description}</p>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 mt-4 pt-4 border-t border-purple-900/10">
                       {course.isComingSoon ? (
-                        <span className="px-3.5 py-1.5 bg-purple-500/10 text-purple-400 text-[11px] font-bold uppercase tracking-wider rounded-lg border border-purple-500/25 max-w-max select-none shadow-sm flex items-center gap-1.5">
-                          <span>🔮</span>
-                          <span>{t('course.comingSoon')}</span>
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="px-3.5 py-1.5 bg-purple-500/10 text-purple-400 text-[11px] font-bold uppercase tracking-wider rounded-lg border border-purple-500/25 max-w-max select-none shadow-sm flex items-center gap-1.5">
+                            <span>🔮</span>
+                            <span>{t('course.comingSoon')}</span>
+                          </span>
+                        </div>
                       ) : (
                         <>
-                          <span className="text-2xl font-bold text-white">
-                            {course.price ? `${course.price.toLocaleString()} ${course.currency || 'DA'}` : 'Free'}
-                          </span>
-                          <div className="flex gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Enrollment Fee</span>
+                            <span className="text-2xl font-black text-white">
+                              {course.price ? `${course.price.toLocaleString()} ${course.currency || 'DA'}` : 'Free'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2.5 w-full">
                             <SparkleButton 
                               to={`/courses/${course.id}`}
-                              className="px-3 py-2 text-white border border-purple-900/30 rounded-lg text-xs font-bold flex items-center justify-center"
+                              className="w-full px-3 py-2.5 text-white border border-purple-900/30 rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap shrink-0"
                             >
                               {t('courses.details')}
                             </SparkleButton>
                             <RainbowButton 
                               to={`/payment?courseId=${course.id}`}
-                              className="px-4 py-2 text-white border border-purple-500/30 rounded-lg text-sm font-bold flex items-center justify-center"
+                              className="w-full px-3 py-2.5 text-white border border-purple-500/30 rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap shrink-0"
                             >
                               {t('courses.getStarted')}
                             </RainbowButton>

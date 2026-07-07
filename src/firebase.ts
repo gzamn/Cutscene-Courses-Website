@@ -513,14 +513,14 @@ export const DEFAULT_HERO_VIDEOS = [
   { 
     id: 'hero1', 
     title: 'CUTSCENE Academy Intro Video', 
-    videoUrl: 'https://player.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true', 
+    videoUrl: 'https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true', 
     isActive: true, 
     createdAt: new Date().toISOString() 
   },
   { 
     id: 'hero2', 
     title: 'Starter Cinematic Background', 
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cinematic-intro-of-a-video-editor-at-work-43750-large.mp4', 
+    videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4', 
     isActive: false, 
     createdAt: new Date().toISOString() 
   }

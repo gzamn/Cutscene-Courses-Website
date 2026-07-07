@@ -66,6 +66,7 @@ export default function CourseDetail() {
               chapterTitle: ch.title || `Chapter ${cIdx + 1}`,
               isFirstSession: sNum === 1,
               icon: Play,
+              thumbnail_url: ch.thumbnail_url || '',
             });
           });
         });
@@ -84,6 +85,7 @@ export default function CourseDetail() {
             chapterTitle: `Module ${chNum}`,
             isFirstSession: chNum === 1,
             icon: Play,
+            thumbnail_url: '',
           });
         }
       }
@@ -109,6 +111,7 @@ export default function CourseDetail() {
           chapterTitle,
           isFirstSession: chNum === 1,
           icon: Play,
+          thumbnail_url: chapterObj?.thumbnail_url || '',
         });
 
         const homeworkTopLabel = language === 'ar' ? `تمرين الحصة ${chNum}` : language === 'fr' ? `Exercice ${chNum}` : `Homework ${chNum}`;
@@ -124,6 +127,7 @@ export default function CourseDetail() {
           chapterTitle,
           isFirstSession: false,
           icon: FileText,
+          thumbnail_url: chapterObj?.thumbnail_url || '',
         });
       }
     }
@@ -196,7 +200,7 @@ export default function CourseDetail() {
                 ...ch,
                 lessons: dynamicLessons
               };
-            });
+            }).sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0));
           }
 
           setCourse({ id: courseSnap.id, ...data, chapters: chaptersData });
@@ -463,7 +467,7 @@ export default function CourseDetail() {
                           >
                             <div className="relative w-24 aspect-video bg-zinc-900 rounded-xl overflow-hidden shrink-0 border border-purple-900/20">
                               <img
-                                src={`https://picsum.photos/seed/${course.id}-${item.chapter}-${item.type}/200/120`}
+                                src={item.thumbnail_url || `https://picsum.photos/seed/${course.id}-${item.chapter}-${item.type}/200/120`}
                                 alt={item.mainTitle || item.label}
                                 className="w-full h-full object-cover opacity-20"
                                 referrerPolicy="no-referrer"
@@ -494,7 +498,7 @@ export default function CourseDetail() {
                           <span className="flex items-center gap-4 w-full text-left">
                             <span className="relative w-24 aspect-video bg-zinc-900 rounded-xl overflow-hidden shrink-0 border border-purple-900/20 inline-block">
                               <img
-                                src={`https://picsum.photos/seed/${course.id}-${item.chapter}-${item.type}/200/120`}
+                                src={item.thumbnail_url || `https://picsum.photos/seed/${course.id}-${item.chapter}-${item.type}/200/120`}
                                 alt={item.mainTitle || item.label}
                                 className="w-full h-full object-cover opacity-80"
                                 referrerPolicy="no-referrer"

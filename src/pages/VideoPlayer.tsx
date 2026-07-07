@@ -314,41 +314,9 @@ export default function VideoPlayer() {
     return () => clearInterval(interval);
   }, []);
 
-  // Window focus and tab switch detection for pausing playback
+  // Window focus and tab switch detection for pausing playback (disabled to prevent annoying reloads)
   useEffect(() => {
-    const handleFocus = () => {
-      setIsWindowFocused(true);
-    };
-    
-    const handleBlur = () => {
-      // Delay slightly because document.activeElement might take a split second to update
-      setTimeout(() => {
-        const activeEl = document.activeElement;
-        if (activeEl && activeEl.tagName === 'IFRAME') {
-          // If focus shifted to the video player iframe itself, do not pause content
-          return;
-        }
-        setIsWindowFocused(false);
-      }, 200);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setIsWindowFocused(false);
-      } else {
-        setIsWindowFocused(true);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    setIsWindowFocused(true);
   }, []);
 
 
@@ -847,7 +815,7 @@ export default function VideoPlayer() {
         userAvatar: user.photoURL || '',
         content: commentInput.trim(),
         createdAt: new Date().toISOString(),
-        timestamp: attachTimestamp ? Math.floor(videoCurrentTime) : null
+        timestamp: null
       });
 
       setCommentInput('');
@@ -1470,21 +1438,7 @@ export default function VideoPlayer() {
                     </button>
                   </div>
 
-                  {/* Optional Timestamp Attachment Toggle */}
-                  <div className="flex items-center justify-between mt-3 px-1">
-                    <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer hover:text-white transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={attachTimestamp}
-                        onChange={(e) => setAttachTimestamp(e.target.checked)}
-                        className="rounded bg-zinc-900 border-purple-900/30 text-purple-600 focus:ring-purple-500 cursor-pointer"
-                      />
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-purple-400" />
-                        Attach current video timestamp ({formatTime(videoCurrentTime)})
-                      </span>
-                    </label>
-                  </div>
+
                 </form>
               ) : (
                 <div className="p-4 bg-purple-900/10 border border-purple-900/20 rounded-2xl text-center text-sm text-purple-300 mb-8">
@@ -1521,16 +1475,7 @@ export default function VideoPlayer() {
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-sm text-gray-200">{comment.userName}</span>
-                              {editingCommentId !== comment.id && comment.timestamp !== undefined && comment.timestamp !== null && (
-                                <button
-                                  onClick={() => seekTo(comment.timestamp)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/20 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer"
-                                  title={`Seek to ${formatTime(comment.timestamp)}`}
-                                >
-                                  <Clock className="w-3 h-3" />
-                                  <span>{formatTime(comment.timestamp)}</span>
-                                </button>
-                              )}
+
                             </div>
                             <span className="text-[10px] text-gray-500 font-mono">
                               {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}
@@ -1546,54 +1491,23 @@ export default function VideoPlayer() {
                                 placeholder="Edit your comment..."
                               />
                               
-                              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 bg-zinc-950/40 p-2.5 rounded-xl border border-purple-900/10">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium text-[11px]">Timestamp:</span>
-                                  {editingCommentTimestamp !== null ? (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-mono text-[10px] font-bold">
-                                        {formatTime(editingCommentTimestamp)}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingCommentTimestamp(null)}
-                                        className="text-gray-500 hover:text-red-400 text-[10px] font-bold cursor-pointer"
-                                        title="Remove timestamp"
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[10px] text-gray-500 italic">None</span>
-                                  )}
-                                  
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingCommentTimestamp(Math.floor(videoCurrentTime))}
-                                    className="px-2 py-0.5 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-500/20 rounded text-[10px] font-medium transition-all cursor-pointer"
-                                  >
-                                    Set to current time ({formatTime(videoCurrentTime)})
-                                  </button>
-                                </div>
-                                
-                                <div className="flex items-center gap-2 ml-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingCommentId(null)}
-                                    className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateComment(comment.id)}
-                                    className="px-3 py-1 bg-purple-650 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <Save className="w-3.5 h-3.5" />
-                                    Save
-                                  </button>
-                                </div>
+                              <div className="flex items-center justify-end gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingCommentId(null)}
+                                  className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateComment(comment.id)}
+                                  className="px-3 py-1 bg-purple-650 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Save className="w-3.5 h-3.5" />
+                                  Save
+                                </button>
                               </div>
                             </div>
                           ) : (

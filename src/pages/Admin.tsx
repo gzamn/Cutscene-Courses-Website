@@ -409,6 +409,63 @@ export default function AdminPanel() {
     is_coming_soon: false
   });
 
+  const [showWorkModal, setShowWorkModal] = useState(false);
+  const [editingWorkId, setEditingWorkId] = useState<string | null>(null);
+  const [workForm, setWorkForm] = useState({
+    student_name: '',
+    title: '',
+    image_url: '',
+    video_url: '',
+    approved: true,
+    is_featured: false,
+    course_id: '',
+    course_name: ''
+  });
+
+  const handleEditWorkClick = (work: any) => {
+    setEditingWorkId(work.id);
+    setWorkForm({
+      student_name: work.student_name || work.studentName || '',
+      title: work.title || '',
+      image_url: work.image_url || work.thumbnail || '',
+      video_url: work.video_url || work.url || '',
+      approved: work.approved === true || work.status === 'approved',
+      is_featured: !!work.is_featured,
+      course_id: work.course_id || work.courseId || '',
+      course_name: work.course_name || work.courseTitle || ''
+    });
+    setShowWorkModal(true);
+  };
+
+  const handleWorkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWorkId) return;
+    try {
+      const { doc, updateDoc } = await import('../firebase');
+      await updateDoc(doc(db, 'student_works', editingWorkId), {
+        student_name: workForm.student_name,
+        studentName: workForm.student_name,
+        title: workForm.title,
+        image_url: workForm.image_url,
+        thumbnail: workForm.image_url,
+        video_url: workForm.video_url,
+        url: workForm.video_url,
+        approved: workForm.approved,
+        status: workForm.approved ? 'approved' : 'pending',
+        is_featured: workForm.is_featured,
+        course_id: workForm.course_id,
+        course_name: workForm.course_name,
+        courseTitle: workForm.course_name
+      });
+      showToast('success', 'Showcase work updated successfully!');
+      setShowWorkModal(false);
+      setEditingWorkId(null);
+      await fetchStudentWorks();
+    } catch (err: any) {
+      showToast('error', `Error updating work: ${err.message}`);
+    }
+  };
+
   const [showChapterModal, setShowChapterModal] = useState(false);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
   const [chapterForm, setChapterForm] = useState({
@@ -417,6 +474,7 @@ export default function AdminPanel() {
     position: '1',
     is_preview: false,
     session_url: '',
+    thumbnail_url: '',
     exercise_url: '',
     homework_url: '',
     session_url_1: '',
@@ -1334,6 +1392,7 @@ export default function AdminPanel() {
         position: Number(chapterForm.position),
         is_preview: !!chapterForm.is_preview,
         session_url: url,
+        thumbnail_url: chapterForm.thumbnail_url || '',
         exercise_url: chapterForm.exercise_url || '',
         homework_url: chapterForm.homework_url || '',
         session_url_1: url,
@@ -1368,6 +1427,7 @@ export default function AdminPanel() {
         position: (chapters.length + 1).toString(),
         is_preview: false,
         session_url: '',
+        thumbnail_url: '',
         exercise_url: '',
         homework_url: '',
         session_url_1: '',
@@ -1399,6 +1459,7 @@ export default function AdminPanel() {
       position: (chapter.position || '1').toString(),
       is_preview: !!chapter.is_preview,
       session_url: url,
+      thumbnail_url: chapter.thumbnail_url || '',
       exercise_url: chapter.exercise_url || '',
       homework_url: chapter.homework_url || '',
       session_url_1: url,
@@ -1423,6 +1484,7 @@ export default function AdminPanel() {
       position: (chapters.length + 1).toString(),
       is_preview: false,
       session_url: '',
+      thumbnail_url: '',
       exercise_url: '',
       homework_url: '',
       session_url_1: '',
@@ -1631,13 +1693,14 @@ export default function AdminPanel() {
 
   const handleSaveShippedAccount = async (itemId: string, itemType: string, name: string) => {
     if (!selectedStudent) return;
+    const studentUid = selectedStudent.id || selectedStudent.uid;
     const email = accountEmails[itemId] || '';
     const password = accountPasswords[itemId] || '';
 
     try {
-      const docId = `${selectedStudent.id}_${itemId}`;
+      const docId = `${studentUid}_${itemId}`;
       await setDoc(doc(db, 'shipped_accounts', docId), {
-        uid: selectedStudent.id,
+        uid: studentUid,
         productId: itemId,
         email,
         password,
@@ -1649,7 +1712,7 @@ export default function AdminPanel() {
       // Update local state list
       setStudentShippedAccounts(prev => {
         const index = prev.findIndex(a => a.productId === itemId);
-        const updatedObj = { id: docId, uid: selectedStudent.id, productId: itemId, email, password, itemType, itemName: name };
+        const updatedObj = { id: docId, uid: studentUid, productId: itemId, email, password, itemType, itemName: name };
         if (index > -1) {
           const nextList = [...prev];
           nextList[index] = updatedObj;
@@ -3193,12 +3256,22 @@ export default function AdminPanel() {
                             </td>
                             <td className="py-4 px-6 text-xs text-gray-300 font-bold">{s_student}</td>
                             <td className="py-4 px-6 text-right">
-                              <button
-                                onClick={() => handleDeleteWork(work.id, s_student)}
-                                className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => handleEditWorkClick(work)}
+                                  className="p-2 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded-lg transition-all cursor-pointer"
+                                  title="Edit Showcase Work"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteWork(work.id, s_student)}
+                                  className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer"
+                                  title="Delete Showcase Work"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -5115,6 +5188,137 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
+      {/* MODAL 0: ADD / EDIT SHOWCASE WORK */}
+      <AnimatePresence>
+        {showWorkModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowWorkModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Edit Showcase Work</h2>
+                  <p className="text-gray-400 text-xs">Modify the student submission metadata</p>
+                </div>
+                <button onClick={() => setShowWorkModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleWorkSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Student Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={workForm.student_name}
+                    onChange={(e) => setWorkForm({ ...workForm, student_name: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Task / Artwork Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={workForm.title}
+                    onChange={(e) => setWorkForm({ ...workForm, title: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course ID</label>
+                    <input
+                      type="text"
+                      value={workForm.course_id}
+                      onChange={(e) => setWorkForm({ ...workForm, course_id: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course Name</label>
+                    <input
+                      type="text"
+                      value={workForm.course_name}
+                      onChange={(e) => setWorkForm({ ...workForm, course_name: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Illustration Image URL</label>
+                  <input
+                    type="text"
+                    required
+                    value={workForm.image_url}
+                    onChange={(e) => setWorkForm({ ...workForm, image_url: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Video Player URL (Optional)</label>
+                  <input
+                    type="text"
+                    value={workForm.video_url}
+                    onChange={(e) => setWorkForm({ ...workForm, video_url: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-6 pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={workForm.approved}
+                      onChange={(e) => setWorkForm({ ...workForm, approved: e.target.checked })}
+                      className="w-4 h-4 rounded text-purple-600 border-purple-900 bg-zinc-900 cursor-pointer accent-purple-600"
+                    />
+                    Is Approved / Published
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={workForm.is_featured}
+                      onChange={(e) => setWorkForm({ ...workForm, is_featured: e.target.checked })}
+                      className="w-4 h-4 rounded text-purple-600 border-purple-900 bg-zinc-900 cursor-pointer accent-purple-600"
+                    />
+                    Is Featured on Homepage
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-purple-900/10">
+                  <button
+                    type="button"
+                    onClick={() => setShowWorkModal(false)}
+                    className="px-5 py-3 bg-zinc-900 hover:bg-zinc-800 text-gray-400 hover:text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/10"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Showcase Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL 1: ADD / EDIT COURSE */}
       <AnimatePresence>
         {showCourseModal && (
@@ -5378,6 +5582,17 @@ export default function AdminPanel() {
                       onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
                       className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
                       placeholder="https://youtube.com/embed/... or https://..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Thumbnail Image URL (Optional)</label>
+                    <input
+                      type="url"
+                      value={chapterForm.thumbnail_url}
+                      onChange={(e) => setChapterForm({ ...chapterForm, thumbnail_url: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                      placeholder="e.g. https://images.unsplash.com/... or Bunny CDN link"
                     />
                   </div>
 
