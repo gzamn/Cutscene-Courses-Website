@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, ref, uploadBytes, getDownloadURL } from '../firebase';
-import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen, Share2, Loader2, X, Sparkles, ShieldAlert, Award, FileText } from 'lucide-react';
+import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen, Share2, Loader2, X, Sparkles, ShieldAlert, Award, FileText, Eye, EyeOff, Copy, Check, Key } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
+import ProgressAnalytics from '../components/ProgressAnalytics';
 
 export default function Dashboard() {
   const { user, userProfile } = useAuth();
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const [downloadables, setDownloadables] = useState<any[]>([]);
   const [hasDownloadAccess, setHasDownloadAccess] = useState(false);
   const [userDownloads, setUserDownloads] = useState<any[]>([]);
+  const [storePurchases, setStorePurchases] = useState<any[]>([]);
+  const [shippedAccounts, setShippedAccounts] = useState<any[]>([]);
 
 
   // Direct video upload states
@@ -164,7 +167,7 @@ export default function Dashboard() {
       // "for successfully completing..."
       ctx.fillStyle = 'rgba(156, 163, 175, 0.8)';
       ctx.font = '500 22px sans-serif';
-      ctx.fillText('for successfully completing all curriculum, exercises, and projects for', 960, 580);
+      ctx.fillText('for successfully completing all curriculum, homework, and projects for', 960, 580);
 
       // Course Name (Glowing bold purple)
       const courseTitleGrad = ctx.createLinearGradient(600, 0, 1320, 0);
@@ -618,11 +621,25 @@ export default function Dashboard() {
       setUserVideos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'videos'));
 
+    // Listen to store purchases
+    const qStorePurchases = query(collection(db, 'store_purchases'), where('uid', '==', user.uid));
+    const unsubStorePurchases = onSnapshot(qStorePurchases, (snapshot) => {
+      setStorePurchases(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error('Error listening to store purchases:', error));
+
+    // Listen to shipped accounts
+    const qShippedAccounts = query(collection(db, 'shipped_accounts'), where('uid', '==', user.uid));
+    const unsubShippedAccounts = onSnapshot(qShippedAccounts, (snapshot) => {
+      setShippedAccounts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error('Error listening to shipped accounts:', error));
+
     return () => {
       unsubEnrollments();
       unsubProgress();
       unsubCertificates();
       unsubVideos();
+      unsubStorePurchases();
+      unsubShippedAccounts();
     };
   }, [user]);
 
@@ -728,7 +745,7 @@ export default function Dashboard() {
       return;
     }
 
-    const CDN_BASE = "https://Websitestorage.b-cdn.net";
+    const CDN_BASE = "https://cutscenedz.b-cdn.net";
     const filePath = item.downloadUrl || "";
     const fullUrl = filePath.startsWith('http://') || filePath.startsWith('https://') 
       ? filePath 
@@ -852,7 +869,7 @@ export default function Dashboard() {
     const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
     
     const chaptersCount = chaptersCountMap[courseId] || (courseId === '1' ? 12 : courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
-    const totalLessons = chaptersCount * 3;
+    const totalLessons = chaptersCount * 2;
     
     if (totalLessons === 0) return 0;
     return Math.min(100, Math.round((courseProgress.length / totalLessons) * 100));
@@ -865,7 +882,7 @@ export default function Dashboard() {
     const chaptersCount = chaptersCountMap[courseId] || (courseId === '1' ? 12 : courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
     
     for (let c = 1; c <= chaptersCount; c++) {
-      for (const type of ['session', 'exercise', 'homework']) {
+      for (const type of ['session', 'homework']) {
         if (!completedSet.has(`${c}-${type}`)) {
           return `/courses/${courseId}/video/${c}/${type}`;
         }
@@ -877,6 +894,56 @@ export default function Dashboard() {
   };
 
   const validEnrollments = enrollments.filter(e => e.format !== 'plan' && (e.receiptUrl || e.paid || e.status === 'approved' || e.status === 'pending_verification'));
+
+  const [visibleCredentials, setVisibleCredentials] = useState<{ [key: string]: boolean }>({});
+  const [copiedFields, setCopiedFields] = useState<{ [key: string]: boolean }>({});
+
+  const toggleCredentialVisibility = (id: string, field: 'email' | 'password') => {
+    setVisibleCredentials(prev => ({
+      ...prev,
+      [`${id}-${field}`]: !prev[`${id}-${field}`]
+    }));
+  };
+
+  const handleCopyText = (text: string, id: string, field: 'email' | 'password') => {
+    navigator.clipboard.writeText(text);
+    setCopiedFields(prev => ({
+      ...prev,
+      [`${id}-${field}`]: true
+    }));
+    setTimeout(() => {
+      setCopiedFields(prev => ({
+        ...prev,
+        [`${id}-${field}`]: false
+      }));
+    }, 2000);
+  };
+
+  const purchasedItems = [
+    // Course enrollments
+    ...enrollments.filter(e => e.format !== 'plan').map(e => {
+      const course = firestoreCourses.find(c => c.id === e.courseId);
+      return {
+        id: e.id,
+        type: 'course',
+        itemId: e.courseId,
+        name: course?.title || 'Academy Course',
+        status: e.status === 'approved' || e.paid ? 'approved' : e.status === 'pending_verification' ? 'pending' : 'pending',
+        submittedAt: e.enrolledAt || ''
+      };
+    }),
+    // Store purchases
+    ...storePurchases.map(p => {
+      return {
+        id: p.id,
+        type: 'store_product',
+        itemId: p.productId,
+        name: p.productName || 'Adobe Creative Cloud',
+        status: p.status || 'pending',
+        submittedAt: p.submittedAt || ''
+      };
+    })
+  ];
 
   const latestActivity = [...progress]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -912,6 +979,14 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content: Courses & Videos */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Progress Analytics Visualizer */}
+            <ProgressAnalytics 
+              enrollments={enrollments} 
+              progress={progress} 
+              courses={firestoreCourses} 
+              chaptersCountMap={chaptersCountMap} 
+            />
+
             {/* Enrolled Courses */}
             <section>
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
@@ -978,7 +1053,7 @@ export default function Dashboard() {
                           {/* Circular Progress & Info Section */}
                           {(() => {
                             const chaptersCount = chaptersCountMap[course.id] || (course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '3' ? 24 : 10);
-                            const totalLessons = chaptersCount * 3;
+                            const totalLessons = chaptersCount * 2;
                             const completedLessonsCount = isLocked ? 0 : courseLessons.length;
                             
                             const getLessonsLabel = () => {
@@ -1277,10 +1352,258 @@ export default function Dashboard() {
                 </div>
               </div>
             </section>
+
+            {/* PURCHASE TRANSACTION AUDIT LOG */}
+            <section className="bg-zinc-950/60 border border-purple-900/15 rounded-[2.5rem] p-8 space-y-6">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold flex items-center gap-3">
+                    <FileText className="w-6 h-6 text-purple-500" />
+                    {language === 'ar' ? 'سجل تدقيق المشتريات' : 'Purchase Audit Log'}
+                  </h2>
+                  <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold rounded-full">
+                    {purchasedItems.length} {purchasedItems.length === 1 ? 'Transaction' : 'Transactions'}
+                  </span>
+                </div>
+                <p className="text-gray-400 text-xs mt-1">
+                  {language === 'ar' ? 'تتبع حالة التحقق والموافقة على جميع طلبات الاشتراك والتراخيص الخاصة بك.' : 'Detailed transaction ledger and real-time verification logs to monitor, audit, and troubleshoot purchase fulfillment.'}
+                </p>
+              </div>
+
+              {purchasedItems.length === 0 ? (
+                <div className="bg-black/30 border border-dashed border-purple-900/15 p-8 rounded-3xl text-center">
+                  <p className="text-gray-500 text-sm">No transaction records found in your student registry.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-gray-100">
+                    <thead>
+                      <tr className="border-b border-purple-950/30 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                        <th className="py-3 px-4">Purchased Item</th>
+                        <th className="py-3 px-4">Transaction Type</th>
+                        <th className="py-3 px-4">Submission Date</th>
+                        <th className="py-3 px-4">Fulfillment Status</th>
+                        <th className="py-3 px-4">Fulfillment Details & Audit Message</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/10">
+                      {purchasedItems.map((item) => {
+                        const isApproved = item.status === 'approved';
+                        const isRejected = item.status === 'rejected';
+                        const isPending = !isApproved && !isRejected;
+
+                        // Check if there is an enrollment or store_purchase object to see if it was rejected or pending
+                        let rejectionReason = '';
+                        if (item.type === 'course') {
+                          const originalEnroll = enrollments.find(e => e.id === item.id);
+                          if (originalEnroll?.status === 'rejected') {
+                            rejectionReason = originalEnroll.rejectionReason || 'Receipt invalid or illegible';
+                          }
+                        } else {
+                          const originalStore = storePurchases.find(p => p.id === item.id);
+                          if (originalStore?.status === 'rejected') {
+                            rejectionReason = originalStore.rejectionReason || 'Receipt invalid or illegible';
+                          }
+                        }
+
+                        return (
+                          <tr key={item.id} className="text-xs hover:bg-white/[0.02] transition-colors">
+                            <td className="py-4 px-4 font-bold max-w-[200px] truncate">{item.name}</td>
+                            <td className="py-4 px-4">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/10 uppercase">
+                                {item.type === 'course' ? 'Academy Course' : 'Store Asset'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-gray-400 font-mono">
+                              {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A'}
+                            </td>
+                            <td className="py-4 px-4">
+                              {isApproved ? (
+                                <span className="px-2.5 py-1 text-[9px] font-bold rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 uppercase tracking-wider inline-flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
+                                  Approved
+                                </span>
+                              ) : isRejected || rejectionReason ? (
+                                <span className="px-2.5 py-1 text-[9px] font-bold rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 uppercase tracking-wider inline-flex items-center gap-1">
+                                  Rejected
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 text-[9px] font-bold rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 uppercase tracking-wider inline-flex items-center gap-1 animate-pulse">
+                                  <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                                  Pending Review
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-left max-w-xs">
+                              {isApproved ? (
+                                <span className="text-gray-400 leading-normal">
+                                  Fulfillment completed. Access granted. Your license credentials are fully activated.
+                                </span>
+                              ) : rejectionReason ? (
+                                <span className="text-red-400 font-medium leading-normal">
+                                  Declined: "{rejectionReason}". Please upload a valid payment receipt.
+                                </span>
+                              ) : (
+                                <span className="text-yellow-500/90 leading-normal">
+                                  Receipt uploaded. Awaiting manual validation by workspace administrators.
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           {/* Sidebar: Certificates & Reviews */}
           <div className="space-y-8">
+            {/* SOFTWARE LICENSES SECTION */}
+            {purchasedItems.length > 0 && (
+              <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-3">
+                    <Key className="w-5 h-5 text-purple-500" />
+                    {language === 'ar' ? 'تراخيص البرامج' : 'Software Licenses'}
+                  </h2>
+                  <p className="text-gray-400 text-xs mt-1">
+                    {language === 'ar' ? 'إدارة تراخيص البرامج وتفاصيل الوصول.' : 'Manage your software licenses and access credentials.'}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {purchasedItems.map((item) => {
+                    const account = shippedAccounts.find(sa => sa.productId === item.itemId);
+                    const isApproved = item.status === 'approved';
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="bg-black border border-purple-900/20 rounded-2xl p-5 flex flex-col justify-between space-y-4"
+                      >
+                        {/* Title and Badge */}
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="overflow-hidden">
+                            <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest block mb-1">
+                              {item.type === 'course' ? (language === 'ar' ? 'دورة تدريبية' : 'Academy Course') : (language === 'ar' ? 'منتج من المتجر' : 'Store Product')}
+                            </span>
+                            <h4 className="font-bold text-gray-100 text-xs truncate" title={item.name}>{item.name}</h4>
+                          </div>
+
+                          {/* Status Badge */}
+                          {!isApproved ? (
+                            <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                              <Lock className="w-2.5 h-2.5" />
+                              {language === 'ar' ? 'مغلق' : 'Locked'}
+                            </span>
+                          ) : account ? (
+                            <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-green-500/10 border border-green-500/20 text-green-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                              <Check className="w-2.5 h-2.5" />
+                              {language === 'ar' ? 'نشط' : 'Active'}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 uppercase tracking-wider flex items-center gap-1 shrink-0 animate-pulse">
+                              <Clock className="w-2.5 h-2.5 animate-pulse" />
+                              {language === 'ar' ? 'سيتم الشحن قريباً' : 'will be shipped shortly'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Content States */}
+                        {!isApproved ? (
+                          /* LOCKED STATE */
+                          <div className="bg-black/60 border border-yellow-900/10 rounded-xl p-3 flex flex-col items-center text-center space-y-1">
+                            <Lock className="w-5 h-5 text-yellow-500/50" />
+                            <div className="text-[10px] font-bold text-gray-300">
+                              {language === 'ar' ? 'بانتظار الموافقة على الإيصال' : 'Locked until receipt approval'}
+                            </div>
+                            <p className="text-[9px] text-gray-500 max-w-xs leading-relaxed">
+                              {language === 'ar' ? 'يرجى الانتظار بينما يقوم التحقق من الإيصال.' : 'Please wait while we validate your receipt submission.'}
+                            </p>
+                          </div>
+                        ) : !account ? (
+                          /* APPROVED BUT NOT SHIPPED */
+                          <div className="bg-black/60 border border-purple-900/15 rounded-xl p-3 flex flex-col items-center text-center space-y-1">
+                            <Clock className="w-5 h-5 text-purple-400 animate-pulse" />
+                            <div className="text-[10px] font-bold text-purple-400">
+                              {language === 'ar' ? 'سيتم شحن الترخيص قريباً جداً' : 'will be shipped shortly'}
+                            </div>
+                            <p className="text-[9px] text-gray-500 max-w-xs leading-relaxed">
+                              {language === 'ar' ? 'يقوم فريق الإدارة لدينا حالياً بإعداد الترخيص الخاص بك.' : 'Our administration is preparing your custom license credentials.'}
+                            </p>
+                          </div>
+                        ) : (
+                          /* SHIPPED (CREDENTIALS DISCLOSED) */
+                          <div className="space-y-2 pt-1">
+                            {/* Email Field */}
+                            <div className="bg-black/80 border border-purple-900/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                              <div className="flex flex-col text-left overflow-hidden">
+                                <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">Email</span>
+                                <span className="text-xs font-mono text-gray-300 truncate">
+                                  {visibleCredentials[`${item.id}-email`] ? account.email : '••••••••••••'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => toggleCredentialVisibility(item.id, 'email')}
+                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                  title="Toggle Visibility"
+                                >
+                                  {visibleCredentials[`${item.id}-email`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                </button>
+                                <button
+                                  onClick={() => handleCopyText(account.email, item.id, 'email')}
+                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                  title="Copy Email"
+                                >
+                                  {copiedFields[`${item.id}-email`] ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Password Field */}
+                            <div className="bg-black/80 border border-purple-900/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                              <div className="flex flex-col text-left overflow-hidden">
+                                <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">Password</span>
+                                <span className="text-xs font-mono text-gray-300 truncate">
+                                  {visibleCredentials[`${item.id}-password`] ? account.password : '••••••••••••'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => toggleCredentialVisibility(item.id, 'password')}
+                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                  title="Toggle Visibility"
+                                >
+                                  {visibleCredentials[`${item.id}-password`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                </button>
+                                <button
+                                  onClick={() => handleCopyText(account.password, item.id, 'password')}
+                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                  title="Copy Password"
+                                >
+                                  {copiedFields[`${item.id}-password`] ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Certificates */}
             <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-3">

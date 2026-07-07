@@ -4,14 +4,39 @@ import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-r
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 import { useEffect, useState } from 'react';
-import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs } from '../firebase';
+import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs, query, where, onSnapshot } from '../firebase';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
+import { useAuth } from '../context/AuthContext';
 
 export default function Courses() {
   const { t, language } = useLanguage();
   const { getCoursePrice } = useRegion();
+  const { user } = useAuth();
   const [courses, setCourses] = useState<any[]>([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setEnrollments([]);
+      return;
+    }
+    try {
+      const q = query(collection(db, 'enrollments'), where('uid', '==', user.uid));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setEnrollments(list);
+      }, (error) => {
+        console.error('Error listening to enrollments:', error);
+      });
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Error starting enrollments listener:', error);
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchFirestoreCourses = async () => {
@@ -165,13 +190,30 @@ export default function Courses() {
                         >
                           <span>{t('courses.details')}</span>
                         </SparkleButton>
-                        <RainbowButton 
-                          to={`/payment?courseId=${course.id}`}
-                          className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs"
-                        >
-                          <span>{t('courses.getStarted')}</span>
-                          <ArrowRight className={`w-3.5 h-3.5 inline-block shrink-0 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                        </RainbowButton>
+                        {(() => {
+                          const enrollment = enrollments.find(e => e.courseId === course.id);
+                          const isApproved = enrollment && (enrollment.paid === true || enrollment.status === 'approved');
+                          if (isApproved) {
+                            return (
+                              <RainbowButton 
+                                to={`/courses/${course.id}`}
+                                className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs bg-purple-600 hover:bg-purple-700"
+                              >
+                                <span>{t('courses.continueLearning')}</span>
+                                <ArrowRight className={`w-3.5 h-3.5 inline-block shrink-0 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                              </RainbowButton>
+                            );
+                          }
+                          return (
+                            <RainbowButton 
+                              to={`/payment?courseId=${course.id}`}
+                              className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs"
+                            >
+                              <span>{t('courses.getStarted')}</span>
+                              <ArrowRight className={`w-3.5 h-3.5 inline-block shrink-0 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                            </RainbowButton>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

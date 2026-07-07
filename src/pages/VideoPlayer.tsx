@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -25,11 +25,33 @@ const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => 
     } else {
       // Session
       const sNum = parseInt(chapterStr);
-      const chapIdx = Math.floor((sNum - 1) / 4);
-      const sIdx = ((sNum - 1) % 4) + 1;
-      const ch = course.chapters[chapIdx];
-      if (ch) {
-        return ch[`session_url_${sIdx}`] || (sIdx === 1 ? ch.session_url : '') || '';
+      let foundSession: any = null;
+      let currentGlobalIdx = 0;
+      
+      for (const ch of course.chapters) {
+        let sessionsList: Array<{ url: string; name: string }> = [];
+        if (Array.isArray(ch.sessions)) {
+          sessionsList = ch.sessions.filter((s: any) => s.url);
+        } else {
+          sessionsList = [
+            { url: ch.session_url_1 || (course.chapters.indexOf(ch) === 0 && !ch.session_url_1 ? ch.session_url : ""), name: ch.session_name_1 || ch.session_name || '' },
+            { url: ch.session_url_2 || '', name: ch.session_name_2 || '' },
+            { url: ch.session_url_3 || '', name: ch.session_name_3 || '' },
+            { url: ch.session_url_4 || '', name: ch.session_name_4 || '' }
+          ].filter(s => s.url);
+        }
+        
+        const match = sessionsList.find(() => {
+          currentGlobalIdx++;
+          return currentGlobalIdx === sNum;
+        });
+        if (match) {
+          foundSession = match;
+          break;
+        }
+      }
+      if (foundSession) {
+        return foundSession.url || '';
       }
     }
   }
@@ -107,6 +129,45 @@ export default function VideoPlayer() {
   const [comments, setComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [attachTimestamp, setAttachTimestamp] = useState<boolean>(true);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState<string>('');
+  const [editingCommentTimestamp, setEditingCommentTimestamp] = useState<number | null>(null);
+  const progressTimelineRef = useRef<HTMLDivElement>(null);
+
+  const seekTo = (seconds: number) => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({
+          event: 'command',
+          func: 'seekTo',
+          args: [seconds, true]
+        }),
+        '*'
+      );
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return '0:00';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hrs > 0) {
+      return `${hrs}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!progressTimelineRef.current || !videoDuration) return;
+    const rect = progressTimelineRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+    const seekSeconds = percentage * videoDuration;
+    seekTo(seekSeconds);
+    setVideoCurrentTime(seekSeconds);
+  };
 
   const isVideoEditingCourse = course && (
     course.id === '1' ||
@@ -120,45 +181,32 @@ export default function VideoPlayer() {
     if (!isVideoEditingCourse || !course || !course.chapters) return [];
     
     const list: Array<{ chapter: string; type: string; title: string }> = [];
+    let globalSessionIndex = 0;
+    
     course.chapters.forEach((ch: any, cIdx: number) => {
-      // Add each session that exists
-      if (ch.session_url_1 || (cIdx === 0 && ch.session_url)) {
-        const sName = ch.session_name_1 || '';
-        list.push({ 
-          chapter: String(cIdx * 4 + 1), 
-          type: 'session', 
-          title: sName ? `Session ${cIdx * 4 + 1}: ${sName}` : `Session ${cIdx * 4 + 1}` 
-        });
+      // Find sessions dynamically
+      let sessionsList: Array<{ url: string; name: string }> = [];
+      if (Array.isArray(ch.sessions)) {
+        sessionsList = ch.sessions.filter((s: any) => s.url);
+      } else {
+        const legacy = [
+          { url: ch.session_url_1 || (cIdx === 0 && !ch.session_url_1 ? ch.session_url : ""), name: ch.session_name_1 || ch.session_name || '' },
+          { url: ch.session_url_2 || '', name: ch.session_name_2 || '' },
+          { url: ch.session_url_3 || '', name: ch.session_name_3 || '' },
+          { url: ch.session_url_4 || '', name: ch.session_name_4 || '' }
+        ].filter(s => s.url);
+        sessionsList = legacy;
       }
-      if (ch.session_url_2) {
-        const sName = ch.session_name_2 || '';
-        list.push({ 
-          chapter: String(cIdx * 4 + 2), 
-          type: 'session', 
-          title: sName ? `Session ${cIdx * 4 + 2}: ${sName}` : `Session ${cIdx * 4 + 2}` 
+
+      sessionsList.forEach((s) => {
+        globalSessionIndex++;
+        list.push({
+          chapter: String(globalSessionIndex),
+          type: 'session',
+          title: s.name ? `Session ${globalSessionIndex}: ${s.name}` : `Session ${globalSessionIndex}`
         });
-      }
-      if (ch.session_url_3) {
-        const sName = ch.session_name_3 || '';
-        list.push({ 
-          chapter: String(cIdx * 4 + 3), 
-          type: 'session', 
-          title: sName ? `Session ${cIdx * 4 + 3}: ${sName}` : `Session ${cIdx * 4 + 3}` 
-        });
-      }
-      if (ch.session_url_4) {
-        const sName = ch.session_name_4 || '';
-        list.push({ 
-          chapter: String(cIdx * 4 + 4), 
-          type: 'session', 
-          title: sName ? `Session ${cIdx * 4 + 4}: ${sName}` : `Session ${cIdx * 4 + 4}` 
-        });
-      }
+      });
       
-      // Add exercise if it exists
-      if (ch.exercise_url) {
-        list.push({ chapter: String(ch.position || cIdx + 1), type: 'exercise', title: `Chapter ${ch.position || cIdx + 1} Exercise` });
-      }
     });
     return list;
   }, [isVideoEditingCourse, course]);
@@ -168,7 +216,7 @@ export default function VideoPlayer() {
     ? (chapter === '1' && type === 'session')
     : (parseInt(chapter || '0') === 1 && type === 'session');
   const totalChapters = course ? (course.chapters?.length || course.lessons?.length || 12) : 12;
-  const types = ['session', 'exercise', 'homework'];
+  const types = ['session', 'homework'];
 
   const currentChapter = parseInt(chapter || '1');
   const currentType = type || 'session';
@@ -203,8 +251,8 @@ export default function VideoPlayer() {
   const nextLink = getNextLessonLink();
   const isLastLesson = nextLink === '/dashboard';
 
-  const prevType = currentType === 'homework' ? 'exercise' : currentType === 'exercise' ? 'session' : null;
-  const nextType = currentType === 'session' ? 'exercise' : currentType === 'exercise' ? 'homework' : null;
+  const prevType = currentType === 'homework' ? 'session' : null;
+  const nextType = currentType === 'session' ? 'homework' : null;
 
   const prevLessonUrl = isVideoEditingCourse
     ? (currentLessonIdx > 0 ? `/courses/${id}/video/${orderedLessons[currentLessonIdx - 1].chapter}/${orderedLessons[currentLessonIdx - 1].type}` : null)
@@ -221,28 +269,17 @@ export default function VideoPlayer() {
     if (isVideoEditingCourse) {
       if (currentLessonIdx > 0) {
         const prevL = orderedLessons[currentLessonIdx - 1];
-        if (prevL.type === 'exercise') {
-          if (language === 'ar') return `تمرين الفصل ${prevL.chapter}`;
-          if (language === 'fr') return `Exercice Ch. ${prevL.chapter}`;
-          return `Chapter ${prevL.chapter} Exercise`;
-        } else {
-          if (language === 'ar') return `الحصة ${prevL.chapter}`;
-          if (language === 'fr') return `Session ${prevL.chapter}`;
-          return `Session ${prevL.chapter}`;
-        }
+        if (language === 'ar') return `الحصة ${prevL.chapter}`;
+        if (language === 'fr') return `Session ${prevL.chapter}`;
+        return `Session ${prevL.chapter}`;
       }
       return '';
     }
 
-    if (currentType === 'exercise') {
+    if (currentType === 'homework') {
       if (language === 'ar') return 'الرجوع إلى الحصة';
       if (language === 'fr') return 'Retour à la Session';
       return 'Go back to Session';
-    }
-    if (currentType === 'homework') {
-      if (language === 'ar') return 'الرجوع إلى التمرين';
-      if (language === 'fr') return 'Retour à l’Exercice';
-      return 'Go back to Exercise';
     }
     return '';
   };
@@ -251,25 +288,14 @@ export default function VideoPlayer() {
     if (isVideoEditingCourse) {
       if (currentLessonIdx !== -1 && currentLessonIdx < orderedLessons.length - 1) {
         const nextL = orderedLessons[currentLessonIdx + 1];
-        if (nextL.type === 'exercise') {
-          if (language === 'ar') return `تمرين الفصل ${nextL.chapter}`;
-          if (language === 'fr') return `Exercice Ch. ${nextL.chapter}`;
-          return `Chapter ${nextL.chapter} Exercise`;
-        } else {
-          if (language === 'ar') return `الحصة ${nextL.chapter}`;
-          if (language === 'fr') return `Session ${nextL.chapter}`;
-          return `Session ${nextL.chapter}`;
-        }
+        if (language === 'ar') return `الحصة ${nextL.chapter}`;
+        if (language === 'fr') return `Session ${nextL.chapter}`;
+        return `Session ${nextL.chapter}`;
       }
       return '';
     }
 
     if (currentType === 'session') {
-      if (language === 'ar') return 'الذهاب للتمرين';
-      if (language === 'fr') return 'Aller à l’Exercice';
-      return 'Go to Exercise';
-    }
-    if (currentType === 'exercise') {
       if (language === 'ar') return 'الذهاب للتطبيق المنزلي';
       if (language === 'fr') return 'Aller au Devoir';
       return 'Go to Homework';
@@ -528,14 +554,41 @@ export default function VideoPlayer() {
             if (!chaptersSnap.empty) {
               chaptersData = chaptersSnap.docs.map(docSnap => {
                 const ch = docSnap.data();
+                let sessionsList: Array<{ url: string; name: string }> = [];
+                if (Array.isArray(ch.sessions)) {
+                  sessionsList = ch.sessions.filter((s: any) => s.url);
+                } else {
+                  const legacy = [
+                    { url: ch.session_url_1 || (ch.session_url || ""), name: ch.session_name_1 || ch.session_name || "" },
+                    { url: ch.session_url_2 || "", name: ch.session_name_2 || "" },
+                    { url: ch.session_url_3 || "", name: ch.session_name_3 || "" },
+                    { url: ch.session_url_4 || "", name: ch.session_name_4 || "" }
+                  ].filter(s => s.url);
+                  sessionsList = legacy;
+                }
+
+                if (sessionsList.length === 0) {
+                  sessionsList.push({ url: ch.session_url || "", name: ch.session_name || "Session Video" });
+                }
+
+                const dynamicLessons: any[] = [];
+                sessionsList.forEach((s, sIdx) => {
+                  dynamicLessons.push({
+                    id: `session_${sIdx + 1}`,
+                    type: `session_${sIdx + 1}`,
+                    title: s.name ? s.name : `Session ${sIdx + 1}`,
+                    video_url: s.url
+                  });
+                });
+
+                if (ch.homework_url) {
+                  dynamicLessons.push({ id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url });
+                }
+
                 return {
                   id: docSnap.id,
                   ...ch,
-                  lessons: [
-                    { id: "session", type: "session", title: ch.session_name ? `Session ${ch.position || '1'}: ${ch.session_name}` : "Session Video", video_url: ch.session_url || "" },
-                    { id: "exercise", type: "exercise", title: "Exercise Video", video_url: ch.exercise_url || "" },
-                    { id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url || "" }
-                  ]
+                  lessons: dynamicLessons
                 };
               }).sort((a, b) => (a.position || 0) - (b.position || 0));
           } else {
@@ -793,7 +846,8 @@ export default function VideoPlayer() {
         userName: user.displayName || user.email?.split('@')[0] || 'Student',
         userAvatar: user.photoURL || '',
         content: commentInput.trim(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        timestamp: attachTimestamp ? Math.floor(videoCurrentTime) : null
       });
 
       setCommentInput('');
@@ -814,6 +868,34 @@ export default function VideoPlayer() {
     } catch (error) {
       console.error('Error deleting comment:', error);
       toast.error('Failed to delete comment.');
+    }
+  };
+
+  const handleStartEditComment = (comment: any) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentContent(comment.content);
+    setEditingCommentTimestamp(comment.timestamp !== undefined ? comment.timestamp : null);
+  };
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (!editingCommentContent.trim()) {
+      toast.error('Comment content cannot be empty.');
+      return;
+    }
+    try {
+      const commentRef = doc(db, 'comments', commentId);
+      await updateDoc(commentRef, {
+        content: editingCommentContent.trim(),
+        timestamp: editingCommentTimestamp,
+        updatedAt: new Date().toISOString()
+      });
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      setEditingCommentTimestamp(null);
+      toast.success('Comment updated successfully!');
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      toast.error('Failed to update comment.');
     }
   };
 
@@ -1045,6 +1127,72 @@ export default function VideoPlayer() {
               </AnimatePresence>
 
             </motion.div>
+
+            {/* Custom Interactive Timestamp & Comment Markers Timeline */}
+            {(isEnrolled || isFirstSession) && (
+              <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 mb-8 shadow-xl">
+                {/* Time Indicators */}
+                <div className="flex items-center justify-between text-xs font-mono text-gray-400 mb-2">
+                  <span className="text-purple-300 font-semibold">{formatTime(videoCurrentTime)}</span>
+                  <span className="text-gray-500">{formatTime(videoDuration || 600)}</span>
+                </div>
+
+                {/* Progress bar and Markers container */}
+                <div 
+                  ref={progressTimelineRef}
+                  onClick={handleTimelineClick}
+                  className="relative h-6 flex items-center cursor-pointer group"
+                >
+                  {/* Background Track */}
+                  <div className="w-full h-1.5 bg-zinc-900 border border-purple-950/40 rounded-full overflow-hidden relative">
+                    {/* Fill Line */}
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full"
+                      style={{ width: `${Math.min(100, (videoCurrentTime / (videoDuration || 600)) * 100)}%` }}
+                    />
+                  </div>
+
+                  {/* Comment Markers */}
+                  {comments
+                    .filter((c: any) => typeof c.timestamp === 'number' && c.timestamp >= 0)
+                    .map((comment: any) => {
+                      const percentage = Math.min(100, (comment.timestamp / (videoDuration || 600)) * 100);
+                      return (
+                        <div
+                          key={comment.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            seekTo(comment.timestamp);
+                          }}
+                          className="absolute w-3.5 h-3.5 rounded-full bg-amber-500 hover:bg-amber-400 border border-zinc-950 shadow-md transform -translate-x-1/2 cursor-pointer hover:scale-125 transition-all z-20 group/marker"
+                          style={{ left: `${percentage}%` }}
+                        >
+                          {/* Rich Interactive Tooltip */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-zinc-950/95 border border-purple-500/30 backdrop-blur-md rounded-xl text-[11px] text-white opacity-0 group-hover/marker:opacity-100 pointer-events-none transition-opacity duration-200 shadow-2xl z-30">
+                            <div className="flex items-center gap-1.5 border-b border-purple-900/20 pb-1 mb-1.5">
+                              {comment.userAvatar ? (
+                                <img src={comment.userAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-purple-900/40 flex items-center justify-center text-[8px] font-bold text-purple-300">
+                                  {comment.userName?.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <span className="font-extrabold text-purple-300 truncate max-w-[100px]">{comment.userName}</span>
+                              <span className="text-[9px] font-mono text-amber-400 ml-auto bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/10">{formatTime(comment.timestamp)}</span>
+                            </div>
+                            <p className="text-gray-300 leading-normal line-clamp-3 text-left">{comment.content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Click timeline to seek, or click markers to go to comment timestamps.</span>
+                </div>
+              </div>
+            )}
 
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 md:p-8 mb-8">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-purple-900/20 mb-6">
@@ -1360,7 +1508,7 @@ export default function VideoPlayer() {
                 {t('comments.discussion') || 'Chapter Discussion'} ({comments.length})
               </h2>
 
-              {/* Comment submission form */}
+               {/* Comment submission form */}
               {user ? (
                 <form onSubmit={handleAddComment} className="mb-8">
                   <div className="relative">
@@ -1383,6 +1531,22 @@ export default function VideoPlayer() {
                         <Send className="w-4 h-4" />
                       )}
                     </button>
+                  </div>
+
+                  {/* Optional Timestamp Attachment Toggle */}
+                  <div className="flex items-center justify-between mt-3 px-1">
+                    <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer hover:text-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={attachTimestamp}
+                        onChange={(e) => setAttachTimestamp(e.target.checked)}
+                        className="rounded bg-zinc-900 border-purple-900/30 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <Clock className="w-3.5 h-3.5 text-purple-400" />
+                        Attach current video timestamp ({formatTime(videoCurrentTime)})
+                      </span>
+                    </label>
                   </div>
                 </form>
               ) : (
@@ -1416,24 +1580,107 @@ export default function VideoPlayer() {
                             {nameInitial}
                           </div>
                         )}
-                        <div className="flex-grow">
+                        <div className="flex-grow text-left">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="font-bold text-sm text-gray-200">{comment.userName}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-gray-200">{comment.userName}</span>
+                              {editingCommentId !== comment.id && comment.timestamp !== undefined && comment.timestamp !== null && (
+                                <button
+                                  onClick={() => seekTo(comment.timestamp)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/20 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer"
+                                  title={`Seek to ${formatTime(comment.timestamp)}`}
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  <span>{formatTime(comment.timestamp)}</span>
+                                </button>
+                              )}
+                            </div>
                             <span className="text-[10px] text-gray-500 font-mono">
                               {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+
+                          {editingCommentId === comment.id ? (
+                            <div className="space-y-3 mt-2">
+                              <textarea
+                                value={editingCommentContent}
+                                onChange={(e) => setEditingCommentContent(e.target.value)}
+                                className="w-full px-4 py-3 bg-zinc-950/80 border border-purple-900/40 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-all custom-scrollbar resize-none h-24"
+                                placeholder="Edit your comment..."
+                              />
+                              
+                              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 bg-zinc-950/40 p-2.5 rounded-xl border border-purple-900/10">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium text-[11px]">Timestamp:</span>
+                                  {editingCommentTimestamp !== null ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-mono text-[10px] font-bold">
+                                        {formatTime(editingCommentTimestamp)}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingCommentTimestamp(null)}
+                                        className="text-gray-500 hover:text-red-400 text-[10px] font-bold cursor-pointer"
+                                        title="Remove timestamp"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-500 italic">None</span>
+                                  )}
+                                  
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCommentTimestamp(Math.floor(videoCurrentTime))}
+                                    className="px-2 py-0.5 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-500/20 rounded text-[10px] font-medium transition-all cursor-pointer"
+                                  >
+                                    Set to current time ({formatTime(videoCurrentTime)})
+                                  </button>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 ml-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCommentId(null)}
+                                    className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateComment(comment.id)}
+                                    className="px-3 py-1 bg-purple-650 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Save className="w-3.5 h-3.5" />
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                          )}
                         </div>
 
-                        {isAuthor && (
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                            title="Delete comment"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        {isAuthor && editingCommentId !== comment.id && (
+                          <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleStartEditComment(comment)}
+                              className="p-1.5 text-gray-500 hover:text-purple-400 hover:bg-zinc-900/60 rounded-lg transition-all cursor-pointer"
+                              title="Edit comment"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-zinc-900/60 rounded-lg transition-all cursor-pointer"
+                              title="Delete comment"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     );

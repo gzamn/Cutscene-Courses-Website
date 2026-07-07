@@ -142,11 +142,18 @@ async function startServer() {
         return res.status(400).json({ error: "No payload stream provided." });
       }
 
-      const bunnyStorageZone = "cutscenedocuments";
-      const bunnyAccessKey = "8a3acd40-3ec5-46a4-a3d281fc6d40-9ec4-4e8a";
-      const targetUrl = `https://storage.bunnycdn.com/${bunnyStorageZone}/${filename}`;
+      const bunnyStorageZone = process.env.BUNNY_STORAGE_ZONE || "cutscene-storage";
+      const bunnyAccessKey = process.env.BUNNY_ACCESS_KEY || "de0028e8-d60e-41f8-aa8d9c23763b-0610-4dd6";
+      const rawRegion = (process.env.BUNNY_STORAGE_REGION || "").trim().toLowerCase();
+      // Default Falkenstein/DE region has no subdomain prefix on the storage endpoint
+      const isDefaultRegion = !rawRegion || rawRegion === "de" || rawRegion === "default";
+      const bunnyRegion = isDefaultRegion ? "" : rawRegion;
+      const bunnyPullZone = process.env.BUNNY_PULL_ZONE || "cutscenedz.b-cdn.net";
 
-      console.log(`Secured signed upload incoming: Proxying ${filename} to BunnyCDN Storage...`);
+      const host = bunnyRegion ? `${bunnyRegion}.storage.bunnycdn.com` : "storage.bunnycdn.com";
+      const targetUrl = `https://${host}/${bunnyStorageZone}/${filename}`;
+
+      console.log(`Secured signed upload incoming: Proxying ${filename} to BunnyCDN Storage on ${host}...`);
 
       const response = await axios.put(targetUrl, fileBuffer, {
         headers: {
@@ -159,7 +166,7 @@ async function startServer() {
 
       console.log(`BunnyCDN response code: ${response.status}`);
 
-      const publicUrl = `https://Websitestorage.b-cdn.net/${filename}`;
+      const publicUrl = `https://${bunnyPullZone}/${filename}`;
 
       res.json({
         success: true,

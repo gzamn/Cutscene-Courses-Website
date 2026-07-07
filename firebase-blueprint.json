@@ -117,12 +117,15 @@
       "properties": {
         "id": { "type": "string" },
         "courseId": { "type": "string" },
-        "chapter": { "type": "string" },
-        "user": { "type": "object" },
-        "text": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "chapter": { "type": "number" },
+        "uid": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "timestamp": { "type": "number" }
       },
-      "required": ["courseId", "text", "user"]
+      "required": ["courseId", "chapter", "uid", "content"]
     },
     "Chapter": {
       "title": "Course Chapter",
@@ -350,6 +353,21 @@
         "savedAt": { "type": "string" }
       },
       "required": ["uid", "downloadableId", "name", "downloadUrl"]
+    },
+    "ShippedAccount": {
+      "title": "Shipped Account",
+      "description": "Access credentials for Adobe Creative Cloud or course accounts entered by Admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "password": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "shippedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "password", "productId", "productName"]
     }
   },
   "firestore": {
@@ -440,6 +458,10 @@
     "user_downloads/{downloadId}": {
       "schema": "UserDownload",
       "description": "User saved downloadable files"
+    },
+    "shipped_accounts/{accountId}": {
+      "schema": "ShippedAccount",
+      "description": "Access credentials for student purchases of courses or Creative Cloud"
     }
   }
 }

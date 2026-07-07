@@ -6,7 +6,7 @@ import {
   Layers, ChevronRight, Users, Film, Settings, Trash2, Edit2, 
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
   Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
-  Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw
+  Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw, Key, Lock
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +24,9 @@ import {
   ensureDefaultHeroVideosSeeded,
   ensureDefaultSpecialOffersSeeded,
   ensureDefaultStatisticsSeeded,
-  DEFAULT_STATISTICS
+  DEFAULT_STATISTICS,
+  query,
+  where
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
@@ -99,6 +101,15 @@ export default function AdminPanel() {
   const [loadingSpecialOffers, setLoadingSpecialOffers] = useState(false);
   const [showSpecialOfferModal, setShowSpecialOfferModal] = useState(false);
   const [editingSpecialOfferId, setEditingSpecialOfferId] = useState<string | null>(null);
+
+  // Shipped Accounts management states
+  const [isShippedAccountsModalOpen, setIsShippedAccountsModalOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [studentPurchases, setStudentPurchases] = useState<any[]>([]);
+  const [studentShippedAccounts, setStudentShippedAccounts] = useState<any[]>([]);
+  const [shippedAccountsLoading, setShippedAccountsLoading] = useState(false);
+  const [accountEmails, setAccountEmails] = useState<{[key: string]: string}>({});
+  const [accountPasswords, setAccountPasswords] = useState<{[key: string]: string}>({});
 
   // Direct Image upload handling states
   const [promoUploading, setPromoUploading] = useState(false);
@@ -382,6 +393,7 @@ export default function AdminPanel() {
   }, [enlargedReceiptUrl]);
 
   const [activeReceiptFilter, setActiveReceiptFilter] = useState<'all' | 'pending' | 'approved'>('pending');
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
   const [courseForm, setCourseForm] = useState({
     title: '',
     description: '',
@@ -415,7 +427,8 @@ export default function AdminPanel() {
     session_name_2: '',
     session_name_3: '',
     session_name_4: '',
-    session_name: ''
+    session_name: '',
+    sessions: [] as Array<{ url: string; name: string }>
   });
 
   const [showStoreProductModal, setShowStoreProductModal] = useState(false);
@@ -662,6 +675,7 @@ export default function AdminPanel() {
         unlockedAt: new Date().toISOString()
       });
       showToast('success', 'Enrollment approved and course unlocked successfully!');
+      setEditingReceiptId(null);
       fetchEnrollments();
     } catch (err: any) {
       console.error('Error approving enrollment:', err);
@@ -680,6 +694,7 @@ export default function AdminPanel() {
         rejectedAt: new Date().toISOString()
       });
       showToast('success', 'Enrollment updated as rejected.');
+      setEditingReceiptId(null);
       fetchEnrollments();
     } catch (err: any) {
       console.error('Error rejecting enrollment:', err);
@@ -1302,43 +1317,47 @@ export default function AdminPanel() {
   };
 
 
-  // CHAPTERS
+  // CURRICULUM SESSIONS
   const handleChapterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chapterForm.courseId) {
-      showToast('error', 'Pleas associate this chapter to an active course program.');
+      showToast('error', 'Please associate this session to an active course program.');
       return;
     }
     try {
+      const url = chapterForm.session_url || '';
+      const name = chapterForm.title || '';
+
       const payload = {
         courseId: chapterForm.courseId,
-        title: chapterForm.title,
+        title: name,
         position: Number(chapterForm.position),
         is_preview: !!chapterForm.is_preview,
-        session_url: chapterForm.session_url,
-        exercise_url: chapterForm.exercise_url,
-        homework_url: chapterForm.homework_url,
-        session_url_1: chapterForm.session_url_1,
-        session_url_2: chapterForm.session_url_2,
-        session_url_3: chapterForm.session_url_3,
-        session_url_4: chapterForm.session_url_4,
-        session_name_1: chapterForm.session_name_1,
-        session_name_2: chapterForm.session_name_2,
-        session_name_3: chapterForm.session_name_3,
-        session_name_4: chapterForm.session_name_4,
-        session_name: chapterForm.session_name,
+        session_url: url,
+        exercise_url: chapterForm.exercise_url || '',
+        homework_url: chapterForm.homework_url || '',
+        session_url_1: url,
+        session_url_2: '',
+        session_url_3: '',
+        session_url_4: '',
+        session_name_1: name,
+        session_name_2: '',
+        session_name_3: '',
+        session_name_4: '',
+        session_name: name,
+        sessions: [{ url, name }], // Single session array for compatibility
         updatedAt: serverTimestamp()
       };
 
       if (editingChapterId) {
         await setDoc(doc(db, `courses/${chapterForm.courseId}/chapters`, editingChapterId), payload, { merge: true });
-        showToast('success', `Chapter "${chapterForm.title}" updated successfully.`);
+        showToast('success', `Session "${chapterForm.title}" updated successfully.`);
       } else {
         await addDoc(collection(db, `courses/${chapterForm.courseId}/chapters`), {
           ...payload,
           createdAt: serverTimestamp()
         });
-        showToast('success', `Chapter "${chapterForm.title}" inserted into sequence.`);
+        showToast('success', `Session "${chapterForm.title}" inserted into sequence.`);
       }
 
       setShowChapterModal(false);
@@ -1359,34 +1378,39 @@ export default function AdminPanel() {
         session_name_2: '',
         session_name_3: '',
         session_name_4: '',
-        session_name: ''
+        session_name: '',
+        sessions: [] as Array<{ url: string; name: string }>
       });
       fetchChaptersForCourse(chapterForm.courseId);
     } catch (err: any) {
-      console.error('Chapter process failure:', err);
-      showToast('error', err.message || 'Chapter operation error.');
+      console.error('Session process failure:', err);
+      showToast('error', err.message || 'Session operation error.');
     }
   };
 
   const startEditChapter = (chapter: any) => {
+    const url = chapter.session_url || chapter.session_url_1 || (chapter.sessions && chapter.sessions[0]?.url) || '';
+    const title = chapter.title || chapter.session_name || '';
+
     setEditingChapterId(chapter.id);
     setChapterForm({
       courseId: chapter.courseId || selectedCourseId,
-      title: chapter.title || '',
+      title: title,
       position: (chapter.position || '1').toString(),
       is_preview: !!chapter.is_preview,
-      session_url: chapter.session_url || '',
+      session_url: url,
       exercise_url: chapter.exercise_url || '',
       homework_url: chapter.homework_url || '',
-      session_url_1: chapter.session_url_1 || '',
-      session_url_2: chapter.session_url_2 || '',
-      session_url_3: chapter.session_url_3 || '',
-      session_url_4: chapter.session_url_4 || '',
-      session_name_1: chapter.session_name_1 || '',
-      session_name_2: chapter.session_name_2 || '',
-      session_name_3: chapter.session_name_3 || '',
-      session_name_4: chapter.session_name_4 || '',
-      session_name: chapter.session_name || ''
+      session_url_1: url,
+      session_url_2: '',
+      session_url_3: '',
+      session_url_4: '',
+      session_name_1: title,
+      session_name_2: '',
+      session_name_3: '',
+      session_name_4: '',
+      session_name: title,
+      sessions: [{ url, name: title }]
     });
     setShowChapterModal(true);
   };
@@ -1409,15 +1433,16 @@ export default function AdminPanel() {
       session_name_2: '',
       session_name_3: '',
       session_name_4: '',
-      session_name: ''
+      session_name: '',
+      sessions: [] as Array<{ url: string; name: string }>
     });
     setShowChapterModal(true);
   };
 
   const handleDeleteChapter = async (chapterId: string, title: string) => {
     askConfirmation(
-      'Delete Chapter',
-      `Are you absolutely sure you want to permanently delete chapter "${title}"?`,
+      'Delete Session',
+      `Are you absolutely sure you want to permanently delete session "${title}"?`,
       async () => {
         try {
           // 1. Delete from subcollection
@@ -1440,15 +1465,15 @@ export default function AdminPanel() {
             }
           }
 
-          showToast('success', `Chapter "${title}" removed successfully.`);
+          showToast('success', `Session "${title}" removed successfully.`);
           await fetchCourses(); // Crucial: reload courses state to sync updated inner arrays
           fetchChaptersForCourse(selectedCourseId);
         } catch (err: any) {
-          console.error('Delete chapter error:', err);
-          showToast('error', err.message || 'Failed to remove chapter from database.');
+          console.error('Delete session error:', err);
+          showToast('error', err.message || 'Failed to remove session from database.');
         }
       },
-      'Delete Chapter',
+      'Delete Session',
       true
     );
   };
@@ -1505,6 +1530,140 @@ export default function AdminPanel() {
       'Delete User',
       true
     );
+  };
+
+
+  // SHIPPED ACCOUNTS / CREDENTIALS MANAGEMENT
+  const handleOpenShippedAccountsModal = async (student: any) => {
+    if (!student || (!student.id && !student.uid)) {
+      console.error("handleOpenShippedAccountsModal called with invalid student object:", student);
+      showToast('error', 'Student record has no valid identifier.');
+      return;
+    }
+    const studentUid = student.id || student.uid;
+    setSelectedStudent(student);
+    setIsShippedAccountsModalOpen(true);
+    setShippedAccountsLoading(true);
+    setAccountEmails({});
+    setAccountPasswords({});
+    setStudentPurchases([]);
+    setStudentShippedAccounts([]);
+
+    let enrollList: any[] = [];
+    let storeList: any[] = [];
+    let shippedList: any[] = [];
+
+    // 1. Fetch Enrollments
+    try {
+      const enrollQ = query(collection(db, 'enrollments'), where('uid', '==', studentUid));
+      const enrollSnap = await getDocs(enrollQ);
+      enrollList = enrollSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err: any) {
+      console.error("Error fetching enrollments for student:", studentUid, err);
+    }
+
+    // 2. Fetch Store Purchases
+    try {
+      const storeQ = query(collection(db, 'store_purchases'), where('uid', '==', studentUid));
+      const storeSnap = await getDocs(storeQ);
+      storeList = storeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err: any) {
+      console.error("Error fetching store purchases for student:", studentUid, err);
+    }
+
+    // 3. Fetch Shipped Accounts
+    try {
+      const shippedQ = query(collection(db, 'shipped_accounts'), where('uid', '==', studentUid));
+      const shippedSnap = await getDocs(shippedQ);
+      shippedList = shippedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setStudentShippedAccounts(shippedList);
+    } catch (err: any) {
+      console.error("Error fetching shipped accounts for student:", studentUid, err);
+    }
+
+    try {
+      // 4. Combine into a single purchased list
+      const combinedPurchases = [
+        ...enrollList.filter((e: any) => e.format !== 'plan').map((e: any) => {
+          const course = courses.find(c => c.id === e.courseId);
+          return {
+            id: e.id,
+            type: 'course',
+            itemId: e.courseId,
+            name: course?.title || 'Academy Course',
+            status: e.status === 'approved' || e.paid ? 'approved' : 'pending',
+            enrolledAt: e.enrolledAt || ''
+          };
+        }),
+        ...storeList.map((p: any) => {
+          return {
+            id: p.id,
+            type: 'store_product',
+            itemId: p.productId,
+            name: p.productName || 'Adobe Creative Cloud',
+            status: p.status || 'pending',
+            submittedAt: p.submittedAt || p.purchasedAt || ''
+          };
+        })
+      ];
+
+      setStudentPurchases(combinedPurchases);
+
+      // 5. Pre-populate input maps with any existing credentials
+      const emailMap: {[key: string]: string} = {};
+      const passwordMap: {[key: string]: string} = {};
+      shippedList.forEach((acc: any) => {
+        if (acc.productId) {
+          emailMap[acc.productId] = acc.email || '';
+          passwordMap[acc.productId] = acc.password || '';
+        }
+      });
+      setAccountEmails(emailMap);
+      setAccountPasswords(passwordMap);
+
+    } catch (err: any) {
+      console.error("Error compiling student purchases & credentials list:", err);
+      showToast('error', 'Could not compile student purchases & credentials.');
+    } finally {
+      setShippedAccountsLoading(false);
+    }
+  };
+
+  const handleSaveShippedAccount = async (itemId: string, itemType: string, name: string) => {
+    if (!selectedStudent) return;
+    const email = accountEmails[itemId] || '';
+    const password = accountPasswords[itemId] || '';
+
+    try {
+      const docId = `${selectedStudent.id}_${itemId}`;
+      await setDoc(doc(db, 'shipped_accounts', docId), {
+        uid: selectedStudent.id,
+        productId: itemId,
+        email,
+        password,
+        itemType,
+        itemName: name,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state list
+      setStudentShippedAccounts(prev => {
+        const index = prev.findIndex(a => a.productId === itemId);
+        const updatedObj = { id: docId, uid: selectedStudent.id, productId: itemId, email, password, itemType, itemName: name };
+        if (index > -1) {
+          const nextList = [...prev];
+          nextList[index] = updatedObj;
+          return nextList;
+        } else {
+          return [...prev, updatedObj];
+        }
+      });
+
+      showToast('success', `Credentials for ${name} saved successfully.`);
+    } catch (err: any) {
+      console.error("Error saving shipped account credentials:", err);
+      showToast('error', 'Error saving account credentials.');
+    }
   };
 
 
@@ -2054,7 +2213,7 @@ export default function AdminPanel() {
       icon: BookOpen,
       tabs: [
         { id: 'courses', name: 'Course Modules', icon: BookOpen },
-        { id: 'chapters', name: 'Chapters & Tasks', icon: Layers },
+        { id: 'chapters', name: 'Course Sessions', icon: Layers },
         { id: 'student-works', name: 'Showcase Gallery', icon: Film },
       ]
     },
@@ -2170,7 +2329,7 @@ export default function AdminPanel() {
             <div className="grid grid-cols-2 gap-1.5 text-[10px]">
               <div className="bg-zinc-900/40 border border-white/5 p-1.5 rounded-xl text-center">
                 <div className="text-gray-400 font-medium text-[9px]">Students</div>
-                <div className="text-sm font-black text-white mt-0.5">{usersList.length}</div>
+                <div className="text-sm font-black text-white mt-0.5">{usersList.filter(u => u.role !== 'admin').length}</div>
               </div>
               <div className="bg-zinc-900/40 border border-white/5 p-1.5 rounded-xl text-center">
                 <div className="text-gray-400 font-medium text-[9px]">Courses</div>
@@ -2470,13 +2629,13 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* TAB 2: CHAPTERS & TASKS MANAGEMENT */}
+        {/* TAB 2: COURSE SESSIONS MANAGEMENT */}
         {activeTab === 'chapters' && (
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-black text-white tracking-tight">Structured Chapters & Tasks</h1>
-                <p className="text-gray-400 text-xs mt-1">Order lessons sequentially, attach project handouts, homework and video payloads</p>
+                <h1 className="text-3xl font-black text-white tracking-tight">Structured Course Sessions</h1>
+                <p className="text-gray-400 text-xs mt-1">Order sessions sequentially, attach project handouts, homework and video payloads</p>
               </div>
               <button
                 onClick={startAddChapter}
@@ -2484,7 +2643,7 @@ export default function AdminPanel() {
                 className="inline-flex items-center gap-2 px-5 py-3 bg-brand-radial disabled:opacity-50 hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-purple-600/15 cursor-pointer"
               >
                 <PlusCircle className="w-4 h-4" />
-                Add New Chapter
+                Add New Session
               </button>
             </div>
 
@@ -2508,11 +2667,11 @@ export default function AdminPanel() {
                 <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
               </div>
             ) : !selectedCourseId ? (
-              <div className="text-center py-12 text-gray-500 text-xs font-bold">Please pick or publish a course first to adjust course chapters.</div>
+              <div className="text-center py-12 text-gray-500 text-xs font-bold">Please pick or publish a course first to adjust course sessions.</div>
             ) : chapters.length === 0 ? (
               <div className="text-center py-24 border border-dashed border-purple-950/20 rounded-3xl">
-                <p className="text-gray-400 text-sm mb-1">No curriculum chapters stored for this course.</p>
-                <span className="text-[11px] text-gray-500">Insert the first unit block by clicking "Add New Chapter" at the top corner.</span>
+                <p className="text-gray-400 text-sm mb-1">No curriculum sessions stored for this course.</p>
+                <span className="text-[11px] text-gray-500">Insert the first session block by clicking "Add New Session" at the top corner.</span>
               </div>
             ) : (
               <div className="bg-black/40 border border-purple-950/20 rounded-[2rem] overflow-hidden shadow-xl">
@@ -2521,7 +2680,7 @@ export default function AdminPanel() {
                     <thead className="bg-[#09090b] text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
                       <tr>
                         <th className="py-4 px-6 bg-[#09090b]">Index/Pos</th>
-                        <th className="py-4 px-6 bg-[#09090b]">Chapter Topic</th>
+                        <th className="py-4 px-6 bg-[#09090b]">Session Topic / Title</th>
                         <th className="py-4 px-6 bg-[#09090b]">Type Status</th>
                         <th className="py-4 px-6 bg-[#09090b]">Handouts & Exercises</th>
                         <th className="py-4 px-6 text-right sticky right-0 bg-[#09090b] border-l border-purple-950/20 z-20 shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">Sequence Controls</th>
@@ -2575,13 +2734,10 @@ export default function AdminPanel() {
                             )}
                           </td>
                           <td className="py-4 px-6 text-xs text-gray-450 space-y-1">
-                            {chap.exercise_url && (
-                              <div className="text-[10px] text-purple-400 font-semibold">⚡ Practice: {chap.exercise_url}</div>
-                            )}
                             {chap.homework_url && (
                               <div className="text-[10px] text-amber-500 font-semibold">📁 Homework: {chap.homework_url}</div>
                             )}
-                            {!chap.exercise_url && !chap.homework_url && <span className="text-gray-650">—</span>}
+                            {!chap.homework_url && <span className="text-gray-650">—</span>}
                           </td>
                            <td className="py-4 px-6 text-right space-x-1.5 sticky right-0 bg-[#09090b] group-hover:bg-[#18181b] transition-colors border-l border-purple-950/20 z-10 shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">
                             <button
@@ -2668,13 +2824,23 @@ export default function AdminPanel() {
                           <td className="py-4 px-6 text-xs text-gray-300 font-semibold">{usr.email}</td>
                           <td className="py-4 px-6 text-xs text-gray-450 font-mono">{usr.username || '@not_configured'}</td>
                           <td className="py-4 px-6 text-right">
-                            <button
-                              onClick={() => handleDeleteUserDoc(usr)}
-                              className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer"
-                              title="Delete user document from Firestore (WARNING: Doesn't drop from Authentication console)"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleOpenShippedAccountsModal(usr)}
+                                className="px-3 py-1.5 bg-purple-900/10 hover:bg-purple-900/30 border border-purple-500/20 hover:border-purple-500/40 text-purple-400 hover:text-purple-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5"
+                                title="Manage Account Credentials"
+                              >
+                                <Key className="w-3.5 h-3.5" />
+                                <span>Credentials</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUserDoc(usr)}
+                                className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer"
+                                title="Delete user document from Firestore (WARNING: Doesn't drop from Authentication console)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2709,7 +2875,7 @@ export default function AdminPanel() {
                         : 'text-gray-400 hover:text-white'
                     }`}
                   >
-                    {filter === 'pending' && `Pending (${enrollments.filter(e => !e.paid || e.status === 'pending_verification').length})`}
+                    {filter === 'pending' && `Pending (${enrollments.filter(e => (!e.paid || e.status === 'pending_verification') && e.status !== 'rejected').length})`}
                     {filter === 'approved' && `Approved (${enrollments.filter(e => e.paid || e.status === 'approved').length})`}
                     {filter === 'all' && `All (${enrollments.length})`}
                   </button>
@@ -2725,7 +2891,7 @@ export default function AdminPanel() {
               (() => {
                 const filteredList = enrollments.filter((enrollment) => {
                   if (activeReceiptFilter === 'pending') {
-                    return !enrollment.paid || enrollment.status === 'pending_verification';
+                    return (!enrollment.paid || enrollment.status === 'pending_verification') && enrollment.status !== 'rejected';
                   }
                   if (activeReceiptFilter === 'approved') {
                     return enrollment.paid || enrollment.status === 'approved';
@@ -2760,12 +2926,13 @@ export default function AdminPanel() {
                           {filteredList.map((enrollment) => {
                             const student = usersList.find((u) => u.id === enrollment.uid);
                             const course = courses.find((c) => c.id === enrollment.courseId);
-                            const isPending = !enrollment.paid || enrollment.status === 'pending_verification';
-                            const dateFormatted = enrollment.createdAt
+                            const isPending = (!enrollment.paid || enrollment.status === 'pending_verification') && enrollment.status !== 'rejected';
+                            const rawDate = enrollment.createdAt || enrollment.submittedAt || enrollment.enrolledAt;
+                            const dateFormatted = rawDate
                               ? new Date(
-                                  enrollment.createdAt.seconds
-                                    ? enrollment.createdAt.seconds * 1000
-                                    : enrollment.createdAt
+                                  rawDate.seconds
+                                    ? rawDate.seconds * 1000
+                                    : rawDate
                                 ).toLocaleString()
                               : 'No Timestamp';
 
@@ -2797,9 +2964,10 @@ export default function AdminPanel() {
 
                                 <td className="py-4 px-6 font-sans">
                                   <div className="text-xs text-gray-300 font-bold">{enrollment.fullName || 'No Name Submitted'}</div>
-                                  <div className="text-[10.5px] text-gray-400 font-mono mt-1 flex flex-col gap-0.5">
+                                  <div className="text-[10.5px] text-gray-400 font-mono mt-1 flex flex-col gap-1">
                                     <span>Method: <strong className="text-purple-400 uppercase">{enrollment.paymentMethod || 'CCP/Baridi'}</strong></span>
                                     <span>RIP/Account: {enrollment.ccpRIP || 'N/A'}</span>
+                                    <span>Submitted: <span className="text-amber-400 font-bold">{dateFormatted}</span></span>
                                   </div>
                                 </td>
 
@@ -2851,7 +3019,7 @@ export default function AdminPanel() {
                                 </td>
 
                                 <td className="py-4 px-6 text-right font-sans">
-                                  {isPending ? (
+                                  {isPending || editingReceiptId === enrollment.id ? (
                                     <div className="flex items-center justify-end gap-2">
                                       <button
                                         onClick={() => handleRejectEnrollment(enrollment.id)}
@@ -2865,9 +3033,29 @@ export default function AdminPanel() {
                                       >
                                         Approve &amp; Unlock
                                       </button>
+                                      {editingReceiptId === enrollment.id && (
+                                        <button
+                                          onClick={() => setEditingReceiptId(null)}
+                                          className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-400 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                                        >
+                                          Cancel
+                                        </button>
+                                      )}
                                     </div>
                                   ) : (
-                                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider select-none">Access Granted</span>
+                                    <div className="flex items-center justify-end gap-3">
+                                      <span className="text-xs text-gray-500 font-bold uppercase tracking-wider select-none">
+                                        {enrollment.status === 'approved' || enrollment.paid ? 'Access Granted' : 'Rejected'}
+                                      </span>
+                                      <button
+                                        onClick={() => setEditingReceiptId(enrollment.id)}
+                                        className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-purple-500/20 text-purple-400 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                                        title="Change Decision"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        Edit
+                                      </button>
+                                    </div>
                                   )}
                                 </td>
                               </tr>
@@ -5120,7 +5308,7 @@ export default function AdminPanel() {
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-bold text-white">{editingChapterId ? 'Edit Chapter Map' : 'Create Unit Chapter'}</h2>
+                  <h2 className="text-xl font-bold text-white">{editingChapterId ? 'Edit Session' : 'Create Session'}</h2>
                   <p className="text-gray-400 text-xs">Associate assets, sequential position markers, free triggers</p>
                 </div>
                 <button onClick={() => setShowChapterModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
@@ -5145,13 +5333,14 @@ export default function AdminPanel() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Chapter Title</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Title</label>
                   <input
                     type="text"
                     required
                     value={chapterForm.title}
                     onChange={(e) => setFormChapterAndTitle(e.target.value)}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                    placeholder="e.g. Session 1: Introduction to Filmmaking"
                   />
                 </div>
 
@@ -5179,186 +5368,38 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {(() => {
-                  const currentCourse = courses.find((c: any) => c.id === chapterForm.courseId);
-                  const isVideoEditingCourse = chapterForm.courseId === '1' || (currentCourse && (
-                    currentCourse.title?.toLowerCase().includes('video editing') ||
-                    currentCourse.title?.toLowerCase().includes('video-editing') ||
-                    currentCourse.title?.toLowerCase().includes('مونتاج') ||
-                    currentCourse.title?.toLowerCase().includes('cinematic')
-                  ));
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video URL (YouTube / Direct)</label>
+                    <input
+                      type="url"
+                      required
+                      value={chapterForm.session_url}
+                      onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                      placeholder="https://youtube.com/embed/... or https://..."
+                    />
+                  </div>
 
-                  if (isVideoEditingCourse) {
-                    const posVal = parseInt(chapterForm.position || '1') || 1;
-                    const startS = (posVal - 1) * 4 + 1;
-                    return (
-                      <div className="space-y-4">
-                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS} Video URL (YouTube / Direct)</label>
-                              <input
-                                type="url"
-                                value={chapterForm.session_url_1}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_1: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS} Name / Topic</label>
-                              <input
-                                type="text"
-                                value={chapterForm.session_name_1}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_1: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder={`e.g. Session ${startS}: {name}`}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 1} Video URL (YouTube / Direct)</label>
-                              <input
-                                type="url"
-                                value={chapterForm.session_url_2}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_2: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 1} Name / Topic</label>
-                              <input
-                                type="text"
-                                value={chapterForm.session_name_2}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_2: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder={`e.g. Session ${startS + 1}: {name}`}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 2} Video URL (YouTube / Direct)</label>
-                              <input
-                                type="url"
-                                value={chapterForm.session_url_3}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_3: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 2} Name / Topic</label>
-                              <input
-                                type="text"
-                                value={chapterForm.session_name_3}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_3: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder={`e.g. Session ${startS + 2}: {name}`}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-950/40 p-4 rounded-2xl border border-purple-950/30 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 3} Video URL (YouTube / Direct)</label>
-                              <input
-                                type="url"
-                                value={chapterForm.session_url_4}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_url_4: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder="e.g. https://www.youtube.com/embed/... or direct link"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session {startS + 3} Name / Topic</label>
-                              <input
-                                type="text"
-                                value={chapterForm.session_name_4}
-                                onChange={(e) => setChapterForm({ ...chapterForm, session_name_4: e.target.value })}
-                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                                placeholder={`e.g. Session ${startS + 3}: {name}`}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Chapter {posVal} Practice Exercise Video URL</label>
-                          <input
-                            type="url"
-                            value={chapterForm.exercise_url}
-                            onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
-                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                            placeholder="Practice exercise assignment video or source URLs"
-                          />
-                        </div>
-                      </div>
-                    );
-                  } else {
-                    return (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video Handout URL (YouTube / Direct)</label>
-                          <input
-                            type="url"
-                            value={chapterForm.session_url}
-                            onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
-                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                            placeholder="https://youtube.com/watch?v=..."
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video Topic / Name</label>
-                          <input
-                            type="text"
-                            value={chapterForm.session_name}
-                            onChange={(e) => setChapterForm({ ...chapterForm, session_name: e.target.value })}
-                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                            placeholder="e.g. Introduction to Figma"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Assets & Practice File URL</label>
-                          <input
-                            type="url"
-                            value={chapterForm.exercise_url}
-                            onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
-                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Homework Assignment Submission Drive Link</label>
-                          <input
-                            type="url"
-                            value={chapterForm.homework_url}
-                            onChange={(e) => setChapterForm({ ...chapterForm, homework_url: e.target.value })}
-                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    );
-                  }
-                })()}
+                  <div className="pt-2 border-t border-purple-900/15">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Homework Assignment Submission Link</label>
+                      <input
+                        type="url"
+                        value={chapterForm.homework_url}
+                        onChange={(e) => setChapterForm({ ...chapterForm, homework_url: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                </div>
 
                 <button
                   type="submit"
                   className="w-full py-4 mt-2 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
                 >
-                  Save Curriculum Mapping
+                  Save Session
                 </button>
               </form>
             </motion.div>
@@ -6148,6 +6189,144 @@ export default function AdminPanel() {
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900/80 border border-white/5 backdrop-blur-md rounded-xl px-4 py-2 text-[11px] text-gray-400 font-medium">
               Use control panel at the top right to zoom or rotate the receipt image. Click outside to dismiss.
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SHIPPED ACCOUNTS / CREDENTIALS MANAGEMENT MODAL */}
+      <AnimatePresence>
+        {isShippedAccountsModalOpen && selectedStudent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setIsShippedAccountsModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-zinc-950 border border-purple-900/40 rounded-[2.5rem] w-full max-w-2xl p-8 space-y-6 shadow-2xl overflow-hidden text-left relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2.5">
+                    <Key className="w-6 h-6 text-purple-500" />
+                    <span>Credentials & Shipped Accounts</span>
+                  </h3>
+                  <p className="text-gray-400 text-xs">
+                    Manage login credentials of software and course access keys for <span className="text-white font-bold">{selectedStudent.fullName || selectedStudent.displayName || 'this student'}</span>.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsShippedAccountsModalOpen(false)}
+                  className="p-2 hover:bg-white/5 border border-white/5 hover:border-purple-500/20 rounded-xl transition-all text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Student Detail Info */}
+              <div className="bg-black/40 border border-purple-900/10 p-4 rounded-2xl text-xs space-y-1.5 font-medium text-gray-400">
+                <div><span className="text-purple-400">Student Email:</span> {selectedStudent.email}</div>
+                <div><span className="text-purple-400">Firestore UID:</span> <span className="font-mono text-gray-500">{selectedStudent.id}</span></div>
+              </div>
+
+              {/* Shipped Accounts Content */}
+              {shippedAccountsLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                  <p className="text-xs text-gray-500 font-medium">Scanning purchases & active credentials...</p>
+                </div>
+              ) : studentPurchases.length === 0 ? (
+                <div className="py-12 text-center space-y-2 border border-dashed border-purple-900/20 rounded-3xl bg-black/10">
+                  <Lock className="w-8 h-8 text-gray-600 mx-auto" />
+                  <p className="text-sm text-gray-400 font-bold">No Purchases Found</p>
+                  <p className="text-xs text-gray-500 max-w-sm mx-auto">This student hasn't purchased any course formats or software licenses from the store yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-1">
+                  {studentPurchases.map((item) => {
+                    const isApproved = item.status === 'approved';
+                    const email = accountEmails[item.itemId] || '';
+                    const password = accountPasswords[item.itemId] || '';
+
+                    return (
+                      <div key={item.id} className="bg-black/60 border border-purple-900/15 p-5 rounded-3xl space-y-4">
+                        {/* Title Info */}
+                        <div className="flex justify-between items-start gap-2 border-b border-purple-900/10 pb-3">
+                          <div>
+                            <span className="text-[9px] font-black uppercase text-purple-400 tracking-widest block">
+                              {item.type === 'course' ? 'Academy Course' : 'Store Product'}
+                            </span>
+                            <h4 className="font-bold text-white text-sm mt-0.5">{item.name}</h4>
+                          </div>
+                          
+                          {isApproved ? (
+                            <span className="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 tracking-wider">
+                              Approved
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 tracking-wider">
+                              Receipt Pending
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Input Credentials Form or Locked Message */}
+                        {isApproved ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5 text-left">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Account Email</label>
+                                <input
+                                  type="email"
+                                  placeholder="student-adobe@example.com"
+                                  value={email}
+                                  onChange={(e) => setAccountEmails(prev => ({ ...prev, [item.itemId]: e.target.value }))}
+                                  className="w-full bg-zinc-950 border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                                />
+                              </div>
+                              <div className="space-y-1.5 text-left">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Account Password</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter Secure Password"
+                                  value={password}
+                                  onChange={(e) => setAccountPasswords(prev => ({ ...prev, [item.itemId]: e.target.value }))}
+                                  className="w-full bg-zinc-950 border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                                />
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => handleSaveShippedAccount(item.itemId, item.type, item.name)}
+                              className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-purple-950/20 hover:scale-[1.01] active:scale-100 cursor-pointer"
+                            >
+                              <Save className="w-4 h-4" />
+                              Save Credentials & Ship
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="bg-yellow-950/20 border border-yellow-500/20 rounded-2xl p-3.5 flex items-start gap-3">
+                            <Lock className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+                            <div className="text-left">
+                              <div className="text-xs font-bold text-yellow-500">Locked pending verification</div>
+                              <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">
+                                You cannot enter account credentials for this license yet. Go to the receipts ledger tab, inspect the proof of payment, and approve the purchase receipt first.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

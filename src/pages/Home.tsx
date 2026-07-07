@@ -291,9 +291,6 @@ export default function Home() {
                 allowFullScreen
               />
             )}
-
-            {/* Subtle overlay gradient */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/35 pointer-events-none" />
           </div>
         </div>
 

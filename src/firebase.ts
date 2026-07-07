@@ -660,13 +660,17 @@ export const ensureDefaultStatisticsSeeded = async () => {
 // Recursive value helper to replace old CDN URLs with correct ones
 function migrateUrlsInValue(val: any): { updated: any; changed: boolean } {
   if (typeof val === 'string') {
-    if (/cutscenedz\.b-cdn\.net/i.test(val)) {
-      return {
-        updated: val.replace(/cutscenedz\.b-cdn\.net/gi, 'Websitestorage.b-cdn.net'),
-        changed: true
-      };
+    let changed = false;
+    let updated = val;
+    if (/Websitestorage\.b-cdn\.net/i.test(val)) {
+      updated = updated.replace(/Websitestorage\.b-cdn\.net/gi, 'cutscenedz.b-cdn.net');
+      changed = true;
     }
-    return { updated: val, changed: false };
+    if (/cutscenedocuments\.b-cdn\.net/i.test(updated)) {
+      updated = updated.replace(/cutscenedocuments\.b-cdn\.net/gi, 'cutscenedz.b-cdn.net');
+      changed = true;
+    }
+    return { updated, changed };
   } else if (Array.isArray(val)) {
     let changed = false;
     const updatedArray = val.map(item => {
@@ -691,11 +695,11 @@ function migrateUrlsInValue(val: any): { updated: any; changed: boolean } {
 // Migration script to update all database collections' image/CDN URLs to use the correct domain
 export const runOneTimeMigration = async () => {
   if (typeof window !== 'undefined') {
-    const isDone = localStorage.getItem('bunny_pullzone_migration_done_v3');
+    const isDone = localStorage.getItem('bunny_pullzone_migration_done_v4');
     if (isDone) return;
   }
 
-  console.log('[Migration] Starting one-time Firestore CDN URL migration from Cutscenedz.b-cdn.net to Websitestorage.b-cdn.net...');
+  console.log('[Migration] Starting one-time Firestore CDN URL migration to cutscenedz.b-cdn.net...');
 
   const COLLECTIONS_TO_MIGRATE = [
     'courses',
@@ -757,7 +761,7 @@ export const runOneTimeMigration = async () => {
 
   console.log(`[Migration] Migration complete. Total documents/subcollections updated: ${migratedCount}`);
   if (typeof window !== 'undefined') {
-    localStorage.setItem('bunny_pullzone_migration_done_v3', 'true');
+    localStorage.setItem('bunny_pullzone_migration_done_v4', 'true');
   }
 };
 

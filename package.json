@@ -24,6 +24,7 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.2",
+    "recharts": "^3.9.2",
     "styled-components": "^6.4.0"
   },
   "devDependencies": {
