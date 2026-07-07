@@ -1128,71 +1128,8 @@ export default function VideoPlayer() {
 
             </motion.div>
 
-            {/* Custom Interactive Timestamp & Comment Markers Timeline */}
-            {(isEnrolled || isFirstSession) && (
-              <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 mb-8 shadow-xl">
-                {/* Time Indicators */}
-                <div className="flex items-center justify-between text-xs font-mono text-gray-400 mb-2">
-                  <span className="text-purple-300 font-semibold">{formatTime(videoCurrentTime)}</span>
-                  <span className="text-gray-500">{formatTime(videoDuration || 600)}</span>
-                </div>
 
-                {/* Progress bar and Markers container */}
-                <div 
-                  ref={progressTimelineRef}
-                  onClick={handleTimelineClick}
-                  className="relative h-6 flex items-center cursor-pointer group"
-                >
-                  {/* Background Track */}
-                  <div className="w-full h-1.5 bg-zinc-900 border border-purple-950/40 rounded-full overflow-hidden relative">
-                    {/* Fill Line */}
-                    <div 
-                      className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full"
-                      style={{ width: `${Math.min(100, (videoCurrentTime / (videoDuration || 600)) * 100)}%` }}
-                    />
-                  </div>
 
-                  {/* Comment Markers */}
-                  {comments
-                    .filter((c: any) => typeof c.timestamp === 'number' && c.timestamp >= 0)
-                    .map((comment: any) => {
-                      const percentage = Math.min(100, (comment.timestamp / (videoDuration || 600)) * 100);
-                      return (
-                        <div
-                          key={comment.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            seekTo(comment.timestamp);
-                          }}
-                          className="absolute w-3.5 h-3.5 rounded-full bg-amber-500 hover:bg-amber-400 border border-zinc-950 shadow-md transform -translate-x-1/2 cursor-pointer hover:scale-125 transition-all z-20 group/marker"
-                          style={{ left: `${percentage}%` }}
-                        >
-                          {/* Rich Interactive Tooltip */}
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-zinc-950/95 border border-purple-500/30 backdrop-blur-md rounded-xl text-[11px] text-white opacity-0 group-hover/marker:opacity-100 pointer-events-none transition-opacity duration-200 shadow-2xl z-30">
-                            <div className="flex items-center gap-1.5 border-b border-purple-900/20 pb-1 mb-1.5">
-                              {comment.userAvatar ? (
-                                <img src={comment.userAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                              ) : (
-                                <div className="w-5 h-5 rounded-full bg-purple-900/40 flex items-center justify-center text-[8px] font-bold text-purple-300">
-                                  {comment.userName?.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <span className="font-extrabold text-purple-300 truncate max-w-[100px]">{comment.userName}</span>
-                              <span className="text-[9px] font-mono text-amber-400 ml-auto bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/10">{formatTime(comment.timestamp)}</span>
-                            </div>
-                            <p className="text-gray-300 leading-normal line-clamp-3 text-left">{comment.content}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-
-                <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Click timeline to seek, or click markers to go to comment timestamps.</span>
-                </div>
-              </div>
-            )}
 
             <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 md:p-8 mb-8">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-purple-900/20 mb-6">
