@@ -31,7 +31,7 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 
-type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions';
+type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes';
 
 interface Toast {
   id: string;
@@ -2240,6 +2240,280 @@ export default function AdminPanel() {
     }
   };
 
+  // --- QUIZZES MANAGEMENT STATE & MUTATORS ---
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  
+  const [quizForm, setQuizForm] = useState({
+    title: '',
+    sessionId: 1,
+    status: 'draft' as 'draft' | 'published'
+  });
+
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
+  const [uploadingQuestionMedia, setUploadingQuestionMedia] = useState(false);
+
+  const [currentQuestionForm, setCurrentQuestionForm] = useState({
+    type: 'MCQ',
+    text: '',
+    videoTimestamp: '',
+    optionsText: 'Option A\nOption B\nOption C\nOption D',
+    correctAnswer: 'Option A',
+    mediaUrl: '',
+    secondMediaUrl: '',
+    diffAreaX: 50,
+    diffAreaY: 50,
+    diffAreaR: 10,
+    sliderMin: 0,
+    sliderMax: 100,
+    sliderStep: 1,
+    sliderCorrect: 50,
+    timerLimit: 15
+  });
+
+  const fetchQuizzes = async () => {
+    setLoadingQuizzes(true);
+    try {
+      const snap = await getDocs(collection(db, 'quizzes'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setQuizzes(list);
+    } catch (err: any) {
+      console.error('Error fetching quizzes:', err);
+      showToast('error', 'Failed loading quizzes.');
+    } finally {
+      setLoadingQuizzes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'quizzes') {
+      fetchQuizzes();
+    }
+  }, [activeTab]);
+
+  const handleUploadQuestionMedia = async (e: React.ChangeEvent<HTMLInputElement>, field: 'mediaUrl' | 'secondMediaUrl') => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    
+    setUploadingQuestionMedia(true);
+    try {
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name })
+      });
+      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      const signData = await signRes.json();
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
+      });
+      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      const uploadResult = await uploadRes.json();
+      
+      setCurrentQuestionForm(prev => ({ ...prev, [field]: uploadResult.publicUrl }));
+      showToast('success', 'Media asset uploaded to Bunny CDN successfully!');
+    } catch (err: any) {
+      console.error('Bunny upload error:', err);
+      showToast('error', `Media upload failed: ${err.message || err}`);
+    } finally {
+      setUploadingQuestionMedia(false);
+    }
+  };
+
+  const handleOpenAddQuestion = () => {
+    setEditingQuestionIndex(null);
+    setCurrentQuestionForm({
+      type: 'MCQ',
+      text: '',
+      videoTimestamp: '',
+      optionsText: 'Option A\nOption B\nOption C\nOption D',
+      correctAnswer: 'Option A',
+      mediaUrl: '',
+      secondMediaUrl: '',
+      diffAreaX: 50,
+      diffAreaY: 50,
+      diffAreaR: 10,
+      sliderMin: 0,
+      sliderMax: 100,
+      sliderStep: 1,
+      sliderCorrect: 50,
+      timerLimit: 15
+    });
+    setShowQuestionModal(true);
+  };
+
+  const handleOpenEditQuestion = (index: number) => {
+    const q = questions[index];
+    setEditingQuestionIndex(index);
+    setCurrentQuestionForm({
+      type: q.type || 'MCQ',
+      text: q.text || '',
+      videoTimestamp: q.videoTimestamp || '',
+      optionsText: Array.isArray(q.options) ? q.options.join('\n') : '',
+      correctAnswer: typeof q.correctAnswer === 'string' ? q.correctAnswer : Array.isArray(q.correctAnswer) ? q.correctAnswer.join('\n') : '',
+      mediaUrl: q.mediaUrl || '',
+      secondMediaUrl: q.secondMediaUrl || '',
+      diffAreaX: q.diffArea?.x || 50,
+      diffAreaY: q.diffArea?.y || 50,
+      diffAreaR: q.diffArea?.r || 10,
+      sliderMin: q.sliderMin !== undefined ? q.sliderMin : 0,
+      sliderMax: q.sliderMax !== undefined ? q.sliderMax : 100,
+      sliderStep: q.sliderStep !== undefined ? q.sliderStep : 1,
+      sliderCorrect: q.sliderCorrect !== undefined ? q.sliderCorrect : 50,
+      timerLimit: q.timerLimit !== undefined ? q.timerLimit : 15
+    });
+    setShowQuestionModal(true);
+  };
+
+  const handleSaveQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentQuestionForm.text) {
+      showToast('error', 'Question Text is required.');
+      return;
+    }
+
+    // Parse options and answers based on type
+    const parsedOptions = currentQuestionForm.optionsText
+      ? currentQuestionForm.optionsText.split('\n').map(o => o.trim()).filter(Boolean)
+      : [];
+
+    let parsedCorrectAnswer: any = currentQuestionForm.correctAnswer.trim();
+    if (currentQuestionForm.type === 'Sequence' || currentQuestionForm.type === 'Match') {
+      parsedCorrectAnswer = currentQuestionForm.correctAnswer.split('\n').map(a => a.trim()).filter(Boolean);
+    }
+
+    const questionObj: any = {
+      type: currentQuestionForm.type,
+      text: currentQuestionForm.text,
+      videoTimestamp: currentQuestionForm.videoTimestamp || null,
+      options: parsedOptions,
+      correctAnswer: parsedCorrectAnswer,
+      mediaUrl: currentQuestionForm.mediaUrl || null,
+      secondMediaUrl: currentQuestionForm.secondMediaUrl || null,
+      diffArea: currentQuestionForm.type === 'Spot-diff' ? {
+        x: Number(currentQuestionForm.diffAreaX),
+        y: Number(currentQuestionForm.diffAreaY),
+        r: Number(currentQuestionForm.diffAreaR)
+      } : null,
+      sliderMin: currentQuestionForm.type === 'Slider' ? Number(currentQuestionForm.sliderMin) : null,
+      sliderMax: currentQuestionForm.type === 'Slider' ? Number(currentQuestionForm.sliderMax) : null,
+      sliderStep: currentQuestionForm.type === 'Slider' ? Number(currentQuestionForm.sliderStep) : null,
+      sliderCorrect: currentQuestionForm.type === 'Slider' ? Number(currentQuestionForm.sliderCorrect) : null,
+      timerLimit: currentQuestionForm.type === 'Timed MCQ' ? Number(currentQuestionForm.timerLimit) : null
+    };
+
+    const newQs = [...questions];
+    if (editingQuestionIndex !== null) {
+      newQs[editingQuestionIndex] = questionObj;
+      showToast('success', 'Question updated in sequence.');
+    } else {
+      newQs.push(questionObj);
+      showToast('success', 'Question appended to sequence.');
+    }
+
+    setQuestions(newQs);
+    setShowQuestionModal(false);
+    setEditingQuestionIndex(null);
+  };
+
+  const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    const newQs = [...questions];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex >= 0 && targetIndex < newQs.length) {
+      const temp = newQs[index];
+      newQs[index] = newQs[targetIndex];
+      newQs[targetIndex] = temp;
+      setQuestions(newQs);
+    }
+  };
+
+  const startEditQuiz = (quiz: any) => {
+    setEditingQuizId(quiz.id);
+    setQuizForm({
+      title: quiz.title || '',
+      sessionId: quiz.sessionId || 1,
+      status: quiz.status || 'draft'
+    });
+    setQuestions(quiz.questions || []);
+    setShowQuizModal(true);
+  };
+
+  const handleQuizSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quizForm.title || !quizForm.sessionId) {
+      showToast('error', 'Quiz Title and Session ID are required.');
+      return;
+    }
+    try {
+      const payload = {
+        title: quizForm.title,
+        sessionId: Number(quizForm.sessionId),
+        status: quizForm.status,
+        questions: questions,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (editingQuizId) {
+        await setDoc(doc(db, 'quizzes', editingQuizId), payload, { merge: true });
+        showToast('success', `Quiz "${quizForm.title}" updated successfully.`);
+      } else {
+        const docRef = await addDoc(collection(db, 'quizzes'), {
+          ...payload,
+          createdAt: new Date().toISOString()
+        });
+        await updateDoc(docRef, { id: docRef.id });
+        showToast('success', `Quiz "${quizForm.title}" created successfully.`);
+      }
+
+      setShowQuizModal(false);
+      setEditingQuizId(null);
+      setQuizForm({ title: '', sessionId: 1, status: 'draft' });
+      setQuestions([]);
+      fetchQuizzes();
+    } catch (err: any) {
+      console.error('Error saving quiz:', err);
+      showToast('error', 'Error saving quiz: ' + err.message);
+    }
+  };
+
+  const handleDeleteQuiz = (id: string, title: string) => {
+    askConfirmation(
+      'Delete Quiz',
+      `Are you sure you want to permanently delete the quiz "${title}"? This cannot be undone.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'quizzes', id));
+          showToast('success', `Quiz deleted successfully.`);
+          fetchQuizzes();
+        } catch (err) {
+          showToast('error', 'Failed to delete quiz.');
+        }
+      }
+    );
+  };
+
+  const handleOpenCreateQuiz = () => {
+    setEditingQuizId(null);
+    setQuizForm({
+      title: '',
+      sessionId: 1,
+      status: 'draft'
+    });
+    setQuestions([]);
+    setShowQuizModal(true);
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
@@ -2278,6 +2552,7 @@ export default function AdminPanel() {
         { id: 'courses', name: 'Course Modules', icon: BookOpen },
         { id: 'chapters', name: 'Course Sessions', icon: Layers },
         { id: 'student-works', name: 'Showcase Gallery', icon: Film },
+        { id: 'quizzes', name: 'Curriculum Quizzes', icon: HelpCircle },
       ]
     },
     {

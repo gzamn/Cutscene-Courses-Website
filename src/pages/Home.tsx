@@ -52,7 +52,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
-  const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
 
   const [continueWatching, setContinueWatching] = useState<any | null>(null);
   const [showContinueWatching, setShowContinueWatching] = useState(false);
@@ -133,26 +132,6 @@ export default function Home() {
           .filter(off => off.active === true);
         setSpecialOffers(offersList);
 
-        // Fetch hero background video
-        try {
-          let heroSnap = await getDocs(collection(db, 'hero_videos'));
-          if (heroSnap.empty) {
-            await ensureDefaultHeroVideosSeeded();
-            heroSnap = await getDocs(collection(db, 'hero_videos'));
-          }
-          let heroList = heroSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-
-          const activeHero = heroList.find(h => h.isActive) || heroList[0];
-          if (activeHero && activeHero.videoUrl) {
-            setHeroVideoUrl(activeHero.videoUrl);
-          } else {
-            setHeroVideoUrl('https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
-          }
-        } catch (heroErr) {
-          console.warn("Could not load hero video config from Firestore:", heroErr);
-          setHeroVideoUrl('https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true');
-        }
-
         // Fetch student works
         let worksSnap = await getDocs(collection(db, 'student_works'));
         if (worksSnap.empty) {
@@ -208,22 +187,19 @@ export default function Home() {
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
         </div>
  
-        {/* Centered Video Container - Clean Bunny Stream iframe */}
+        {/* Centered Video Container - Direct Integrated Bunny Stream Embed */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 w-full mb-8 flex flex-col items-center">
-          <div className="relative w-full aspect-video rounded-2xl md:rounded-[2rem] overflow-hidden border border-purple-500/10 shadow-[0_20px_50px_rgba(168,85,247,0.15)] bg-zinc-950">
-            {heroVideoUrl ? (
+          <div className="w-full rounded-2xl md:rounded-[2rem] overflow-hidden border border-purple-500/10 shadow-[0_20px_50px_rgba(168,85,247,0.15)] bg-zinc-950">
+            <div style={{ position: 'relative', paddingTop: '56.25%' }}>
               <iframe
-                src={heroVideoUrl}
-                className="absolute inset-0 w-full h-full border-0"
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-                allowFullScreen
+                src="https://player.mediadelivery.net/embed/698778/8d82e4b7-fd27-4830-82e4-d8d0103fa005?autoplay=false&loop=true&muted=true&preload=true&responsive=true"
+                loading="lazy"
+                style={{ border: 0, position: 'absolute', top: 0, height: '100%', width: '100%' }}
+                allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen;"
+                allowFullScreen={true}
                 title="Bunny Stream Player"
               />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
-                <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
+            </div>
           </div>
         </div>
 

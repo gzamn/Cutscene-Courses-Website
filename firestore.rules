@@ -194,5 +194,19 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
+
+    // Quizzes (Admin-configured curriculum validation quizzes)
+    match /quizzes/{quizId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Quiz attempts (Scores and lockout metadata per student)
+    match /quiz_attempts/{attemptId} {
+      allow read: if isSignedIn() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
   }
 }

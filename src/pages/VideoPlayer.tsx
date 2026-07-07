@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X, HelpCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -91,6 +91,11 @@ export default function VideoPlayer() {
   const navigate = useNavigate();
   
   const [course, setCourse] = useState<any>(null);
+  const [currentQuiz, setCurrentQuiz] = useState<any>(null);
+  const [quizPassed, setQuizPassed] = useState<boolean>(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+  const [prevQuizPassed, setPrevQuizPassed] = useState<boolean>(true);
+  const [checkingQuiz, setCheckingQuiz] = useState<boolean>(true);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -638,6 +643,122 @@ export default function VideoPlayer() {
     };
   }, [user, id, chapter, type]);
 
+  // Quiz and lockout logic
+  useEffect(() => {
+    if (!id || !chapter || !user) {
+      setCheckingQuiz(false);
+      return;
+    }
+
+    let active = true;
+    const sId = parseInt(chapter || "1", 10);
+
+    const loadQuizStatuses = async () => {
+      try {
+        setCheckingQuiz(true);
+        
+        // --- 1. Check current chapter quiz status ---
+        const qCol = collection(db, "quizzes");
+        const qQuery = query(qCol, where("sessionId", "==", sId), where("status", "==", "published"));
+        const qSnap = await getDocs(qQuery);
+        
+        let foundQuiz = null;
+        if (!qSnap.empty) {
+          foundQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
+        } else if (sId === 1) {
+          // Default fallback for Session 1
+          foundQuiz = { id: "quiz_session_1", title: "Session 1 Quiz" };
+        }
+
+        if (active) setCurrentQuiz(foundQuiz);
+
+        if (foundQuiz && user) {
+          const attemptsCol = collection(db, "quiz_attempts");
+          const attQuery = query(
+            attemptsCol, 
+            where("studentId", "==", user.uid), 
+            where("quizId", "==", foundQuiz.id)
+          );
+          const attSnap = await getDocs(attQuery);
+          const attList = attSnap.docs.map(d => d.data() as any);
+          
+          const passed = attList.some(a => a.passed);
+          if (active) setQuizPassed(passed);
+
+          if (attList.length >= 3 && !passed) {
+            // Sort attempts to find the latest
+            const sorted = [...attSnap.docs.map(d => d.data() as any)].sort((a, b) => {
+              return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+            });
+            const latest = sorted[0];
+            if (latest && latest.lockoutUntil) {
+              const cooldown = new Date(latest.lockoutUntil).getTime() - Date.now();
+              if (cooldown > 0 && active) {
+                setLockoutRemaining(Math.ceil(cooldown / 1000));
+              }
+            }
+          }
+        } else {
+          if (active) setQuizPassed(false);
+        }
+
+        // --- 2. Check previous chapter quiz (GATING) ---
+        if (sId > 1) {
+          const prevSId = sId - 1;
+          const prevQQuery = query(qCol, where("sessionId", "==", prevSId), where("status", "==", "published"));
+          const prevQSnap = await getDocs(prevQQuery);
+          
+          let prevQuiz = null;
+          if (!prevQSnap.empty) {
+            prevQuiz = { id: prevQSnap.docs[0].id, ...prevQSnap.docs[0].data() };
+          } else if (prevSId === 1) {
+            prevQuiz = { id: "quiz_session_1", title: "Session 1 Quiz" };
+          }
+
+          if (prevQuiz && user) {
+            const attemptsCol = collection(db, "quiz_attempts");
+            const prevAttQuery = query(
+              attemptsCol, 
+              where("studentId", "==", user.uid), 
+              where("quizId", "==", prevQuiz.id)
+            );
+            const prevAttSnap = await getDocs(prevAttQuery);
+            const prevPassed = prevAttSnap.docs.map(d => d.data() as any).some(a => a.passed);
+            if (active) setPrevQuizPassed(prevPassed);
+          } else {
+            if (active) setPrevQuizPassed(true);
+          }
+        } else {
+          if (active) setPrevQuizPassed(true);
+        }
+
+      } catch (err) {
+        console.error("Error evaluating session quiz metrics:", err);
+      } finally {
+        if (active) setCheckingQuiz(false);
+      }
+    };
+
+    loadQuizStatuses();
+    return () => {
+      active = false;
+    };
+  }, [id, chapter, user]);
+
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutRemaining]);
+
   // Comments real-time subscription
   useEffect(() => {
     if (!id || !chapter) return;
@@ -1043,6 +1164,22 @@ export default function VideoPlayer() {
                       <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                     </Link>
                   </div>
+                ) : (!prevQuizPassed && !isFirstSession) ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/95 backdrop-blur-md z-20 p-8 text-center border border-purple-900/30">
+                    <div className="w-16 h-16 bg-purple-600/15 rounded-full flex items-center justify-center mb-4 border border-purple-500/20">
+                      <Lock className="w-8 h-8 text-purple-400 animate-pulse" />
+                    </div>
+                    <h2 className="text-xl font-mono font-bold uppercase tracking-wider text-white mb-2">Lesson Gated</h2>
+                    <p className="text-xs text-gray-400 max-w-sm mb-6 leading-relaxed">
+                      To unlock Session {chapter}, you must pass the <b>Session {parseInt(chapter || "2") - 1} Quiz</b> with a score of <b>70%</b> or higher.
+                    </p>
+                    <Link 
+                      to={`/courses/${id}/quiz/${parseInt(chapter || "2") - 1}`}
+                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-mono text-[11px] font-bold tracking-wider uppercase transition-colors"
+                    >
+                      Take Session {parseInt(chapter || "2") - 1} Quiz
+                    </Link>
+                  </div>
                 ) : (
                   <div className="absolute inset-0 w-full h-full bg-black">
                     {isWindowFocused ? (
@@ -1195,6 +1332,30 @@ export default function VideoPlayer() {
                   ) : null}
                   {isCompleted ? t('course.completed') : t('course.markComplete')}
                 </button>
+
+                {currentQuiz && (
+                  <div className="w-full sm:w-auto shrink-0">
+                    {quizPassed ? (
+                      <div className="flex items-center gap-2 px-6 py-3 bg-green-500/15 border border-green-500/20 text-green-400 rounded-2xl text-xs font-bold font-mono">
+                        <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                        <span>QUIZ PASSED ✓</span>
+                      </div>
+                    ) : lockoutRemaining > 0 ? (
+                      <div className="flex items-center gap-2 px-6 py-3 bg-red-500/15 border border-red-500/20 text-[#ffc24b] rounded-2xl text-xs font-bold font-mono">
+                        <Clock className="w-4 h-4 text-[#ffc24b] animate-pulse shrink-0" />
+                        <span>LOCKED: {Math.floor(lockoutRemaining / 60)}m {lockoutRemaining % 60}s</span>
+                      </div>
+                    ) : (
+                      <Link
+                        to={`/courses/${id}/quiz/${chapter}`}
+                        className="w-full sm:w-auto px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl transition-all text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2"
+                      >
+                        <HelpCircle className="w-4.5 h-4.5 text-purple-200" />
+                        <span>Start Session {chapter} Quiz</span>
+                      </Link>
+                    )}
+                  </div>
+                )}
 
                 {isCompleted && (
                   <Link

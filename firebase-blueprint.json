@@ -368,6 +368,39 @@
         "shippedAt": { "type": "string" }
       },
       "required": ["uid", "email", "password", "productId", "productName"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Course lesson validation quizzes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "sessionId": { "type": "integer" },
+        "status": { "type": "string", "enum": ["draft", "published"] },
+        "questions": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "sessionId", "status", "questions"]
+    },
+    "QuizAttempt": {
+      "title": "Quiz Attempt",
+      "description": "Scores and answers from student quiz evaluations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "quizId": { "type": "string" },
+        "attemptNumber": { "type": "integer" },
+        "answers": { "type": "object" },
+        "score": { "type": "number" },
+        "passed": { "type": "boolean" },
+        "submittedAt": { "type": "string" },
+        "lockoutUntil": { "type": "string" }
+      },
+      "required": ["id", "studentId", "quizId", "attemptNumber", "answers", "score", "passed", "submittedAt"]
     }
   },
   "firestore": {
@@ -462,6 +495,14 @@
     "shipped_accounts/{accountId}": {
       "schema": "ShippedAccount",
       "description": "Access credentials for student purchases of courses or Creative Cloud"
+    },
+    "quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quiz documents"
+    },
+    "quiz_attempts/{attemptId}": {
+      "schema": "QuizAttempt",
+      "description": "Student quiz attempts"
     }
   }
 }
