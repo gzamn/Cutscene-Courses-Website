@@ -187,6 +187,12 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
+    // Student Private Session Notes
+    match /user_notes/{noteId} {
+      allow read: if isSignedIn() && (noteId.startsWith(request.auth.uid) || resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if isSignedIn() && (noteId.startsWith(request.auth.uid) || request.resource.data.uid == request.auth.uid || isAdmin());
+    }
+
     // Shipped accounts (Adobe Creative Cloud or Course credentials)
     match /shipped_accounts/{accountId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());

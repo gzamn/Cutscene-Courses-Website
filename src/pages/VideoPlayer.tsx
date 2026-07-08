@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X, HelpCircle, Trophy, Check, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -103,9 +103,9 @@ export default function VideoPlayer() {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   
   // Personal notes states
-  const [personalNotes, setPersonalNotes] = useState('');
-  const [isSavingNotes, setIsSavingNotes] = useState(false);
-  const [lastSavedNotesTime, setLastSavedNotesTime] = useState<string | null>(null);
+  const [personalNotesList, setPersonalNotesList] = useState<Array<{ id: string; timestamp: number; content: string }>>([]);
+  const [noteInputText, setNoteInputText] = useState('');
+  const [activeTab, setActiveTab] = useState<'about' | 'resources'>('about');
   
   // Homework State
   const [homeworkVideo, setHomeworkVideo] = useState<any>(null);
@@ -119,6 +119,7 @@ export default function VideoPlayer() {
   const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytPlayerRef = useRef<any>(null);
 
   // Watch progress states & refs
   const [initialSeekTime, setInitialSeekTime] = useState<number | null>(null);
@@ -139,6 +140,33 @@ export default function VideoPlayer() {
   const [editingCommentContent, setEditingCommentContent] = useState<string>('');
   const [editingCommentTimestamp, setEditingCommentTimestamp] = useState<number | null>(null);
   const progressTimelineRef = useRef<HTMLDivElement>(null);
+
+  const sessionName = useMemo(() => {
+    if (!course?.chapters) return '';
+    let foundName = '';
+    let globalSessionIndex = 0;
+    course.chapters.forEach((ch: any) => {
+      let sessionsList: Array<{ url: string; name: string }> = [];
+      if (Array.isArray(ch.sessions)) {
+        sessionsList = ch.sessions.filter((s: any) => s.url);
+      } else {
+        const legacy = [
+          { url: ch.session_url_1 || ch.session_url || "", name: ch.session_name_1 || ch.session_name || "" },
+          { url: ch.session_url_2 || "", name: ch.session_name_2 || "" },
+          { url: ch.session_url_3 || "", name: ch.session_name_3 || "" },
+          { url: ch.session_url_4 || "", name: ch.session_name_4 || "" }
+        ].filter(s => s.url);
+        sessionsList = legacy;
+      }
+      sessionsList.forEach((s) => {
+        globalSessionIndex++;
+        if (String(globalSessionIndex) === String(chapter)) {
+          foundName = s.name;
+        }
+      });
+    });
+    return foundName;
+  }, [course, chapter]);
 
   const seekTo = (seconds: number) => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -347,15 +375,82 @@ export default function VideoPlayer() {
 
   const [videoDuration, setVideoDuration] = useState<number>(600);
 
+  // Load YouTube script once
+  useEffect(() => {
+    if (!(window as any).YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+  }, []);
+
+  // Initialize and poll YouTube Iframe API Player
+  useEffect(() => {
+    let apiPollInterval: any;
+    let trackInterval: any;
+
+    const initYTPlayer = () => {
+      if (iframeRef.current && (window as any).YT && (window as any).YT.Player) {
+        try {
+          ytPlayerRef.current = new (window as any).YT.Player(iframeRef.current, {
+            events: {
+              onReady: (event: any) => {
+                const duration = event.target.getDuration();
+                if (typeof duration === 'number' && duration > 0) {
+                  setVideoDuration(duration);
+                }
+              }
+            }
+          });
+          clearInterval(apiPollInterval);
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+
+    apiPollInterval = setInterval(initYTPlayer, 1000);
+
+    trackInterval = setInterval(() => {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+        try {
+          const currentTime = ytPlayerRef.current.getCurrentTime();
+          if (typeof currentTime === 'number' && !isNaN(currentTime)) {
+            setVideoCurrentTime(currentTime);
+          }
+          const duration = ytPlayerRef.current.getDuration();
+          if (typeof duration === 'number' && !isNaN(duration) && duration > 0) {
+            setVideoDuration(duration);
+          }
+        } catch (e) {
+          // silent ignore
+        }
+      }
+    }, 500);
+
+    return () => {
+      clearInterval(apiPollInterval);
+      clearInterval(trackInterval);
+    };
+  }, [chapter, type]);
+
   // Listen to postMessage infoDelivery events emitted by the YouTube player iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
         let msgData = event.data;
         if (typeof msgData === 'string') {
-          msgData = JSON.parse(msgData);
+          try {
+            msgData = JSON.parse(msgData);
+          } catch (e) {
+            return; // Ignore non-JSON string messages
+          }
         }
         
+        if (!msgData) return;
+
+        // Handle YouTube specific event format
         if (msgData.event === 'infoDelivery' && msgData.info) {
           if (typeof msgData.info.currentTime === 'number') {
             setVideoCurrentTime(msgData.info.currentTime);
@@ -363,6 +458,21 @@ export default function VideoPlayer() {
           if (typeof msgData.info.duration === 'number') {
             setVideoDuration(msgData.info.duration);
           }
+        } else if (msgData.info) {
+          if (typeof msgData.info.currentTime === 'number') {
+            setVideoCurrentTime(msgData.info.currentTime);
+          }
+          if (typeof msgData.info.duration === 'number') {
+            setVideoDuration(msgData.info.duration);
+          }
+        }
+
+        // Handle standard key-value message signatures
+        if (typeof msgData.currentTime === 'number') {
+          setVideoCurrentTime(msgData.currentTime);
+        }
+        if (typeof msgData.duration === 'number') {
+          setVideoDuration(msgData.duration);
         }
       } catch (err) {
         // Safe to ignore non-JSON or unrelated messages
@@ -802,54 +912,77 @@ export default function VideoPlayer() {
     return () => unsubSubmissions();
   }, [user, id, chapter]);
 
-  // Load personal notes
+  // Load personal notes in real-time
   useEffect(() => {
     if (!user || !id || !chapter) return;
     
-    const fetchNotes = async () => {
-      try {
-        const noteId = `${user.uid}-${id}-${chapter}`;
-        const noteDoc = await getDoc(doc(db, 'user_notes', noteId));
-        if (noteDoc.exists()) {
-          const data = noteDoc.data();
-          setPersonalNotes(data.content || '');
-          if (data.updatedAt) {
-            setLastSavedNotesTime(new Date(data.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-          }
+    const noteId = `${user.uid}-${id}-${chapter}-${type || 'session'}`;
+    const noteRef = doc(db, 'user_notes', noteId);
+    
+    const unsub = onSnapshot(noteRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (Array.isArray(data.notes)) {
+          setPersonalNotesList(data.notes);
+        } else if (data.content) {
+          setPersonalNotesList([{ id: 'legacy', timestamp: 0, content: data.content }]);
         } else {
-          setPersonalNotes('');
-          setLastSavedNotesTime(null);
+          setPersonalNotesList([]);
         }
-      } catch (err) {
-        console.error('Failed to fetch personal notes:', err);
+      } else {
+        setPersonalNotesList([]);
       }
+    }, (err) => {
+      console.error('Failed to listen to personal notes:', err);
+    });
+    
+    return unsub;
+  }, [user, id, chapter, type]);
+
+  const handleAddNote = async (text: string) => {
+    if (!user || !id || !chapter || !text.trim()) return;
+    
+    const newNote = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Math.floor(videoCurrentTime || 0),
+      content: text.trim()
     };
     
-    fetchNotes();
-  }, [user, id, chapter]);
-
-  const handleSaveNotes = async () => {
-    if (!user || !id || !chapter) return;
+    const updatedList = [...personalNotesList, newNote].sort((a, b) => a.timestamp - b.timestamp);
+    setPersonalNotesList(updatedList);
     
-    setIsSavingNotes(true);
     try {
-      const noteId = `${user.uid}-${id}-${chapter}`;
-      const updatedAt = new Date().toISOString();
+      const noteId = `${user.uid}-${id}-${chapter}-${type || 'session'}`;
       await setDoc(doc(db, 'user_notes', noteId), {
         uid: user.uid,
         courseId: id,
         chapter: parseInt(chapter),
-        content: personalNotes,
-        updatedAt
+        type: type || 'session',
+        notes: updatedList,
+        updatedAt: new Date().toISOString()
       }, { merge: true });
-      
-      setLastSavedNotesTime(new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      toast.success('Lecture notes saved successfully!');
-    } catch (err: any) {
-      console.error('Failed to save personal notes:', err);
-      toast.error('Failed to save lecture notes.');
-    } finally {
-      setIsSavingNotes(false);
+      toast.success('Note saved at ' + formatTime(newNote.timestamp));
+    } catch (err) {
+      console.error('Failed to save note:', err);
+      toast.error('Failed to save note.');
+    }
+  };
+
+  const handleDeleteNote = async (noteIdToDelete: string) => {
+    if (!user || !id || !chapter) return;
+    
+    const updatedList = personalNotesList.filter(n => n.id !== noteIdToDelete);
+    setPersonalNotesList(updatedList);
+    
+    try {
+      const noteId = `${user.uid}-${id}-${chapter}-${type || 'session'}`;
+      await setDoc(doc(db, 'user_notes', noteId), {
+        notes: updatedList,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      toast.success('Note removed.');
+    } catch (err) {
+      console.error('Failed to delete note:', err);
     }
   };
 
@@ -992,6 +1125,11 @@ export default function VideoPlayer() {
     if (!user || !id || !chapter || !type) return;
     if (!isEnrolled && !isFirstSession) return;
     
+    if (currentQuiz && !quizPassed) {
+      toast.error('You must pass the session quiz with 70% or higher before marking this session as complete!');
+      return;
+    }
+    
     setSubmitting(true);
     try {
       const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
@@ -1075,10 +1213,7 @@ export default function VideoPlayer() {
   if (!course) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        <div className="text-center">
-          <h2 className="text-4xl font-bold mb-4">Course Not Found</h2>
-          <Link to="/courses" className="text-purple-400 hover:text-purple-300">Return to Courses</Link>
-        </div>
+        <p>{t('course.notFound') || 'Course not found'}</p>
       </div>
     );
   }
@@ -1098,712 +1233,392 @@ export default function VideoPlayer() {
   const Icon = typeIcons[type || 'session'] || Play;
 
   return (
-    <div className="min-h-screen bg-black text-white pt-32 pb-20">
+    <div className="min-h-screen text-[#f5f5f7] pt-24 pb-20 relative bg-black/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Link 
-          to={`/courses/${id}`}
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors group"
-        >
-          <ArrowLeft className={`w-5 h-5 group-hover:-translate-x-1 transition-transform ${language === 'ar' ? 'rotate-180' : ''}`} />
-          {t('course.back')}
-        </Link>
+        {/* Back to Course Button */}
+        <div className="mb-6 text-left">
+          <Link 
+            to={`/courses/${id}`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-950/80 border border-purple-800/60 hover:bg-purple-900 hover:border-purple-600 text-purple-200 hover:text-white rounded-xl text-xs sm:text-sm font-bold tracking-wide uppercase transition-all shadow-md group cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform text-purple-400" />
+            {t('course.back') || 'Back to Course'}
+          </Link>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <div className="lg:col-span-2">
-            <motion.div 
-              ref={videoContainerRef}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="relative aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-purple-900/30 shadow-2xl shadow-purple-600/10 mb-8 select-none"
-            >
-              {/* Blur-bounded content wrapper */}
-              <div className="w-full h-full transition-all duration-500">
-                
-                {/* Tiled Watermark Background */}
-                {(isEnrolled || isFirstSession) && (
-                  <div className="absolute inset-0 z-10 pointer-events-none select-none grid grid-cols-3 grid-rows-3 gap-2 p-4 overflow-hidden">
-                    {Array.from({ length: 9 }).map((_, i) => (
-                      <div key={i} className="flex items-center justify-center -rotate-12 opacity-[0.03] text-[9px] sm:text-xs font-mono text-white whitespace-nowrap">
-                        {user?.email || 'Student'} • {user?.uid?.slice(0, 8)}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Security Floating Watermark Badge when active */}
-                <AnimatePresence>
-                  {(isEnrolled || isFirstSession) ? (
-                    <motion.div
-                      animate={{ top: watermarkPos.top, left: watermarkPos.left }}
-                      transition={{ duration: 2, ease: "easeInOut" }}
-                      className="absolute z-35 pointer-events-none select-none opacity-25 text-[10px] font-mono text-white whitespace-nowrap bg-black/30 backdrop-blur-xs px-2.5 py-1 rounded-md border border-white/10 flex items-center gap-1.5 shadow"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
-                      <span>{user?.email}</span>
-                      <span className="text-gray-500 font-bold">•</span>
-                      <span>SECURED STREAM</span>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-
-                {/* YouTube Video Player or Locker info */}
-                {(!isEnrolled && !isFirstSession) ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-sm z-20 p-8 text-center">
-                    <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
-                      <Lock className="w-10 h-10 text-purple-500" />
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2">{t('course.lockedTitle')}</h2>
-                    <p className="text-gray-400 max-w-md mb-8">
-                      {t('course.lockedDesc')}
-                    </p>
-                    <Link 
-                      to={`/payment?courseId=${course.id}`}
-                      className="px-8 py-3 bg-brand-radial text-white rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-purple-600/20 flex items-center gap-2"
-                    >
-                      {t('course.unlock')}
-                      <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                    </Link>
-                  </div>
-                ) : (!prevQuizPassed && !isFirstSession) ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/95 backdrop-blur-md z-20 p-8 text-center border border-purple-900/30">
-                    <div className="w-16 h-16 bg-purple-600/15 rounded-full flex items-center justify-center mb-4 border border-purple-500/20">
-                      <Lock className="w-8 h-8 text-purple-400 animate-pulse" />
-                    </div>
-                    <h2 className="text-xl font-mono font-bold uppercase tracking-wider text-white mb-2">Lesson Gated</h2>
-                    <p className="text-xs text-gray-400 max-w-sm mb-6 leading-relaxed">
-                      To unlock Session {chapter}, you must pass the <b>Session {parseInt(chapter || "2") - 1} Quiz</b> with a score of <b>70%</b> or higher.
-                    </p>
-                    <Link 
-                      to={`/courses/${id}/quiz/${parseInt(chapter || "2") - 1}`}
-                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-mono text-[11px] font-bold tracking-wider uppercase transition-colors"
-                    >
-                      Take Session {parseInt(chapter || "2") - 1} Quiz
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="absolute inset-0 w-full h-full bg-black">
-                    {isWindowFocused ? (
-                      <iframe
-                        ref={iframeRef}
-                        src={(() => {
-                          const rawUrl = getLessonVideoUrl(course, chapter || '1', type || 'session');
-                          if (!rawUrl) return '';
-                          let cleanUrl = rawUrl;
-                          cleanUrl = cleanUrl.replace(/autoplay=true/gi, 'autoplay=false').replace(/autoplay=1/gi, 'autoplay=0');
-                          if (!cleanUrl.includes('autoplay=')) {
-                            cleanUrl += `${cleanUrl.includes('?') ? '&' : '?'}autoplay=0`;
-                          }
-                          if (!cleanUrl.includes('enablejsapi=')) {
-                            cleanUrl += `${cleanUrl.includes('?') ? '&' : '?'}enablejsapi=1`;
-                          }
-                          if (initialSeekTime && initialSeekTime > 0) {
-                            cleanUrl += `&start=${Math.floor(initialSeekTime)}`;
-                          }
-                          return cleanUrl;
-                        })()}
-                        title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        className="w-full h-full"
-                      ></iframe>
-                    ) : (
-                      <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-6 text-center select-none">
-                        <ShieldAlert className="w-10 h-10 text-purple-500 animate-pulse mb-3" />
-                        <p className="text-xs font-black text-white uppercase tracking-widest">Playback Paused</p>
-                        <p className="text-[10px] text-gray-500 mt-1 max-w-xs leading-normal">
-                          Focus on the web browser window or click below to resume video content.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Autopause Protection Overlay Modal */}
-              <AnimatePresence>
-                {!isWindowFocused && (isEnrolled || isFirstSession) && (
-                  <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md">
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="text-center p-8 bg-zinc-950 border border-purple-500/20 rounded-[2rem] max-w-sm mx-auto shadow-2xl relative"
-                    >
-                      <ShieldAlert className="w-12 h-12 text-purple-400 mx-auto mb-4 animate-bounce shrink-0" />
-                      <h3 className="text-lg font-black text-white mb-2 uppercase tracking-wider">Playback Paused</h3>
-                      <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                        Course content protection active. Video playback is auto-paused when you toggle tabs or switch applications.
-                      </p>
-                      <button
-                        onClick={() => setIsWindowFocused(true)}
-                        className="w-full py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg hover:shadow-purple-600/10 cursor-pointer"
-                      >
-                        Resume Lesson
-                      </button>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
-
-            </motion.div>
-
-
-
-
-            <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-6 md:p-8 mb-8">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-purple-900/20 mb-6">
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-black mb-1 flex items-center gap-3">
-                    <Icon className="w-8 h-8 text-purple-500 shrink-0" />
-                    {isVideoEditingCourse ? (
-                      type === 'exercise' ? (
-                        language === 'ar' ? `تمرين تطبيق الفصل ${chapter}` : language === 'fr' ? `Exercice Pratique Ch. ${chapter}` : `Chapter ${chapter} Practice Exercise`
-                      ) : (
-                        orderedLessons.find(l => l.chapter === chapter && l.type === 'session')?.title || `Session ${chapter}`
-                      )
-                    ) : (
-                      `Chapter ${chapter}: ${typeLabels[type || 'session']}`
-                    )}
-                  </h1>
-                  <p className="text-gray-400 text-sm">{course.title}</p>
-                </div>
-                
-                {/* Chapter jump controls */}
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  {prevChapterUrl && (
-                    <Link
-                      to={prevChapterUrl}
-                      className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 border border-purple-950/40 text-[11px] font-bold uppercase rounded-xl transition-all flex items-center gap-1.5 text-gray-300"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      {language === 'ar' ? `العودة للفصل ${currentChapter - 1}` : language === 'fr' ? `Retour au Ch. ${currentChapter - 1}` : `Back to Ch. ${currentChapter - 1}`}
-                    </Link>
-                  )}
-                  {nextChapterUrl && (
-                    <Link
-                      to={nextChapterUrl}
-                      className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 border border-purple-950/40 text-[11px] font-bold uppercase rounded-xl transition-all flex items-center gap-1.5 text-gray-300 ml-auto md:ml-0"
-                    >
-                      {language === 'ar' ? `الذهاب للفصل ${currentChapter + 1}` : language === 'fr' ? `Aller au Ch. ${currentChapter + 1}` : `Next Ch. ${currentChapter + 1}`}
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              {/* Lesson switcher arrows inside the chapter */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  {prevLessonUrl ? (
-                    <Link
-                      to={prevLessonUrl}
-                      className="flex items-center gap-3 p-4 bg-zinc-900 hover:bg-purple-950/20 hover:border-purple-500/30 border border-purple-900/10 rounded-2xl transition-all group text-left h-full"
-                    >
-                      <ArrowLeft className="w-5 h-5 text-purple-400 group-hover:-translate-x-1 transition-transform shrink-0" />
-                      <div>
-                        <div className="text-[9px] uppercase font-black tracking-widest text-purple-400">
-                          {language === 'ar' ? 'الدرس السابق' : language === 'fr' ? 'Leçon Précédente' : 'Previous Lesson'}
-                        </div>
-                        <div className="text-xs md:text-sm font-bold text-white mt-0.5">{getPrevLessonText()}</div>
-                      </div>
-                    </Link>
-                  ) : <div className="h-full min-h-[70px] bg-zinc-900/10 border border-dashed border-zinc-900/35 rounded-2xl flex items-center justify-center text-[10px] text-gray-600 font-bold uppercase tracking-wider">{language === 'ar' ? 'بداية الفصل' : language === 'fr' ? 'Début' : 'Start of Chapter'}</div>}
-                </div>
-
-                <div>
-                  {nextLessonUrl ? (
-                    <Link
-                      to={nextLessonUrl}
-                      className="flex items-center justify-between p-4 bg-zinc-900 hover:bg-purple-950/20 hover:border-purple-500/30 border border-purple-900/10 rounded-2xl transition-all group text-right h-full"
-                    >
-                      <div className="ml-auto pr-3">
-                        <div className="text-[9px] uppercase font-black tracking-widest text-purple-400">
-                          {language === 'ar' ? 'الدرس التالي' : language === 'fr' ? 'Leçon Suivante' : 'Next Lesson'}
-                        </div>
-                        <div className="text-xs md:text-sm font-bold text-white mt-0.5">{getNextLessonText()}</div>
-                      </div>
-                      <ArrowRight className="w-5 h-5 text-purple-400 group-hover:translate-x-1 transition-transform shrink-0" />
-                    </Link>
-                  ) : <div className="h-full min-h-[70px] bg-zinc-900/10 border border-dashed border-zinc-900/35 rounded-2xl flex items-center justify-center text-[10px] text-gray-600 font-bold uppercase tracking-wider">{language === 'ar' ? 'نهاية الفصل' : language === 'fr' ? 'Fin' : 'End of Chapter'}</div>}
-                </div>
-              </div>
-
-              {/* Mark as Complete and primary Progress controller under them */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-purple-900/10">
-                <button 
-                  onClick={handleMarkComplete}
-                  disabled={isCompleted || submitting || loading}
-                  className={`w-full sm:w-auto px-8 py-3 bg-zinc-900 hover:bg-zinc-800 border border-purple-900/30 rounded-2xl transition-all text-sm font-bold flex items-center justify-center gap-2.5 ${
-                    isCompleted 
-                      ? 'bg-green-600/15 text-green-400 border-green-500/20 shadow-lg shadow-green-500/5' 
-                      : 'text-white'
-                  } disabled:opacity-50`}
+        {/* Two-Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left: Video & Content */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="relative aspect-video bg-[#0c0c0f] border-2 border-purple-900/40 rounded-2xl overflow-hidden shadow-2xl">
+              {/* Floating watermark */}
+              {(isEnrolled || isFirstSession) && (
+                <div 
+                  className="absolute z-35 pointer-events-none select-none opacity-30 text-[10px] font-mono text-white bg-black px-2.5 py-1 rounded-md border border-white/10 whitespace-nowrap"
+                  style={{ top: watermarkPos.top, left: watermarkPos.left, transition: 'all 2s ease-in-out' }}
                 >
-                  {submitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : isCompleted ? (
-                    <CheckCircle2 className="w-4.5 h-4.5" />
-                  ) : null}
-                  {isCompleted ? t('course.completed') : t('course.markComplete')}
-                </button>
-
-                {currentQuiz && (
-                  <div className="w-full sm:w-auto shrink-0">
-                    {quizPassed ? (
-                      <div className="flex items-center gap-2 px-6 py-3 bg-green-500/15 border border-green-500/20 text-green-400 rounded-2xl text-xs font-bold font-mono">
-                        <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                        <span>QUIZ PASSED ✓</span>
-                      </div>
-                    ) : lockoutRemaining > 0 ? (
-                      <div className="flex items-center gap-2 px-6 py-3 bg-red-500/15 border border-red-500/20 text-[#ffc24b] rounded-2xl text-xs font-bold font-mono">
-                        <Clock className="w-4 h-4 text-[#ffc24b] animate-pulse shrink-0" />
-                        <span>LOCKED: {Math.floor(lockoutRemaining / 60)}m {lockoutRemaining % 60}s</span>
-                      </div>
-                    ) : (
-                      <Link
-                        to={`/courses/${id}/quiz/${chapter}`}
-                        className="w-full sm:w-auto px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl transition-all text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2"
-                      >
-                        <HelpCircle className="w-4.5 h-4.5 text-purple-200" />
-                        <span>Start Session {chapter} Quiz</span>
-                      </Link>
-                    )}
-                  </div>
-                )}
-
-                {isCompleted && (
-                  <Link
-                    to={nextLink}
-                    className="w-full sm:w-auto px-8 py-3 bg-brand-radial hover:opacity-95 text-white rounded-2xl transition-all text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl shadow-purple-600/20"
-                  >
-                    {isLastLesson ? t('dashboard.return') || 'Return to Dashboard' : t('course.nextLesson') || 'Next Lesson'}
-                    <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 mb-8">
-              <h2 className="text-xl font-bold mb-4">{t('course.about')} {typeLabels[type || 'session']}</h2>
-              <div className="text-gray-400 leading-relaxed mb-6">
-                {type === 'homework' && homework ? (
-                  <>
-                    <span className="block font-bold text-white mb-2">{t('course.task')}:</span>
-                    {homework.description}
-                    <span className="block font-bold text-white mt-4 mb-2">{t('course.expectedOutcome')}:</span>
-                    {homework.expectedOutcome}
-                  </>
-                ) : (
-                  <p>
-                    {t('course.lessonDesc')} {chapter}. 
-                    Make sure to follow along and take notes. If you have any questions, feel free to reach out to our support team.
-                  </p>
-                )}
-              </div>
-
-               {type === 'exercise' && (
-                <div className="pt-6 border-t border-purple-900/20">
-                  <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-white">
-                    <Upload className="w-5 h-5 text-purple-400" />
-                    Upload Exercise Submission
-                  </h3>
-                  <p className="text-sm text-gray-400 mb-6">
-                    Submit your completed design project draft or video reference file to your cloud workspace portfolio.
-                  </p>
-
-                  <input 
-                    type="file" 
-                    ref={bunnyFileInputRef} 
-                    className="hidden" 
-                    onChange={handleBunnyFileUpload} 
-                  />
-
-                  {exerciseUploads && exerciseUploads.length > 0 ? (
-                    <div className="space-y-3 mb-4">
-                      {exerciseUploads.map((item: any) => (
-                        <div key={item.id} className="bg-black/40 border border-purple-900/25 p-4 rounded-xl flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center shrink-0">
-                              <FileText className="w-5 h-5 text-purple-400" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-sm text-white truncate max-w-[140px]" title={item.name}>{item.name}</div>
-                              <div className="text-[10px] text-gray-500">Uploaded on {new Date(item.uploadedAt).toLocaleDateString()}</div>
-                            </div>
-                          </div>
-                          <a 
-                            href={item.downloadUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-purple-900/10 hover:bg-purple-900/20 border border-purple-900/40 text-purple-300 font-bold text-xs px-3 py-2 rounded-lg transition-colors"
-                          >
-                            View Submission
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    disabled={bunnyUploading}
-                    onClick={() => bunnyFileInputRef.current?.click()}
-                    className="w-full px-6 py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-950/20"
-                  >
-                    {bunnyUploading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Uploading {bunnyUploadProgress}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        <span>upload homework</span>
-                      </>
-                    )}
-                  </button>
+                  {user?.email} • SECURED STREAM
                 </div>
               )}
 
-              {type === 'homework' && (
-                <div className="pt-6 border-t border-purple-900/20">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <Upload className="w-5 h-5 text-purple-500" />
-                    {t('course.submitWork')}
-                  </h3>
-                  
-                  {homeworkVideo ? (
-                    <div className="bg-black/40 border border-purple-900/20 p-6 rounded-2xl flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-purple-600/20 rounded-xl flex items-center justify-center">
-                          <Play className="w-6 h-6 text-purple-500" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-sm">{homeworkVideo.fileName}</div>
-                          <div className="text-xs text-gray-500">Submitted on {new Date(homeworkVideo.createdAt).toLocaleDateString()}</div>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={deleteHomework}
-                        className="p-2 text-gray-500 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+              {(!isEnrolled && !isFirstSession) ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#09090b] p-6 text-center z-20">
+                  <Lock className="w-12 h-12 text-purple-500 mb-4" />
+                  <h3 className="text-lg font-extrabold mb-2 text-white">{t('course.lockedTitle') || 'Locked Lesson'}</h3>
+                  <p className="text-sm text-zinc-300 max-w-md mb-6 leading-relaxed">{t('course.lockedDesc')}</p>
+                  <Link to={`/payment?courseId=${course.id}`} className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold font-mono uppercase transition-all shadow-lg shadow-purple-600/30">
+                    {t('course.unlock')}
+                  </Link>
+                </div>
+              ) : (!prevQuizPassed && !isFirstSession) ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#09090b] p-6 text-center z-20">
+                  <Lock className="w-12 h-12 text-purple-400 animate-pulse mb-4" />
+                  <h3 className="text-lg font-mono font-bold uppercase tracking-wider text-white mb-2">Lesson Gated</h3>
+                  <p className="text-sm text-zinc-300 max-w-sm mb-6 leading-relaxed">To unlock Session {chapter}, pass the Session {parseInt(chapter || "2") - 1} Quiz first.</p>
+                  <Link to={`/courses/${id}/quiz/${parseInt(chapter || "2") - 1}`} className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-mono text-[11px] font-bold tracking-wider uppercase shadow-lg shadow-purple-600/30">
+                    Take Quiz {parseInt(chapter || "2") - 1}
+                  </Link>
+                </div>
+              ) : (
+                <div className="absolute inset-0 w-full h-full bg-black">
+                  <iframe
+                    ref={iframeRef}
+                    src={(() => {
+                      const rawUrl = getLessonVideoUrl(course, chapter || '1', type || 'session');
+                      if (!rawUrl) return '';
+                      let cleanUrl = rawUrl.replace(/autoplay=true/gi, 'autoplay=false').replace(/autoplay=1/gi, 'autoplay=0');
+                      if (!cleanUrl.includes('autoplay=')) cleanUrl += `${cleanUrl.includes('?') ? '&' : '?'}autoplay=0`;
+                      if (!cleanUrl.includes('enablejsapi=')) cleanUrl += `&enablejsapi=1`;
+                      if (initialSeekTime && initialSeekTime > 0) cleanUrl += `&start=${Math.floor(initialSeekTime)}`;
+                      return cleanUrl;
+                    })()}
+                    title={`Chapter ${chapter}`}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="w-full h-full"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Action panel under video */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 bg-[#0c0c0f] border border-purple-900/30 p-5 rounded-2xl text-left shadow-xl">
+              <div className="flex-grow">
+                <h2 className="text-lg sm:text-xl font-extrabold text-white leading-tight">
+                  {course.title} — Session {chapter}{sessionName ? `: ${sessionName}` : ''}
+                </h2>
+              </div>
+
+              <div className="flex flex-col gap-3 shrink-0 items-stretch sm:items-end w-full md:w-auto">
+                {/* Row 1: Quiz & Complete Buttons */}
+                <div className="flex flex-wrap items-center gap-3 w-full justify-start md:justify-end">
+                  {currentQuiz && (
+                    <Link 
+                      to={`/courses/${id}/quiz/${chapter}`}
+                      className={`px-4.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                        quizPassed 
+                          ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400' 
+                          : 'bg-purple-900 border border-purple-500/30 text-purple-200 hover:bg-purple-850'
+                      }`}
+                    >
+                      <Trophy className="w-4 h-4" />
+                      {quizPassed ? 'Quiz Passed' : 'Take Quiz'}
+                    </Link>
+                  )}
+
+                  {isCompleted ? (
+                    <span className="px-4.5 py-2.5 bg-emerald-950 border border-emerald-500/40 text-emerald-400 rounded-xl text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 select-none shadow-md">
+                      <Check className="w-4 h-4" />
+                      Completed
+                    </span>
                   ) : (
-                    <form onSubmit={handleHomeworkLinkSubmit} className="space-y-4">
-                      <div>
+                    <button 
+                      onClick={handleMarkComplete}
+                      disabled={submitting}
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider font-mono transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-purple-600/20"
+                    >
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      Mark Complete
+                    </button>
+                  )}
+                </div>
+
+                {/* Row 2: Prev & Next session buttons */}
+                <div className="flex items-center gap-3 w-full justify-start md:justify-end">
+                  {prevLessonUrl ? (
+                    <Link 
+                      to={prevLessonUrl}
+                      className="px-4.5 py-2 bg-purple-950/80 border border-purple-800/40 hover:border-purple-500 hover:bg-purple-900 text-purple-200 hover:text-white rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-purple-400" />
+                      Prev
+                    </Link>
+                  ) : (
+                    <span className="px-4.5 py-2 bg-zinc-950 border border-zinc-900 text-zinc-600 rounded-xl text-xs font-mono font-bold select-none opacity-40">
+                      Prev
+                    </span>
+                  )}
+                  {nextLessonUrl ? (
+                    <Link 
+                      to={nextLessonUrl}
+                      className="px-4.5 py-2 bg-purple-950/80 border border-purple-800/40 hover:border-purple-500 hover:bg-purple-900 text-purple-200 hover:text-white rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      Next
+                      <ChevronRight className="w-3.5 h-3.5 text-purple-400" />
+                    </Link>
+                  ) : (
+                    <span className="px-4.5 py-2 bg-zinc-950 border border-zinc-900 text-zinc-600 rounded-xl text-xs font-mono font-bold select-none opacity-40">
+                      Next
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs for About & Resources */}
+            <div className="bg-[#0c0c0f] border border-purple-900/30 rounded-2xl p-6 text-left shadow-xl">
+              <div className="flex gap-6 border-b border-purple-900/20 mb-5">
+                <button 
+                  onClick={() => setActiveTab('about')} 
+                  className={`text-xs sm:text-sm font-mono font-bold uppercase tracking-widest pb-3 cursor-pointer transition-colors ${activeTab === 'about' ? 'text-white border-b-2 border-purple-500' : 'text-zinc-500 hover:text-white'}`}
+                >
+                  About
+                </button>
+                <button 
+                  onClick={() => setActiveTab('resources')} 
+                  className={`text-xs sm:text-sm font-mono font-bold uppercase tracking-widest pb-3 flex items-center gap-1.5 cursor-pointer transition-colors ${activeTab === 'resources' ? 'text-white border-b-2 border-purple-500' : 'text-zinc-500 hover:text-white'}`}
+                >
+                  Resources 
+                  <span className="text-[10px] bg-purple-900 border border-purple-700/30 rounded-full px-2 py-0.5 font-sans font-bold text-white">2</span>
+                </button>
+              </div>
+
+              {activeTab === 'about' ? (
+                <div className="text-zinc-300 text-sm sm:text-base leading-relaxed space-y-4">
+                  {type === 'homework' && homework ? (
+                    <>
+                      <div className="p-4 bg-purple-950 border border-purple-500/20 rounded-xl space-y-1.5">
+                        <span className="block font-bold text-purple-300 font-mono text-xs uppercase tracking-wider">Assignment:</span>
+                        <p className="text-white text-sm">{homework.description}</p>
+                      </div>
+                      <div className="p-4 bg-purple-950 border border-purple-500/20 rounded-xl space-y-1.5">
+                        <span className="block font-bold text-purple-300 font-mono text-xs uppercase tracking-wider">Guidelines:</span>
+                        <p className="text-white text-sm">{homework.expectedOutcome || "Submit a video upload or a link to your timeline edit."}</p>
+                      </div>
+                      <form onSubmit={handleHomeworkLinkSubmit} className="space-y-3 pt-2">
+                        <label className="block text-xs font-mono text-zinc-400 uppercase tracking-widest font-bold">Submit homework link</label>
                         <div className="flex gap-3">
                           <input 
                             type="url" 
-                            required
-                            placeholder="e.g. https://youtube.com/watch?v=... or https://drive.google.com/..."
-                            value={homeworkLinkInput}
-                            onChange={(e) => setHomeworkLinkInput(e.target.value)}
-                            disabled={uploading}
-                            className="flex-grow bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            placeholder="https://drive.google.com/..." 
+                            value={homeworkLinkInput} 
+                            onChange={(e) => setHomeworkLinkInput(e.target.value)} 
+                            disabled={uploading} 
+                            required 
+                            className="flex-1 bg-zinc-950 border border-purple-900/40 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500" 
                           />
-                          <button
-                            type="submit"
-                            disabled={uploading || !homeworkLinkInput.trim()}
-                            className="px-6 py-3 bg-purple-650 hover:bg-purple-600 disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                          <button 
+                            type="submit" 
+                            disabled={uploading || !homeworkLinkInput.trim()} 
+                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-mono text-sm font-bold rounded-xl disabled:opacity-40 shadow-md"
                           >
-                            {uploading ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              'Submit'
-                            )}
+                            Submit
                           </button>
                         </div>
-                        <span className="block text-[10px] text-gray-500 mt-1.5">{t('course.uploadLinkHint') || 'Paste direct link to your video or image asset.'}</span>
+                      </form>
+                      {homeworkVideo && (
+                        <div className="flex items-center justify-between p-3 bg-zinc-900 border border-purple-900/30 rounded-xl mt-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            <a href={homeworkVideo.downloadUrl} target="_blank" rel="noreferrer" className="text-purple-400 hover:underline truncate max-w-[300px] font-bold">{homeworkVideo.downloadUrl}</a>
+                          </div>
+                          <button onClick={deleteHomework} className="text-zinc-500 hover:text-red-400 p-1"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      )}
+                    </>
+                  ) : type === 'exercise' ? (
+                    <>
+                      <div className="p-4 bg-purple-950 border border-purple-500/20 rounded-xl">
+                        <p className="text-sm text-white">Replicate the cut using assets below, export, and upload your export here:</p>
                       </div>
-                    </form>
+                      <div className="pt-2">
+                        <div 
+                          onClick={() => !bunnyUploading && bunnyFileInputRef.current?.click()} 
+                          className="border-2 border-dashed border-purple-500/30 hover:border-purple-500 rounded-xl p-6 text-center cursor-pointer transition-colors bg-zinc-900/60"
+                        >
+                          <input type="file" ref={bunnyFileInputRef} onChange={handleBunnyFileUpload} className="hidden" accept=".mp4,.mov,.zip,.rar" />
+                          <Upload className="w-6 h-6 text-purple-400 mx-auto mb-2" />
+                          <p className="text-sm font-mono text-zinc-100 font-bold">{bunnyUploading ? `Uploading progress: ${bunnyUploadProgress}%` : 'Upload export (.mp4, .mov, .zip)'}</p>
+                        </div>
+                        {exerciseUploads.length > 0 && (
+                          <div className="space-y-2 mt-4">
+                            <span className="block text-xs font-mono text-zinc-400 uppercase tracking-widest font-bold">Submissions:</span>
+                            {exerciseUploads.map((sub) => (
+                              <div key={sub.id} className="flex items-center justify-between p-3 bg-zinc-900 border border-purple-900/20 rounded-xl text-sm font-semibold">
+                                <span className="text-zinc-100 truncate pr-3">{sub.name}</span>
+                                <span className="text-xs text-zinc-400 font-mono">{sub.uploadedAt ? new Date(sub.uploadedAt).toLocaleDateString() : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-zinc-200">{t('course.lessonDesc')} {chapter}. Make sure to watch carefully, take notes on timings, and check the resources.</p>
                   )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {[`Chapter_${chapter}_Notes.pdf`, 'Exercise_Assets.zip'].map((fn, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-zinc-900 border border-purple-900/30 rounded-2xl text-left shadow-md">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-purple-400" />
+                        <div>
+                          <div className="font-extrabold text-sm text-white">{fn}</div>
+                          <div className="text-xs text-zinc-400 font-mono font-semibold">{idx === 0 ? '1.2 MB' : '48 MB'}</div>
+                        </div>
+                      </div>
+                      <button onClick={() => triggerMockDownload(fn)} className="text-white font-mono text-xs font-bold border-2 border-purple-500 hover:bg-purple-600 rounded-xl px-4 py-2 bg-zinc-950 transition-colors cursor-pointer shadow-sm">Download</button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Interactive Lecture Notebook */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 mb-8 shadow-xl relative overflow-hidden"
-            >
-              {/* Soft Ambient Glow background */}
-              <div className="absolute top-0 right-0 w-36 h-36 bg-purple-600/5 rounded-full blur-2xl pointer-events-none" />
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-xl font-bold flex items-center gap-2.5 text-white">
-                    <FileText className="w-5 h-5 text-purple-400" />
-                    <span>Personal Lecture Notes</span>
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-1">Draft your custom lesson insights, markers, and code references privately.</p>
-                </div>
-                {lastSavedNotesTime && (
-                  <span className="text-[10px] text-purple-300 bg-purple-950/45 px-3 py-1 rounded-full border border-purple-800/20 font-mono self-start sm:self-center">
-                    Saved at {lastSavedNotesTime}
-                  </span>
-                )}
-              </div>
-
-              <textarea
-                value={personalNotes}
-                onChange={(e) => setPersonalNotes(e.target.value)}
-                placeholder="Take notes while watching the lesson... E.g., Key shortcut combinations, composition tips, or specific timestamps."
-                rows={5}
-                className="w-full bg-zinc-900/40 border border-purple-900/10 focus:border-purple-500/30 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-purple-500/20 placeholder-gray-500 transition-all resize-y"
-              />
-
-              <div className="flex justify-end mt-4">
-                <button
-                  type="button"
-                  onClick={handleSaveNotes}
-                  disabled={isSavingNotes}
-                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-950/20"
-                >
-                  {isSavingNotes ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving Notes...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Save Lecture Notes</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Chapter Comments Discussion Section */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 shadow-xl"
-            >
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-500" />
-                {t('comments.discussion') || 'Chapter Discussion'} ({comments.length})
-              </h2>
-
-               {/* Comment submission form */}
+            {/* Youtube Comments */}
+            <div className="bg-[#0c0c0f] border border-purple-900/30 rounded-2xl p-6 text-left shadow-xl">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-300 font-mono mb-5">Comments ({comments.length})</h3>
               {user ? (
-                <form onSubmit={handleAddComment} className="mb-8">
-                  <div className="relative">
-                    <textarea
-                      value={commentInput}
-                      onChange={(e) => setCommentInput(e.target.value)}
-                      placeholder={t('comments.placeholder') || "Share your thoughts about this chapter..."}
-                      disabled={submittingComment}
-                      rows={3}
-                      className="w-full bg-zinc-900 border border-purple-900/20 rounded-2xl p-4 pr-12 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors resize-none disabled:opacity-50"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!commentInput.trim() || submittingComment}
-                      className="absolute bottom-4 right-4 p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all disabled:opacity-50 disabled:hover:bg-purple-600 flex items-center justify-center"
-                    >
-                      {submittingComment ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Send className="w-4 h-4" />
-                      )}
-                    </button>
+                <form onSubmit={handleAddComment} className="flex gap-4 mb-6 items-start">
+                  <div className="w-9 h-9 rounded-full bg-purple-900 border border-purple-500/20 flex items-center justify-center text-purple-200 font-bold shrink-0 text-sm">
+                    {user.displayName?.charAt(0).toUpperCase() || 'S'}
                   </div>
-
-
+                  <div className="flex-grow">
+                    <textarea 
+                      placeholder="Add a public comment..." 
+                      value={commentInput} 
+                      onChange={(e) => setCommentInput(e.target.value)} 
+                      disabled={submittingComment} 
+                      rows={2} 
+                      className="w-full bg-zinc-950 border border-purple-900/30 text-sm text-zinc-100 placeholder-zinc-500 rounded-xl p-3 focus:border-purple-500 focus:outline-none resize-none focus:ring-1 focus:ring-purple-500" 
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button type="button" onClick={() => setCommentInput('')} className="text-xs font-mono font-bold text-zinc-400 hover:text-white px-3 py-1.5">Cancel</button>
+                      <button type="submit" disabled={!commentInput.trim() || submittingComment} className="text-xs font-mono font-bold uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-40 px-4 py-2 rounded-xl shadow-md transition-colors">Comment</button>
+                    </div>
+                  </div>
                 </form>
               ) : (
-                <div className="p-4 bg-purple-900/10 border border-purple-900/20 rounded-2xl text-center text-sm text-purple-300 mb-8">
-                  Please log in to leave a comment.
-                </div>
+                <div className="p-4 bg-purple-950 border border-purple-900/30 rounded-xl text-center text-xs font-bold text-purple-300 mb-5">Please log in to leave a comment.</div>
               )}
-
-              {/* Comments list */}
-              <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                {comments.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 text-sm">
-                    {t('comments.empty') || "No comments yet. Start the conversation!"}
-                  </div>
-                ) : (
-                  comments.map((comment) => {
+              {comments.length === 0 ? (
+                <div className="text-xs text-zinc-500 font-mono py-3">No comments yet.</div>
+              ) : (
+                <div className="space-y-5 max-h-[350px] overflow-y-auto pr-1">
+                  {comments.map((comment) => {
                     const isAuthor = user && user.uid === comment.uid;
                     const nameInitial = comment.userName ? comment.userName.charAt(0).toUpperCase() : 'S';
-
                     return (
-                      <div key={comment.id} className="flex gap-4 p-4 bg-zinc-900/30 border border-purple-900/10 rounded-2xl relative group">
+                      <div key={comment.id} className="flex gap-3 text-sm relative group">
                         {comment.userAvatar ? (
-                          <img 
-                            src={comment.userAvatar} 
-                            alt={comment.userName} 
-                            className="w-10 h-10 rounded-full object-cover shrink-0"
-                            referrerPolicy="no-referrer"
-                          />
+                          <img src={comment.userAvatar} alt="" className="w-9 h-9 rounded-full object-cover border border-purple-500/10" referrerPolicy="no-referrer" />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-purple-900/40 border border-purple-500/20 flex items-center justify-center text-purple-300 font-bold shrink-0">
-                            {nameInitial}
-                          </div>
+                          <div className="w-9 h-9 rounded-full bg-purple-900 border border-purple-500/20 flex items-center justify-center text-purple-200 font-bold text-xs shrink-0">{nameInitial}</div>
                         )}
                         <div className="flex-grow text-left">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm text-gray-200">{comment.userName}</span>
-
-                            </div>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                              {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}
-                            </span>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-extrabold text-zinc-200 text-sm">{comment.userName}</span>
+                            <span className="text-[10px] text-zinc-400 font-mono">{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString() : ''}</span>
                           </div>
-
                           {editingCommentId === comment.id ? (
-                            <div className="space-y-3 mt-2">
-                              <textarea
-                                value={editingCommentContent}
-                                onChange={(e) => setEditingCommentContent(e.target.value)}
-                                className="w-full px-4 py-3 bg-zinc-950/80 border border-purple-900/40 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-all custom-scrollbar resize-none h-24"
-                                placeholder="Edit your comment..."
-                              />
-                              
-                              <div className="flex items-center justify-end gap-2 mt-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingCommentId(null)}
-                                  className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateComment(comment.id)}
-                                  className="px-3 py-1 bg-purple-650 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Save className="w-3.5 h-3.5" />
-                                  Save
-                                </button>
+                            <div className="space-y-2 mt-2">
+                              <textarea value={editingCommentContent} onChange={(e) => setEditingCommentContent(e.target.value)} className="w-full px-3 py-2 bg-zinc-950 text-sm text-white border border-purple-500/40 rounded-xl focus:outline-none h-16 resize-none focus:ring-1 focus:ring-purple-500" />
+                              <div className="flex justify-end gap-1.5">
+                                <button type="button" onClick={() => setEditingCommentId(null)} className="px-3 py-1.5 text-xs text-zinc-300 bg-zinc-900 rounded-lg">Cancel</button>
+                                <button type="button" onClick={() => handleUpdateComment(comment.id)} className="px-3 py-1.5 text-xs text-white bg-purple-600 rounded-lg">Save</button>
                               </div>
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                            <p className="text-zinc-300 leading-relaxed text-sm pr-10 whitespace-pre-wrap">{comment.content}</p>
                           )}
                         </div>
-
                         {isAuthor && editingCommentId !== comment.id && (
-                          <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleStartEditComment(comment)}
-                              className="p-1.5 text-gray-500 hover:text-purple-400 hover:bg-zinc-900/60 rounded-lg transition-all cursor-pointer"
-                              title="Edit comment"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteComment(comment.id)}
-                              className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-zinc-900/60 rounded-lg transition-all cursor-pointer"
-                              title="Delete comment"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                          <div className="absolute right-0 top-0 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleStartEditComment(comment)} className="text-zinc-500 hover:text-purple-400 p-1"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteComment(comment.id)} className="text-zinc-500 hover:text-red-400 p-1"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         )}
                       </div>
                     );
-                  })
-                )}
-              </div>
-            </motion.div>
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-8 relative">
-            <style>{`
-              @keyframes dash-animation {
-                to {
-                  stroke-dashoffset: -40;
-                }
-              }
-              .animate-contour-dash {
-                stroke-dasharray: 10 6;
-                animation: dash-animation 1.5s linear infinite;
-              }
-            `}</style>
-
-
-
-            <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8">
-              <h3 className="text-xl font-bold mb-6">{t('course.resources')}</h3>
-              <div className="space-y-4">
-                <button
-                  onClick={() => triggerMockDownload(`Chapter_${chapter}_Notes.pdf`)}
-                  className="w-full flex items-center justify-between p-4 bg-zinc-900/40 hover:bg-zinc-900/80 border border-purple-900/10 hover:border-purple-500/30 rounded-2xl transition-all duration-300 group text-left"
-                >
-                  <span className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-purple-500 shrink-0" />
-                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Chapter {chapter} Notes.pdf</span>
-                  </span>
-                  <CheckCircle2 className="w-4 h-4 text-gray-500 group-hover:text-purple-400 transition-colors" />
-                </button>
-                <button
-                  onClick={() => triggerMockDownload('Exercise_Assets.zip')}
-                  className="w-full flex items-center justify-between p-4 bg-zinc-900/40 hover:bg-zinc-900/80 border border-purple-900/10 hover:border-purple-500/30 rounded-2xl transition-all duration-300 group text-left"
-                >
-                  <span className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-purple-500 shrink-0" />
-                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Exercise Assets.zip</span>
-                  </span>
-                  <CheckCircle2 className="w-4 h-4 text-gray-500 group-hover:text-purple-400 transition-colors" />
-                </button>
+          {/* Right Column: Private Notes */}
+          <div className="lg:col-span-4 h-full">
+            <div className="notes-panel bg-[#0c0c0f] border border-purple-900/30 rounded-2xl flex flex-col h-[520px] sticky top-24 text-left shadow-2xl">
+              <div className="flex items-center gap-2.5 p-4 border-b border-purple-900/20">
+                <Clock className="w-4 h-4 text-purple-400 animate-pulse" />
+                <span className="font-extrabold text-xs uppercase tracking-widest text-white font-mono">My Notes</span>
+                <span className="text-xs text-zinc-400 font-mono italic ml-auto font-bold">private to you</span>
               </div>
-            </div>
 
-            <div className="bg-brand-radial p-8 rounded-3xl border border-purple-500/30 shadow-lg shadow-purple-600/20">
-              <h3 className="text-xl font-bold mb-4">{t('course.needHelp')}</h3>
-              <p className="text-purple-100/70 text-sm mb-6 leading-relaxed">
-                {t('course.helpDesc')}
-              </p>
-              <RainbowButton 
-                to="/support"
-                className="w-full text-white rounded-xl text-sm justify-center"
-              >
-                <span className="font-bold py-1 flex justify-center items-center">
-                  {t('course.contactSupport')}
-                </span>
-              </RainbowButton>
+              {/* Notes list */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4" id="notesList">
+                {personalNotesList.length === 0 ? (
+                  <div className="text-center py-24 text-zinc-600 text-xs font-mono font-bold">No notes. Add thoughts below!</div>
+                ) : (
+                  personalNotesList.map((note) => (
+                    <div key={note.id} className="flex gap-2.5 group relative text-left">
+                      <button onClick={() => seekTo(note.timestamp)} className="shrink-0 font-mono text-xs text-purple-300 bg-purple-900/40 hover:bg-purple-900 border border-purple-500/20 rounded-lg px-2.5 py-1.5 font-bold transition-all h-fit">
+                        {formatTime(note.timestamp)}
+                      </button>
+                      <div className="text-sm text-zinc-200 break-words flex-1 pr-8 leading-relaxed font-medium">{note.content}</div>
+                      <button onClick={() => handleDeleteNote(note.id)} className="absolute right-0 top-1 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Composer */}
+              <div className="border-t border-purple-900/20 p-4 bg-zinc-950">
+                <div className="flex gap-2 mb-2">
+                  <input 
+                    type="text" 
+                    placeholder="Take a note at this timestamp..." 
+                    value={noteInputText} 
+                    onChange={(e) => setNoteInputText(e.target.value)} 
+                    onKeyDown={(e) => { if (e.key === 'Enter') { handleAddNote(noteInputText); setNoteInputText(''); } }} 
+                    className="flex-1 bg-zinc-900 border border-purple-900/35 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 placeholder-zinc-500 font-sans focus:ring-1 focus:ring-purple-500 shadow-inner" 
+                  />
+                  <button onClick={() => { handleAddNote(noteInputText); setNoteInputText(''); }} className="w-10 h-10 rounded-xl bg-purple-600 hover:bg-purple-500 flex items-center justify-center shrink-0 transition-transform hover:scale-105 shadow-md"><Send className="w-4 h-4 text-white" /></button>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                  <span>Will attach current timestamp — {formatTime(videoCurrentTime)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Animated Custom Success Toast */}
+      {/* Success alert */}
       <AnimatePresence>
         {showSuccessAlert && (
-          <motion.div
-            initial={{ opacity: 0, y: -25, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed top-24 right-4 sm:right-8 z-50 max-w-sm w-full bg-zinc-950/95 backdrop-blur-md border-2 border-purple-500/30 rounded-2xl p-5 shadow-[0_20px_50px_rgba(147,51,234,0.3)] flex items-start gap-4 animate-in fade-in zoom-in-95"
-          >
-            <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-24 right-4 sm:right-8 z-50 max-w-sm w-full bg-[#0c0c0f] border border-purple-500/50 rounded-2xl p-5 shadow-2xl flex items-start gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
             <div className="flex-grow text-left">
               <div className="font-extrabold text-sm text-white">Lesson Completed!</div>
-              <div className="text-xs text-gray-400 mt-1">Your chapter progress has been successfully updated. Continue on to build your legendary skill portfolio!</div>
+              <div className="text-xs text-zinc-300 mt-1">Your progress has been successfully updated. Keep up the amazing work!</div>
             </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="text-gray-500 hover:text-white transition-colors text-[10px] font-bold p-1 shrink-0"
-            >
-              ✕
-            </button>
+            <button onClick={() => setShowSuccessAlert(false)} className="text-zinc-500 hover:text-white text-xs p-1">✕</button>
           </motion.div>
         )}
       </AnimatePresence>
-
-
     </div>
   );
 }

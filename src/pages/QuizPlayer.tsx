@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db, auth, getDocs, collection, query, where, addDoc, ensureDefaultQuizzesSeeded } from '../firebase';
-import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, RotateCcw, Award, Clock, Loader2 } from 'lucide-react';
+import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, ArrowRight, RotateCcw, Award, Clock, Loader2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 /* ================= 10-QUESTION GROUND TRUTH DEFAULT QUIZ FOR SESSION 1 ================= */
@@ -134,6 +134,11 @@ export default function QuizPlayer() {
 
   // Student Responses
   const [responses, setResponses] = useState<{ [qid: string]: any }>({});
+  const [tempResponses, setTempResponses] = useState<{ [qid: string]: any }>({});
+  
+  // Timed MCQ prep countdown states
+  const [revealedTimedQuestions, setRevealedTimedQuestions] = useState<{ [qid: string]: boolean }>({});
+  const [prepCountdownVal, setPrepCountdownVal] = useState<{ [qid: string]: number }>({});
   
   // Specific question type support states
   const [sliderVal, setSliderVal] = useState(50);
@@ -143,6 +148,9 @@ export default function QuizPlayer() {
   
   // Timed MCQ countdown timer
   const [timedCount, setTimedCount] = useState<number | null>(null);
+
+  // Timed MCQ prep countdown ref
+  const prepTimerRef = useRef<any>(null);
 
   useEffect(() => {
     fetchQuizAndAttempts();
@@ -174,6 +182,13 @@ export default function QuizPlayer() {
         return;
       }
     }
+
+    // Delay start until preparation countdown is done and question is revealed
+    if (!revealedTimedQuestions[timedQuestion.id]) {
+      const limit = timedQuestion.timeLimitSec || 10;
+      setTimedCount(limit);
+      return;
+    }
     
     const limit = timedQuestion.timeLimitSec || 10;
     setTimedCount(limit);
@@ -184,6 +199,7 @@ export default function QuizPlayer() {
           clearInterval(interval);
           // Lock auto selection with EXPIRED
           handleAnswerSelect(timedQuestion.id, "EXPIRED");
+          setResponses(r => ({ ...r, [timedQuestion.id]: "EXPIRED" }));
           return 0;
         }
         return prev !== null ? prev - 1 : null;
@@ -191,7 +207,56 @@ export default function QuizPlayer() {
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [quiz, quizSubmitted, responses]);
+  }, [quiz, quizSubmitted, responses, revealedTimedQuestions]);
+
+  // 5-second preparation countdown effect for timed_mcq
+  useEffect(() => {
+    if (!quiz || quizSubmitted) return;
+
+    const timedQuestion = quiz.questions.find((q: any) => q.type === "timed_mcq");
+    if (!timedQuestion) return;
+
+    // Check if unlocked (first question, or previous question answered)
+    const timedIdx = quiz.questions.findIndex((q: any) => q.id === timedQuestion.id);
+    let isUnlocked = true;
+    if (timedIdx > 0) {
+      const prevQuestion = quiz.questions[timedIdx - 1];
+      isUnlocked = responses[prevQuestion.id] !== undefined;
+    }
+
+    if (isUnlocked && !revealedTimedQuestions[timedQuestion.id]) {
+      if (!prepTimerRef.current) {
+        setPrepCountdownVal(prev => ({ ...prev, [timedQuestion.id]: 5 }));
+        
+        let count = 5;
+        prepTimerRef.current = setInterval(() => {
+          count--;
+          if (count <= 0) {
+            if (prepTimerRef.current) {
+              clearInterval(prepTimerRef.current);
+              prepTimerRef.current = null;
+            }
+            setRevealedTimedQuestions(prev => ({ ...prev, [timedQuestion.id]: true }));
+            setPrepCountdownVal(prev => ({ ...prev, [timedQuestion.id]: 0 }));
+          } else {
+            setPrepCountdownVal(prev => ({ ...prev, [timedQuestion.id]: count }));
+          }
+        }, 1000);
+      }
+    } else {
+      if (prepTimerRef.current) {
+        clearInterval(prepTimerRef.current);
+        prepTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (prepTimerRef.current) {
+        clearInterval(prepTimerRef.current);
+        prepTimerRef.current = null;
+      }
+    };
+  }, [quiz, quizSubmitted, responses, revealedTimedQuestions]);
 
   // Initialize shuffled sequences and matches maps
   useEffect(() => {
@@ -205,13 +270,17 @@ export default function QuizPlayer() {
         if (!responses[q.id]) {
           const shuffled = [...q.sequenceItems].sort(() => Math.random() - 0.5);
           seqs[q.id] = shuffled;
-          handleAnswerSelect(q.id, shuffled);
+          setTempResponses(prev => ({ ...prev, [q.id]: shuffled }));
         } else {
           seqs[q.id] = responses[q.id];
+          setTempResponses(prev => ({ ...prev, [q.id]: responses[q.id] }));
         }
       }
       if (q.type === "match") {
         maps[q.id] = responses[q.id] || {};
+        if (responses[q.id]) {
+          setTempResponses(prev => ({ ...prev, [q.id]: responses[q.id] }));
+        }
       }
     });
     
@@ -297,7 +366,27 @@ export default function QuizPlayer() {
 
   const handleAnswerSelect = (qid: string, val: any) => {
     if (quizSubmitted) return;
+    setTempResponses(prev => ({ ...prev, [qid]: val }));
+  };
+
+  const handleConfirmAnswer = (qid: string) => {
+    if (quizSubmitted || !quiz) return;
+    const val = tempResponses[qid];
+    if (val === undefined) return;
+
     setResponses(prev => ({ ...prev, [qid]: val }));
+
+    // Find the next question and scroll to it
+    const currentIdx = quiz.questions.findIndex((q: any) => q.id === qid);
+    if (currentIdx !== -1 && currentIdx < quiz.questions.length - 1) {
+      const nextQ = quiz.questions[currentIdx + 1];
+      setTimeout(() => {
+        const nextCard = document.getElementById(`q-card-${nextQ.id}`);
+        if (nextCard) {
+          nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+    }
   };
 
   const handleSequenceDragStart = (e: React.DragEvent, qid: string, index: number) => {
@@ -431,7 +520,14 @@ export default function QuizPlayer() {
   };
 
   const handleRetake = () => {
+    if (prepTimerRef.current) {
+      clearInterval(prepTimerRef.current);
+      prepTimerRef.current = null;
+    }
     setResponses({});
+    setTempResponses({});
+    setRevealedTimedQuestions({});
+    setPrepCountdownVal({});
     setQuizSubmitted(false);
     setLastAttemptResult(null);
     setSliderVal(50);
@@ -719,50 +815,118 @@ export default function QuizPlayer() {
 
                   {/* Card Content */}
                   <div className="p-6 sm:p-8 space-y-6">
-                    <p className="text-base sm:text-lg font-bold leading-relaxed text-zinc-100">{q.prompt}</p>
+                    {(() => {
+                      let isTimerStarted = true;
+                      const timedIdx = quiz.questions.findIndex((tQ: any) => tQ.id === q.id);
+                      if (q.type === "timed_mcq" && timedIdx > 0) {
+                        const prevQuestion = quiz.questions[timedIdx - 1];
+                        isTimerStarted = responses[prevQuestion.id] !== undefined;
+                      }
 
-                    {/* ================= TYPE 1: MCQ & TIMED MCQ ================= */}
-                    {(q.type === "mcq" || q.type === "timed_mcq") && (
-                      <div className="grid grid-cols-1 gap-3">
-                        {q.options?.map((o: any, idx: number) => {
-                          const letter = String.fromCharCode(65 + idx);
-                          const isSelected = responses[q.id] === o.id;
-                          return (
-                            <button
-                              key={o.id}
-                              disabled={responses[q.id] === "EXPIRED"}
-                              onClick={() => handleAnswerSelect(q.id, o.id)}
-                              className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
-                                isSelected 
-                                  ? "bg-purple-500/5 border-purple-500 shadow-lg shadow-purple-500/5 text-white" 
-                                  : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-300 hover:text-white"
-                              } disabled:opacity-50`}
-                            >
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
-                                isSelected 
-                                  ? "bg-purple-600 text-white border-purple-500" 
-                                  : "bg-zinc-950 text-zinc-400 border-purple-900/20"
-                              }`}>
-                                {letter}
+                      if (q.type === "timed_mcq" && !isTimerStarted) {
+                        return (
+                          <div className="flex flex-col items-center justify-center py-6 text-center bg-zinc-950/40 border border-dashed border-purple-900/20 rounded-2xl p-6">
+                            <Lock className="w-8 h-8 text-purple-400 mb-3 animate-pulse" />
+                            <h4 className="text-sm font-mono font-bold text-white uppercase tracking-wider mb-1">Timed Sprint Locked</h4>
+                            <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+                              Finish answering Question {timedIdx} to trigger the countdown timer and unlock this high-speed challenge!
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      if (q.type === "timed_mcq" && isTimerStarted && !revealedTimedQuestions[q.id]) {
+                        const countVal = prepCountdownVal[q.id] !== undefined ? prepCountdownVal[q.id] : 5;
+                        const radius = 36;
+                        const strokeWidth = 5;
+                        const circumference = 2 * Math.PI * radius;
+                        const strokeDashoffset = circumference * (1 - countVal / 5);
+
+                        return (
+                          <div className="flex flex-col items-center justify-center py-10 text-center bg-[#0d0d12]/30 border border-purple-900/10 rounded-2xl p-6">
+                            <div className="relative w-24 h-24 flex items-center justify-center">
+                              <svg className="absolute w-full h-full -rotate-90" viewBox="0 0 80 80">
+                                <circle
+                                  cx="40"
+                                  cy="40"
+                                  r={radius}
+                                  className="stroke-purple-950/50 fill-transparent"
+                                  strokeWidth={strokeWidth}
+                                />
+                                <circle
+                                  cx="40"
+                                  cy="40"
+                                  r={radius}
+                                  className="stroke-purple-500 fill-transparent transition-all duration-1000 ease-linear"
+                                  strokeWidth={strokeWidth}
+                                  strokeDasharray={circumference}
+                                  strokeDashoffset={strokeDashoffset}
+                                />
+                              </svg>
+                              <div className="text-3xl font-mono font-black text-white z-10 animate-pulse">
+                                {countVal}
                               </div>
-                              <span className="text-sm font-semibold">{o.text}</span>
-                            </button>
-                          );
-                        })}
-                        {responses[q.id] === "EXPIRED" && (
-                          <p className="text-xs text-[#ff5c5c] font-mono italic">Time limit expired for this sprint! Locked in with no choice.</p>
-                        )}
-                      </div>
-                    )}
+                            </div>
+                            <p className="text-sm font-mono tracking-widest text-purple-400 uppercase font-black mt-4 animate-pulse">
+                              Get Ready to Answer
+                            </p>
+                            <p className="text-[11px] text-zinc-500 mt-1 max-w-xs">
+                              The timed sprint question will reveal in {countVal} seconds!
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <p className="text-base sm:text-lg font-bold leading-relaxed text-zinc-100">{q.prompt}</p>
+
+                          {/* ================= TYPE 1: MCQ & TIMED MCQ ================= */}
+                          {(q.type === "mcq" || q.type === "timed_mcq") && (
+                            <div className="grid grid-cols-1 gap-3">
+                              {q.options?.map((o: any, idx: number) => {
+                                const letter = String.fromCharCode(65 + idx);
+                                const isSelected = tempResponses[q.id] === o.id;
+                                return (
+                                  <button
+                                    key={o.id}
+                                    disabled={isAnswered || responses[q.id] === "EXPIRED"}
+                                    onClick={() => handleAnswerSelect(q.id, o.id)}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                                      isSelected 
+                                        ? "bg-purple-500/5 border-purple-500 shadow-lg shadow-purple-500/5 text-white" 
+                                        : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-300 hover:text-white"
+                                    } disabled:opacity-50`}
+                                  >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
+                                      isSelected 
+                                        ? "bg-purple-600 text-white border-purple-500" 
+                                        : "bg-zinc-950 text-zinc-400 border-purple-900/20"
+                                    }`}>
+                                      {letter}
+                                    </div>
+                                    <span className="text-sm font-semibold">{o.text}</span>
+                                  </button>
+                                );
+                              })}
+                              {responses[q.id] === "EXPIRED" && (
+                                <p className="text-xs text-[#ff5c5c] font-mono italic">Time limit expired for this sprint! Locked in with no choice.</p>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {/* ================= TYPE 2: DIRECT ANSWER ================= */}
                     {q.type === "direct" && (
                       <div className="space-y-2">
                         <input
                           type="text"
-                          className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm tracking-wide text-white outline-none focus:border-purple-500 placeholder-zinc-600"
+                          disabled={isAnswered}
+                          className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm tracking-wide text-white outline-none focus:border-purple-500 placeholder-zinc-600 disabled:opacity-50"
                           placeholder="Type keyboard shortcuts or terms precisely..."
-                          value={responses[q.id] || ""}
+                          value={tempResponses[q.id] || ""}
                           onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
                         />
                         <p className="text-[10px] text-zinc-500 font-mono">Case-insensitive. For complex keys, use standard notation (e.g. Shift+Delete).</p>
@@ -777,22 +941,24 @@ export default function QuizPlayer() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <button
+                            disabled={isAnswered}
                             onClick={() => handleAnswerSelect(q.id, true)}
                             className={`py-3.5 rounded-xl border text-xs sm:text-sm font-mono font-bold tracking-wider transition-all cursor-pointer ${
-                              responses[q.id] === true
+                              tempResponses[q.id] === true
                                 ? "bg-[#4ade80]/10 border-[#4ade80] text-[#4ade80]"
                                 : "bg-zinc-950/60 border-purple-900/20 hover:border-purple-900/30 text-zinc-400"
-                            }`}
+                            } disabled:opacity-50`}
                           >
                             TRUE CUT
                           </button>
                           <button
+                            disabled={isAnswered}
                             onClick={() => handleAnswerSelect(q.id, false)}
                             className={`py-3.5 rounded-xl border text-xs sm:text-sm font-mono font-bold tracking-wider transition-all cursor-pointer ${
-                              responses[q.id] === false
+                              tempResponses[q.id] === false
                                 ? "bg-[#ff5c5c]/10 border-[#ff5c5c] text-[#ff5c5c]"
                                 : "bg-zinc-950/60 border-purple-900/20 hover:border-purple-900/30 text-zinc-400"
-                            }`}
+                            } disabled:opacity-50`}
                           >
                             FALSE CUT
                           </button>
@@ -807,9 +973,10 @@ export default function QuizPlayer() {
                           {q.gapTemplate.split("___")[0]}
                           <input
                             type="text"
-                            className="inline-block bg-zinc-950/60 border-b-2 border-purple-500 rounded-t px-3 py-1 font-mono text-purple-300 outline-none focus:bg-zinc-900 w-36 text-center text-sm"
+                            disabled={isAnswered}
+                            className="inline-block bg-zinc-950/60 border-b-2 border-purple-500 rounded-t px-3 py-1 font-mono text-purple-300 outline-none focus:bg-zinc-900 w-36 text-center text-sm disabled:opacity-50"
                             placeholder="_____"
-                            value={responses[q.id] || ""}
+                            value={tempResponses[q.id] || ""}
                             onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
                           />
                           {q.gapTemplate.split("___")[1]}
@@ -832,16 +999,17 @@ export default function QuizPlayer() {
                         <div className="grid grid-cols-1 gap-3">
                           {q.options?.map((o: any, idx: number) => {
                             const letter = String.fromCharCode(65 + idx);
-                            const isSelected = responses[q.id] === o.id;
+                            const isSelected = tempResponses[q.id] === o.id;
                             return (
                               <button
                                 key={o.id}
+                                disabled={isAnswered}
                                 onClick={() => handleAnswerSelect(q.id, o.id)}
                                 className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
                                   isSelected 
                                     ? "bg-purple-500/5 border-purple-500 text-white" 
                                     : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-300"
-                                }`}
+                                } disabled:opacity-50`}
                               >
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
                                   isSelected 
@@ -885,9 +1053,10 @@ export default function QuizPlayer() {
                           <input
                             type="number"
                             min="0"
-                            className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm text-white outline-none focus:border-purple-500"
+                            disabled={isAnswered}
+                            className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm text-white outline-none focus:border-purple-500 disabled:opacity-50"
                             placeholder="Enter the timestamp second (e.g. 12)..."
-                            value={responses[q.id] || ""}
+                            value={tempResponses[q.id] || ""}
                             onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
                           />
                           <p className="text-[10px] text-zinc-500 font-mono">Watch carefully and input the approximate elapsed second mark.</p>
@@ -932,28 +1101,31 @@ export default function QuizPlayer() {
                             min="0"
                             max="100"
                             value={sliderVal}
+                            disabled={isAnswered}
                             onChange={(e) => setSliderVal(parseInt(e.target.value, 10))}
-                            className="w-full accent-purple-500 h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
+                            className="w-full accent-purple-500 h-1.5 bg-zinc-800 rounded-lg cursor-pointer disabled:opacity-50"
                           />
                           
                           <div className="grid grid-cols-2 gap-4">
                             <button
+                              disabled={isAnswered}
                               onClick={() => handleAnswerSelect(q.id, "A")}
                               className={`py-3 rounded-xl border text-xs sm:text-sm font-mono font-bold transition-all cursor-pointer ${
-                                responses[q.id] === "A"
+                                tempResponses[q.id] === "A"
                                   ? "bg-purple-500/10 border-purple-500 text-purple-300"
                                   : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-400"
-                              }`}
+                              } disabled:opacity-50`}
                             >
                               SIDE A IS TEAL/ORANGE
                             </button>
                             <button
+                              disabled={isAnswered}
                               onClick={() => handleAnswerSelect(q.id, "B")}
                               className={`py-3 rounded-xl border text-xs sm:text-sm font-mono font-bold transition-all cursor-pointer ${
-                                responses[q.id] === "B"
+                                tempResponses[q.id] === "B"
                                   ? "bg-purple-500/10 border-purple-500 text-purple-300"
                                   : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-400"
-                              }`}
+                              } disabled:opacity-50`}
                             >
                               SIDE B IS TEAL/ORANGE
                             </button>
@@ -964,14 +1136,16 @@ export default function QuizPlayer() {
 
                     {/* ================= TYPE 8: DRAG TO REORDER ================= */}
                     {q.type === "sequence" && (
-                      <div className="space-y-3" onDragOver={handleSequenceDragOver}>
+                      <div className="space-y-3" onDragOver={isAnswered ? undefined : handleSequenceDragOver}>
                         {(shuffledSequences[q.id] || []).map((item, idx) => (
                           <div
                             key={idx}
-                            draggable
+                            draggable={!isAnswered}
                             onDragStart={(e) => handleSequenceDragStart(e, q.id, idx)}
                             onDrop={(e) => handleSequenceDrop(e, q.id, idx)}
-                            className="flex items-center gap-4 bg-zinc-950/60 border border-purple-900/10 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:border-purple-500/30 transition-colors"
+                            className={`flex items-center gap-4 bg-zinc-950/60 border border-purple-900/10 rounded-xl p-4 transition-colors ${
+                              isAnswered ? "opacity-60 cursor-not-allowed" : "cursor-grab active:cursor-grabbing hover:border-purple-500/30"
+                            }`}
                           >
                             <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded shrink-0 border border-purple-500/10">
                               {String(idx + 1).padStart(2, '0')}
@@ -998,16 +1172,18 @@ export default function QuizPlayer() {
                               return (
                                 <div
                                   key={idx}
-                                  draggable={!isMatched}
+                                  draggable={!isMatched && !isAnswered}
                                   onDragStart={(e) => handleMatchDragStart(e, q.id, pair.left)}
                                   className={`p-4 border rounded-xl font-sans text-sm font-bold flex items-center justify-between transition-colors ${
                                     isMatched 
                                       ? "bg-zinc-950/20 border-purple-950/10 text-zinc-600 opacity-40 select-none" 
-                                      : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-500/30 cursor-grab active:cursor-grabbing text-zinc-200"
+                                      : isAnswered
+                                        ? "bg-zinc-950/60 border-purple-900/10 opacity-60 cursor-not-allowed text-zinc-400"
+                                        : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-500/30 cursor-grab active:cursor-grabbing text-zinc-200"
                                   }`}
                                 >
                                   <span>🔊 {pair.left}</span>
-                                  {!isMatched && <span className="font-mono text-xs text-purple-400">DRAG</span>}
+                                  {!isMatched && !isAnswered && <span className="font-mono text-xs text-purple-400">DRAG</span>}
                                 </div>
                               );
                             })}
@@ -1023,7 +1199,7 @@ export default function QuizPlayer() {
                                 <div
                                   key={idx}
                                   onDragOver={(e) => e.preventDefault()}
-                                  onDrop={() => handleMatchDrop(q.id, pair.right)}
+                                  onDrop={isAnswered ? undefined : () => handleMatchDrop(q.id, pair.right)}
                                   className={`p-4 border rounded-xl flex items-center justify-between text-sm transition-all ${
                                     matchedLeft 
                                       ? "bg-purple-500/5 border-purple-500" 
@@ -1037,12 +1213,14 @@ export default function QuizPlayer() {
                                   {matchedLeft ? (
                                     <div className="flex items-center gap-2">
                                       <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">🔊 {matchedLeft}</span>
-                                      <button
-                                        onClick={() => handleMatchClear(q.id, matchedLeft)}
-                                        className="text-zinc-500 hover:text-[#ff5c5c] cursor-pointer text-xs"
-                                      >
-                                        ✕
-                                      </button>
+                                      {!isAnswered && (
+                                        <button
+                                          onClick={() => handleMatchClear(q.id, matchedLeft)}
+                                          className="text-zinc-500 hover:text-[#ff5c5c] cursor-pointer text-xs"
+                                        >
+                                          ✕
+                                        </button>
+                                      )}
                                     </div>
                                   ) : (
                                     <span className="font-mono text-[10px] text-zinc-600 italic border border-purple-900/20 border-dashed p-1 rounded select-none">DROP SLOT</span>
@@ -1055,6 +1233,48 @@ export default function QuizPlayer() {
                         </div>
                       </div>
                     )}
+
+                    {/* ================= DONE / CONFIRMATION BUTTON ================= */}
+                    {(() => {
+                      // Check if the timed challenge is locked (unanswered previous question)
+                      let isTimerStarted = true;
+                      const timedIdx = quiz.questions.findIndex((tQ: any) => tQ.id === q.id);
+                      if (q.type === "timed_mcq" && timedIdx > 0) {
+                        const prevQuestion = quiz.questions[timedIdx - 1];
+                        isTimerStarted = responses[prevQuestion.id] !== undefined;
+                      }
+
+                      // If locked or in prep countdown mode, don't show the Done button yet
+                      if (q.type === "timed_mcq" && (!isTimerStarted || !revealedTimedQuestions[q.id])) {
+                        return null;
+                      }
+
+                      const hasInput = tempResponses[q.id] !== undefined && (
+                        typeof tempResponses[q.id] === 'string' 
+                          ? tempResponses[q.id].trim().length > 0 
+                          : typeof tempResponses[q.id] === 'object' 
+                            ? Object.keys(tempResponses[q.id]).length > 0 
+                            : true
+                      );
+
+                      return (
+                        <div className="pt-4 border-t border-purple-900/10 flex justify-end items-center">
+                          {isAnswered ? (
+                            <div className="flex items-center gap-2 text-[#4ade80] font-mono text-xs bg-[#4ade80]/10 px-3 py-1.5 rounded-lg border border-[#4ade80]/20">
+                              <Check className="w-4 h-4" /> Locked & Confirmed
+                            </div>
+                          ) : (
+                            <button
+                              disabled={!hasInput}
+                              onClick={() => handleConfirmAnswer(q.id)}
+                              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:pointer-events-none text-white font-mono text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-purple-500/10"
+                            >
+                              Done <ArrowRight className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                   </div>
 
