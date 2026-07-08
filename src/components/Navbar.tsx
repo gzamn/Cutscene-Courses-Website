@@ -133,44 +133,7 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Region / Currency Selector Dropdown */}
-            <div className="relative" ref={regionMenuRef}>
-              <button 
-                onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)} 
-                className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-xl border border-purple-900/10 text-gray-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
-                title="Select Region"
-                aria-expanded={isRegionMenuOpen}
-              >
-                <div className="w-4 h-4 rounded-full bg-purple-900/20 border border-purple-500/20 flex items-center justify-center text-[8.5px] font-black font-mono text-purple-400">
-                  {currentRegion?.symbol || '$'}
-                </div>
-                <span className="text-[10px] text-purple-400 font-extrabold tracking-wider bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/10 uppercase">
-                  {currentRegion?.id || 'US'}
-                </span>
-              </button>
-              
-              {isRegionMenuOpen && (
-                <div className="absolute right-0 mt-2 py-1.5 px-2 w-48 bg-zinc-950/98 border border-purple-900/25 rounded-2xl shadow-2xl backdrop-blur-md z-50 flex flex-col gap-1 transition-all animate-fade-in text-left">
-                  {regions.map((reg) => (
-                    <button
-                      key={reg.id}
-                      onClick={() => {
-                        setRegionId(reg.id);
-                        setIsRegionMenuOpen(false);
-                      }}
-                      className={`px-3 py-2 text-left text-xs font-bold rounded-lg transition-all flex items-center justify-between ${
-                        selectedRegionId === reg.id 
-                          ? 'bg-purple-650 text-white shadow-xs' 
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <span className="truncate">{reg.name}</span>
-                      <span className="text-[10px] text-purple-300 font-mono font-bold">{reg.symbol}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+
 
 
 
@@ -339,29 +302,7 @@ export default function Navbar() {
                 </div>
               </div>
 
-              {/* Mobile Region Switcher */}
-              <div className="flex items-center justify-between bg-zinc-900/50 p-2 rounded-xl border border-purple-900/20">
-                <span className="text-sm text-gray-400 flex items-center gap-2">
-                  <span className="w-4 h-4 rounded-full text-[10px] font-black text-purple-500 flex items-center justify-center font-mono bg-purple-950/20 border border-purple-500/20">
-                    {currentRegion?.symbol || '$'}
-                  </span>
-                  Select Region / Currency
-                </span>
-                <select
-                  value={selectedRegionId}
-                  onChange={(e) => {
-                    setRegionId(e.target.value);
-                    setIsOpen(false);
-                  }}
-                  className="bg-zinc-950 text-xs font-bold text-purple-400 border border-purple-900/30 px-2 py-1.5 rounded-lg focus:outline-none"
-                >
-                  {regions.map((reg) => (
-                    <option key={reg.id} value={reg.id}>
-                      {reg.name} ({reg.symbol})
-                    </option>
-                  ))}
-                </select>
-              </div>
+
 
               {/* User Session */}
               {user ? (

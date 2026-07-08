@@ -1185,7 +1185,22 @@ export default function VideoPlayer() {
                     {isWindowFocused ? (
                       <iframe
                         ref={iframeRef}
-                        src={getLessonVideoUrl(course, chapter || '1', type || 'session') ? `${getLessonVideoUrl(course, chapter || '1', type || 'session')}${getLessonVideoUrl(course, chapter || '1', type || 'session')?.includes('?') ? '&' : '?'}enablejsapi=1${initialSeekTime && initialSeekTime > 0 ? `&start=${Math.floor(initialSeekTime)}` : ''}` : ''}
+                        src={(() => {
+                          const rawUrl = getLessonVideoUrl(course, chapter || '1', type || 'session');
+                          if (!rawUrl) return '';
+                          let cleanUrl = rawUrl;
+                          cleanUrl = cleanUrl.replace(/autoplay=true/gi, 'autoplay=false').replace(/autoplay=1/gi, 'autoplay=0');
+                          if (!cleanUrl.includes('autoplay=')) {
+                            cleanUrl += `${cleanUrl.includes('?') ? '&' : '?'}autoplay=0`;
+                          }
+                          if (!cleanUrl.includes('enablejsapi=')) {
+                            cleanUrl += `${cleanUrl.includes('?') ? '&' : '?'}enablejsapi=1`;
+                          }
+                          if (initialSeekTime && initialSeekTime > 0) {
+                            cleanUrl += `&start=${Math.floor(initialSeekTime)}`;
+                          }
+                          return cleanUrl;
+                        })()}
                         title={`Chapter ${chapter}: ${typeLabels[type || 'session']}`}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

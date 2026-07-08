@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { db, auth, getDocs, collection, query, where, addDoc } from '../firebase';
+import { db, auth, getDocs, collection, query, where, addDoc, ensureDefaultQuizzesSeeded } from '../firebase';
 import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, RotateCcw, Award, Clock, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -123,7 +123,6 @@ export default function QuizPlayer() {
   const navigate = useNavigate();
   const [quiz, setQuiz] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
 
   // Lockout / Attempt status states
   const [attempts, setAttempts] = useState<any[]>([]);
@@ -138,79 +137,92 @@ export default function QuizPlayer() {
   
   // Specific question type support states
   const [sliderVal, setSliderVal] = useState(50);
-  const [draggedMatchItem, setDraggedMatchItem] = useState<string | null>(null);
-  const [matchesMap, setMatchesMap] = useState<{ [left: string]: string }>({});
-  const [seqItems, setSeqItems] = useState<string[]>([]);
+  const [draggedMatchItem, setDraggedMatchItem] = useState<{ qid: string; left: string } | null>(null);
+  const [matchesMaps, setMatchesMaps] = useState<{ [qid: string]: { [left: string]: string } }>({});
+  const [shuffledSequences, setShuffledSequences] = useState<{ [qid: string]: string[] }>({});
   
   // Timed MCQ countdown timer
   const [timedCount, setTimedCount] = useState<number | null>(null);
-  const timedIntervalRef = useRef<any>(null);
-
-  // Audio simulation bars
-  const [waveBars] = useState(() => 
-    Array.from({ length: 45 }, () => 10 + Math.floor(Math.random() * 40))
-  );
 
   useEffect(() => {
     fetchQuizAndAttempts();
   }, [courseId, sessionId]);
 
-  // Handle Timed MCQ countdown
+  // Handle Timed MCQ countdown for the whole quiz/all-questions layout
   useEffect(() => {
-    if (!quiz) return;
-    const currentQuestion = quiz.questions[activeQuestionIdx];
+    if (!quiz || quizSubmitted) return;
     
-    // Clear previous timer
-    if (timedIntervalRef.current) {
-      clearInterval(timedIntervalRef.current);
-      timedIntervalRef.current = null;
-    }
-
-    if (currentQuestion && currentQuestion.type === "timed_mcq" && !quizSubmitted) {
-      const limit = currentQuestion.timeLimitSec || 10;
-      setTimedCount(limit);
-      
-      timedIntervalRef.current = setInterval(() => {
-        setTimedCount((prev) => {
-          if (prev !== null && prev <= 1) {
-            clearInterval(timedIntervalRef.current);
-            timedIntervalRef.current = null;
-            // Lock auto selection
-            handleAnswerSelect(currentQuestion.id, "EXPIRED");
-            return 0;
-          }
-          return prev !== null ? prev - 1 : null;
-        });
-      }, 1000);
-    } else {
+    // Find the timed MCQ question
+    const timedQuestion = quiz.questions.find((q: any) => q.type === "timed_mcq");
+    if (!timedQuestion) return;
+    
+    // If already answered or time expired, stop the timer
+    if (responses[timedQuestion.id] !== undefined) {
       setTimedCount(null);
+      return;
     }
 
-    // Set up drag-to-reorder initial items if type is sequence
-    if (currentQuestion && currentQuestion.type === "sequence") {
-      // Shuffle sequence items initially so student has to reorder
-      if (!responses[currentQuestion.id]) {
-        const shuffled = [...currentQuestion.sequenceItems].sort(() => Math.random() - 0.5);
-        setSeqItems(shuffled);
-        handleAnswerSelect(currentQuestion.id, shuffled);
-      } else {
-        setSeqItems(responses[currentQuestion.id]);
+    // Delay start until previous question is answered
+    const timedIdx = quiz.questions.findIndex((q: any) => q.id === timedQuestion.id);
+    if (timedIdx > 0) {
+      const prevQuestion = quiz.questions[timedIdx - 1];
+      const isPrevFinished = responses[prevQuestion.id] !== undefined;
+      if (!isPrevFinished) {
+        // Hold at default limit
+        const limit = timedQuestion.timeLimitSec || 10;
+        setTimedCount(limit);
+        return;
       }
     }
+    
+    const limit = timedQuestion.timeLimitSec || 10;
+    setTimedCount(limit);
+    
+    const interval = setInterval(() => {
+      setTimedCount((prev) => {
+        if (prev !== null && prev <= 1) {
+          clearInterval(interval);
+          // Lock auto selection with EXPIRED
+          handleAnswerSelect(timedQuestion.id, "EXPIRED");
+          return 0;
+        }
+        return prev !== null ? prev - 1 : null;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [quiz, quizSubmitted, responses]);
 
-    // Set up matches initial empty slots
-    if (currentQuestion && currentQuestion.type === "match") {
-      setMatchesMap(responses[currentQuestion.id] || {});
-    }
-
-    return () => {
-      if (timedIntervalRef.current) clearInterval(timedIntervalRef.current);
-    };
-  }, [activeQuestionIdx, quiz, quizSubmitted]);
+  // Initialize shuffled sequences and matches maps
+  useEffect(() => {
+    if (!quiz) return;
+    
+    const seqs: { [qid: string]: string[] } = {};
+    const maps: { [qid: string]: { [left: string]: string } } = {};
+    
+    quiz.questions.forEach((q: any) => {
+      if (q.type === "sequence") {
+        if (!responses[q.id]) {
+          const shuffled = [...q.sequenceItems].sort(() => Math.random() - 0.5);
+          seqs[q.id] = shuffled;
+          handleAnswerSelect(q.id, shuffled);
+        } else {
+          seqs[q.id] = responses[q.id];
+        }
+      }
+      if (q.type === "match") {
+        maps[q.id] = responses[q.id] || {};
+      }
+    });
+    
+    setShuffledSequences(seqs);
+    setMatchesMaps(maps);
+  }, [quiz]);
 
   const fetchQuizAndAttempts = async () => {
     try {
       setLoading(true);
+      await ensureDefaultQuizzesSeeded();
       const user = auth.currentUser;
       const sId = parseInt(sessionId || "1", 10);
 
@@ -288,43 +300,50 @@ export default function QuizPlayer() {
     setResponses(prev => ({ ...prev, [qid]: val }));
   };
 
-  const handleSequenceDragStart = (e: React.DragEvent, index: number) => {
-    e.dataTransfer.setData("text/plain", index.toString());
+  const handleSequenceDragStart = (e: React.DragEvent, qid: string, index: number) => {
+    e.dataTransfer.setData("text/plain", `${qid}:${index}`);
   };
 
   const handleSequenceDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  const handleSequenceDrop = (e: React.DragEvent, targetIdx: number) => {
-    const sourceIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
-    if (isNaN(sourceIdx)) return;
+  const handleSequenceDrop = (e: React.DragEvent, qid: string, targetIdx: number) => {
+    const data = e.dataTransfer.getData("text/plain");
+    const parts = data.split(":");
+    if (parts.length !== 2) return;
+    const sourceQid = parts[0];
+    const sourceIdx = parseInt(parts[1], 10);
+    if (sourceQid !== qid || isNaN(sourceIdx)) return;
     
-    const nextList = [...seqItems];
+    const currentItems = shuffledSequences[qid] || [];
+    const nextList = [...currentItems];
     const [dragged] = nextList.splice(sourceIdx, 1);
     nextList.splice(targetIdx, 0, dragged);
     
-    setSeqItems(nextList);
-    handleAnswerSelect(quiz.questions[activeQuestionIdx].id, nextList);
+    setShuffledSequences(prev => ({ ...prev, [qid]: nextList }));
+    handleAnswerSelect(qid, nextList);
   };
 
-  const handleMatchDragStart = (e: React.DragEvent, item: string) => {
-    setDraggedMatchItem(item);
+  const handleMatchDragStart = (e: React.DragEvent, qid: string, item: string) => {
+    setDraggedMatchItem({ qid, left: item });
   };
 
-  const handleMatchDrop = (targetRight: string) => {
-    if (!draggedMatchItem) return;
-    const nextMap = { ...matchesMap, [draggedMatchItem]: targetRight };
-    setMatchesMap(nextMap);
-    handleAnswerSelect(quiz.questions[activeQuestionIdx].id, nextMap);
+  const handleMatchDrop = (qid: string, targetRight: string) => {
+    if (!draggedMatchItem || draggedMatchItem.qid !== qid) return;
+    const currentMap = matchesMaps[qid] || {};
+    const nextMap = { ...currentMap, [draggedMatchItem.left]: targetRight };
+    setMatchesMaps(prev => ({ ...prev, [qid]: nextMap }));
+    handleAnswerSelect(qid, nextMap);
     setDraggedMatchItem(null);
   };
 
-  const handleMatchClear = (leftItem: string) => {
-    const nextMap = { ...matchesMap };
+  const handleMatchClear = (qid: string, leftItem: string) => {
+    const currentMap = matchesMaps[qid] || {};
+    const nextMap = { ...currentMap };
     delete nextMap[leftItem];
-    setMatchesMap(nextMap);
-    handleAnswerSelect(quiz.questions[activeQuestionIdx].id, nextMap);
+    setMatchesMaps(prev => ({ ...prev, [qid]: nextMap }));
+    handleAnswerSelect(qid, nextMap);
   };
 
   // Submit attempt evaluation
@@ -359,11 +378,9 @@ export default function QuizPlayer() {
       } else if (q.type === "slider_compare") {
         correct = studentAns === q.sliderCorrectSide;
       } else if (q.type === "sequence") {
-        // Must match order of original list in database (which represents the answer key)
         correct = Array.isArray(studentAns) && 
                   studentAns.every((val, i) => val === q.sequenceItems[i]);
       } else if (q.type === "match") {
-        // Check if all lefts match their corresponding rights
         const pairs = q.matchPairs || [];
         correct = pairs.every((p: any) => studentAns[p.left] === p.right);
       }
@@ -376,7 +393,6 @@ export default function QuizPlayer() {
     const passed = scorePercentage >= 70;
     const attemptNum = attempts.length + 1;
     
-    // Determine 1-hour lockout lockout date if they failed all 3 attempts
     let lockoutUntil = null;
     if (!passed && attemptNum >= 3) {
       lockoutUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -418,13 +434,15 @@ export default function QuizPlayer() {
     setResponses({});
     setQuizSubmitted(false);
     setLastAttemptResult(null);
-    setActiveQuestionIdx(0);
+    setSliderVal(50);
+    setMatchesMaps({});
+    setShuffledSequences({});
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0d0d0f] flex flex-col items-center justify-center text-white">
-        <Loader2 className="w-12 h-12 text-[#49d3e8] animate-spin mb-4" />
+      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-white">
+        <Loader2 className="w-12 h-12 text-purple-400 animate-spin mb-4" />
         <p className="font-mono text-sm tracking-widest uppercase text-zinc-500">Loading NLE Scrubber...</p>
       </div>
     );
@@ -432,8 +450,8 @@ export default function QuizPlayer() {
 
   if (!quiz) {
     return (
-      <div className="min-h-screen bg-[#0d0d0f] flex flex-col items-center justify-center text-white p-6">
-        <div className="max-w-md w-full bg-[#17171b] border border-zinc-800 p-8 rounded-3xl text-center">
+      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-white p-6">
+        <div className="max-w-md w-full bg-zinc-950/60 border border-purple-900/20 p-8 rounded-3xl text-center backdrop-blur-md">
           <HelpCircle className="w-16 h-16 text-zinc-500 mx-auto mb-6" />
           <h2 className="text-xl font-mono font-bold mb-2">No Quiz Found</h2>
           <p className="text-sm text-zinc-400 leading-relaxed mb-8">
@@ -441,7 +459,7 @@ export default function QuizPlayer() {
           </p>
           <Link
             to={`/courses/${courseId}/video/${sessionId}/session`}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#49d3e8] text-zinc-950 rounded-xl font-mono text-xs font-bold hover:bg-[#3bc4d8] transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-mono text-xs font-bold hover:bg-purple-550 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Lesson
           </Link>
@@ -450,135 +468,130 @@ export default function QuizPlayer() {
     );
   }
 
-  const currentQuestion = quiz.questions[activeQuestionIdx];
   const totalQuestions = quiz.questions.length;
+  const answeredCount = Object.keys(responses).length;
+  const progressPct = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
-  // Render question card inside scrubber
   return (
-    <div className="min-h-screen bg-[#0d0d0f] text-[#eeeef0] pt-28 pb-16 selection:bg-[#49d3e8] selection:text-zinc-950 font-body">
-      {/* ================= NLE SCRUBBER HEADER ================= */}
-      <div className="sticky top-16 z-40 bg-[#0d0d0f]/95 backdrop-blur-md border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ff4433] to-[#a8231a] flex items-center justify-center font-mono font-extrabold text-[#fff] text-xs">
-                CS
-              </div>
-              <div>
-                <div className="font-mono text-xs font-bold text-[#49d3e8] tracking-widest uppercase flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#ff4433] animate-pulse" />
-                  Quiz Timeline Scrubber
-                </div>
-                <h1 className="text-sm font-mono font-bold text-zinc-400 mt-0.5 truncate max-w-[280px] sm:max-w-sm">
-                  {quiz.title}
-                </h1>
+    <div className="min-h-screen bg-transparent text-[#eeeef0] selection:bg-purple-500/30 selection:text-purple-200 font-sans pb-24">
+      
+      {/* ================= STICKY COMPACT FLOATING HEADER ================= */}
+      {!lockoutTimeLeft && (
+        <div className="sticky top-16 z-40 bg-zinc-950/65 backdrop-blur-md border-b border-purple-900/20 px-4 py-2.5 transition-all">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+            
+            {/* Back Button / Compact Progress Label */}
+            <div className="flex items-center gap-4">
+              <Link
+                to={`/courses/${courseId}/video/${sessionId}/session`}
+                className="px-3 py-1.5 border border-purple-900/20 rounded-lg text-[11px] font-mono hover:border-purple-500 hover:text-purple-300 transition-all flex items-center gap-1 shrink-0 bg-[#131316]/50"
+              >
+                <ArrowLeft className="w-3 h-3" /> Exit
+              </Link>
+              
+              <div className="hidden sm:block">
+                <span className="font-mono text-xs text-zinc-400">
+                  PROGRESS: <b className="text-purple-400">{answeredCount}</b>/{totalQuestions} QUESTIONS
+                </span>
               </div>
             </div>
 
-            <Link
-              to={`/courses/${courseId}/video/${sessionId}/session`}
-              className="px-4 py-2 border border-zinc-800 rounded-lg text-xs font-mono font-bold hover:border-[#49d3e8] hover:text-[#49d3e8] transition-all flex items-center gap-1.5"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Player
-            </Link>
+            {/* Premium Compact Floating Progress Scrubber Bar */}
+            <div className="flex-1 max-w-md bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-purple-900/20 relative">
+              <div 
+                className="h-full bg-gradient-to-r from-purple-700 via-purple-500 to-purple-400 transition-all duration-300 rounded-full shadow-[0_0_12px_rgba(158,58,235,0.4)]"
+                style={{ width: `${progressPct}%` }}
+              />
+              {/* Discrete Tick marks */}
+              <div className="absolute inset-0 flex justify-between px-1 pointer-events-none">
+                {Array.from({ length: totalQuestions - 1 }).map((_, i) => (
+                  <div key={i} className="w-0.5 h-full bg-[#0d0d0f]/50" />
+                ))}
+              </div>
+            </div>
+
+            {/* Submit / Retry Actions */}
+            <div>
+              {!quizSubmitted ? (
+                <button
+                  disabled={submittingAttempt || answeredCount < totalQuestions}
+                  onClick={handleQuizSubmit}
+                  className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-purple-400 text-white font-mono text-[11px] font-extrabold rounded-lg hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-purple-500/20"
+                >
+                  {submittingAttempt ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Evaluate
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-[#4ade80] bg-[#4ade80]/10 px-2 py-1 rounded">EVALUATED</span>
+                  {lastAttemptResult && !lastAttemptResult.passed && attempts.length < 3 && (
+                    <button
+                      onClick={handleRetake}
+                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-[10px] font-mono text-white transition-all flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Retry
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
-
-          {/* ================= SCORING READOUT & CHAPTERS ================= */}
-          {!quizSubmitted && !lockoutTimeLeft && (
-            <div className="space-y-3 mt-1">
-              <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500">
-                <div className="flex gap-4">
-                  <span>CLIP: <b className="text-white">Q{activeQuestionIdx + 1} / {totalQuestions}</b></span>
-                  <span>ANSWERS: <b className="text-[#ffc24b]">{Object.keys(responses).length}</b></span>
-                </div>
-                <div>TIMECODE: <b className="text-[#49d3e8]">00:00:{String(activeQuestionIdx + 1).padStart(2, '0')}:00</b></div>
-              </div>
-
-              {/* Timeline ruler Scrubber */}
-              <div className="relative pt-2 pb-1">
-                <div className="relative h-9 border-t border-zinc-800 flex items-end select-none">
-                  {/* Ticks */}
-                  {Array.from({ length: 30 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`flex-1 border-l border-zinc-800 ${
-                        i % 4 === 0 ? "h-3.5 border-zinc-700" : "h-2"
-                      }`}
-                    />
-                  ))}
-
-                  {/* Chapters markers overlay */}
-                  <div className="absolute inset-x-0 -top-2 h-6 flex justify-between px-1">
-                    {quiz.questions.map((q: any, i: number) => {
-                      const isAnswered = responses[q.id] !== undefined;
-                      const isCurrent = i === activeQuestionIdx;
-                      return (
-                        <button
-                          key={q.id}
-                          onClick={() => setActiveQuestionIdx(i)}
-                          className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-mono transition-all duration-150 cursor-pointer ${
-                            isCurrent
-                              ? "bg-[#49d3e8] text-zinc-950 font-bold shadow-lg shadow-[#49d3e8]/20 scale-110 border border-[#49d3e8]"
-                              : isAnswered
-                              ? "bg-[#4ade80] text-zinc-950 font-bold"
-                              : "bg-[#17171b] text-zinc-500 hover:text-[#49d3e8] hover:border-zinc-700 border border-zinc-800"
-                          }`}
-                        >
-                          {i + 1}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Playhead line Scrubber marker */}
-                  <div
-                    className="absolute top-[-8px] bottom-0 w-0.5 bg-[#49d3e8] pointer-events-none transition-all duration-300"
-                    style={{
-                      left: `${((activeQuestionIdx + 0.5) / totalQuestions) * 100}%`,
-                    }}
-                  >
-                    <div className="absolute top-0 left-[-4px] w-0.5 h-0.5 border-l-4 border-r-4 border-t-6 border-transparent border-t-[#49d3e8]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-8">
+      {/* ================= MAIN SCROLLABLE CONTAINER ================= */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-10">
+        
+        {/* ================= BIG NON-FLOATING TITLE AND DESCRIPTION ================= */}
+        <div className="mb-12 border-b border-purple-900/20 pb-8 relative">
+          <span className="text-xs font-mono font-bold tracking-widest text-purple-400 uppercase bg-purple-500/10 px-3 py-1.5 rounded-md mb-4 inline-block border border-purple-500/10">
+            SESSION {sessionId} COMPILATION TEST
+          </span>
+          <h1 className="text-3xl sm:text-5xl font-mono font-black text-white tracking-tight leading-tight uppercase">
+            {quiz.title}
+          </h1>
+          <p className="text-sm sm:text-base text-zinc-400 mt-4 max-w-3xl leading-relaxed">
+            {quiz.description}
+          </p>
+        </div>
+
         {/* ================= 1. CURRENTLY LOCKED OUT STATE ================= */}
         {lockoutTimeLeft > 0 ? (
-          <div className="bg-[#17171b] border border-[#ff5c5c]/20 p-8 rounded-3xl text-center space-y-6">
+          <div className="bg-[#17171b]/60 backdrop-blur-md border border-purple-900/20 p-8 rounded-3xl text-center space-y-6 max-w-2xl mx-auto my-12 shadow-2xl">
             <div className="w-16 h-16 bg-[#ff5c5c]/10 rounded-full flex items-center justify-center mx-auto border border-[#ff5c5c]/25 animate-pulse">
               <ShieldAlert className="w-8 h-8 text-[#ff5c5c]" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-white uppercase tracking-wider">Locked Out — Max Attempts Exceeded</h2>
+            <h2 className="text-xl font-mono font-bold text-white uppercase tracking-wider">Locked Out — Cooldown Lock Active</h2>
             <p className="text-sm text-zinc-400 leading-relaxed max-w-md mx-auto">
-              You failed 3 consecutive quiz attempts. In order to help you study the material further, your access is locked out for 1 hour.
+              You have completed 3 consecutive attempts. To protect your workflow, access is temporarily locked for 1 hour so you can study.
             </p>
             <div className="inline-flex items-center gap-3 bg-[#ff5c5c]/5 border border-[#ff5c5c]/20 px-6 py-3 rounded-2xl">
               <Clock className="w-5 h-5 text-[#ffc24b]" />
               <span className="font-mono text-sm text-[#ffc24b]">
-                Retry available in: <b>{Math.floor(lockoutTimeLeft / 60)}m {lockoutTimeLeft % 60}s</b>
+                Unlocking in: <b>{Math.floor(lockoutTimeLeft / 60)}m {lockoutTimeLeft % 60}s</b>
               </span>
             </div>
-            <div className="pt-4 border-t border-zinc-800 max-w-xs mx-auto">
+            <div className="pt-4 border-t border-purple-900/10 max-w-xs mx-auto">
               <Link
                 to={`/courses/${courseId}/video/${sessionId}/session`}
-                className="w-full inline-flex justify-center items-center gap-2 px-6 py-3 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-300 hover:text-white hover:border-[#49d3e8] transition-colors"
+                className="w-full inline-flex justify-center items-center gap-2 px-6 py-3 border border-purple-900/20 rounded-xl text-xs font-mono text-zinc-300 hover:text-white hover:border-purple-500 transition-colors bg-zinc-950/40"
               >
-                Go Study Session {sessionId} Again
+                Re-examine Session {sessionId} Material
               </Link>
             </div>
           </div>
         ) : quizSubmitted && lastAttemptResult ? (
-          /* ================= 2. RESULTS VIEW (correct / incorrect, no leaking answers) ================= */
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border text-center ${
+          /* ================= 2. RESULTS PANEL ================= */
+          <div className="space-y-8 animate-fade-in max-w-3xl mx-auto">
+            <div className={`p-8 rounded-3xl border text-center relative overflow-hidden ${
               lastAttemptResult.passed 
-                ? "bg-[#4ade80]/5 border-[#4ade80]/20" 
-                : "bg-[#ff5c5c]/5 border-[#ff5c5c]/20"
+                ? "bg-[#4ade80]/5 border-[#4ade80]/20 shadow-[0_0_40px_rgba(74,222,128,0.05)]" 
+                : "bg-[#ff5c5c]/5 border-[#ff5c5c]/20 shadow-[0_0_40px_rgba(255,92,92,0.05)]"
             }`}>
               <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border shrink-0">
                 {lastAttemptResult.passed ? (
@@ -588,13 +601,13 @@ export default function QuizPlayer() {
                 )}
               </div>
               <h2 className="text-2xl font-mono font-extrabold tracking-wide uppercase">
-                {lastAttemptResult.passed ? "PASSED CHECK ✓" : "ATTEMPT COMPLETED"}
+                {lastAttemptResult.passed ? "QUESTION COMPILATION PASSED ✓" : "ATTEMPT COMPLETE — UNDER PAR"}
               </h2>
               <p className="text-sm text-zinc-400 mt-2">
                 Your score: <b className={lastAttemptResult.passed ? "text-[#4ade80]" : "text-[#ff5c5c]"}>{lastAttemptResult.score}%</b> (Passing is 70%)
               </p>
-              <p className="text-xs text-zinc-500 mt-1">
-                Cleared {lastAttemptResult.correctCount} of {lastAttemptResult.totalQuestions} modules.
+              <p className="text-xs text-zinc-500 mt-1 font-mono">
+                CLEARED {lastAttemptResult.correctCount} OF {lastAttemptResult.totalQuestions} QUESTIONS.
               </p>
 
               {lastAttemptResult.passed && (
@@ -603,55 +616,55 @@ export default function QuizPlayer() {
                     to={`/courses/${courseId}/video/${parseInt(sessionId || "1", 10) + 1}/session`}
                     className="px-6 py-3 bg-[#4ade80] text-zinc-950 font-mono text-xs font-bold rounded-xl hover:bg-[#3cd072] transition-colors"
                   >
-                    Unlock Next Session Video
+                    Load Session {parseInt(sessionId || "1", 10) + 1} Masterclass
                   </Link>
                 </div>
               )}
             </div>
 
             <div className="space-y-4">
-              <h3 className="font-mono text-xs uppercase tracking-wider text-zinc-500">Timeline Analysis Panel</h3>
+              <h3 className="font-mono text-xs uppercase tracking-widest text-zinc-500">Timeline Review Diagnostic Panel</h3>
               {quiz.questions.map((q: any, i: number) => {
                 const isCorrect = lastAttemptResult.detailedResults[q.id];
                 return (
-                  <div key={q.id} className="bg-[#17171b] border border-zinc-800 rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-800">
+                  <div key={q.id} className="bg-zinc-950/40 backdrop-blur-md border border-purple-900/10 rounded-2xl p-6 transition-all">
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-900/10">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-[#49d3e8] bg-[#49d3e8]/10 px-2 py-0.5 rounded">Q{i + 1}</span>
-                        <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">{q.type}</span>
+                        <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">QUESTION Q{i + 1}</span>
+                        <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">{q.type}</span>
                       </div>
                       <div className={`flex items-center gap-1 text-xs font-mono ${isCorrect ? "text-[#4ade80]" : "text-[#ff5c5c]"}`}>
                         {isCorrect ? (
                           <>
-                            <Check className="w-4 h-4" /> Correct
+                            <Check className="w-4 h-4" /> Passed
                           </>
                         ) : (
                           <>
-                            <X className="w-4 h-4" /> Incorrect
+                            <X className="w-4 h-4" /> Refined Correctly
                           </>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm font-semibold mb-3">{q.prompt}</p>
+                    <p className="text-sm font-semibold text-zinc-200">{q.prompt}</p>
                     {!isCorrect && (
-                      <p className="text-xs text-zinc-500 italic mt-2">Correct answer has been hidden to challenge your study skills. Try again on your next timeline review!</p>
+                      <p className="text-xs text-zinc-500 italic mt-2">Correct answer has been scrambled to challenge your study skills. Re-examine the lectures and execute again!</p>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            <div className="flex items-center justify-between pt-6 border-t border-zinc-800">
+            <div className="flex items-center justify-between pt-6 border-t border-purple-900/10">
               <Link
                 to={`/courses/${courseId}/video/${sessionId}/session`}
-                className="px-5 py-3 border border-zinc-800 rounded-xl font-mono text-xs hover:border-[#49d3e8] transition-all flex items-center gap-1.5"
+                className="px-5 py-3 border border-purple-900/20 rounded-xl font-mono text-xs hover:border-purple-500 hover:text-purple-300 transition-all flex items-center gap-1.5"
               >
                 <ArrowLeft className="w-4 h-4" /> Exit to Session Video
               </Link>
               {!lastAttemptResult.passed && attempts.length < 3 && (
                 <button
                   onClick={handleRetake}
-                  className="px-5 py-3 bg-[#49d3e8] text-zinc-950 rounded-xl font-mono text-xs font-bold hover:bg-[#3bc4d8] transition-colors flex items-center gap-1.5"
+                  className="px-5 py-3 bg-purple-600 text-white rounded-xl font-mono text-xs font-bold hover:bg-purple-550 transition-colors flex items-center gap-1.5 shadow-md shadow-purple-500/20"
                 >
                   <RotateCcw className="w-4 h-4" /> Start Attempt #{attempts.length + 1} / 3
                 </button>
@@ -659,407 +672,435 @@ export default function QuizPlayer() {
             </div>
           </div>
         ) : (
-          /* ================= 3. ACTIVE INTERACTIVE PLAYING STATE ================= */
-          <div className="space-y-6">
-            <div className="bg-[#17171b] border border-zinc-800 rounded-3xl overflow-hidden">
-              <div className="bg-zinc-900/60 px-6 py-4 border-b border-zinc-800 flex justify-between items-center flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded">
-                    MODULE Q{activeQuestionIdx + 1}
-                  </span>
-                  <span className="font-mono text-[10px] text-zinc-500 tracking-wider uppercase bg-zinc-950 px-2 py-1 rounded border border-zinc-800">
-                    {currentQuestion.type}
-                  </span>
-                </div>
-                
-                {/* Timed MCQ countdown badge */}
-                {timedCount !== null && (
-                  <div className="flex items-center gap-1.5 font-mono text-xs text-[#ffc24b]">
-                    <Clock className="w-4 h-4 animate-pulse" />
-                    <span>TIMED SPRINT: <b>00:{String(timedCount).padStart(2, '0')}</b></span>
+          /* ================= 3. ACTIVE ALL QUESTIONS SCROLLING LIST ================= */
+          <div className="space-y-8 max-w-3xl mx-auto">
+            {quiz.questions.map((q: any, i: number) => {
+              const isAnswered = responses[q.id] !== undefined;
+              return (
+                <div 
+                  key={q.id} 
+                  id={`q-card-${q.id}`}
+                  className={`bg-zinc-950/40 backdrop-blur-md border rounded-2xl overflow-hidden transition-all duration-300 ${
+                    isAnswered 
+                      ? "border-purple-950 shadow-[0_4px_24px_rgba(158,58,235,0.05)]" 
+                      : "border-purple-900/10 hover:border-purple-900/30"
+                  }`}
+                >
+                  
+                  {/* Card Header */}
+                  <div className="bg-purple-950/10 px-6 py-3 border-b border-purple-900/10 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded">
+                        Q{String(i + 1).padStart(2, '0')}
+                      </span>
+                      <span className="font-mono text-[9px] text-zinc-500 tracking-wider uppercase bg-zinc-950 px-2 py-0.5 rounded border border-purple-900/10">
+                        {q.type}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {isAnswered ? (
+                        <span className="flex items-center gap-1 text-[10px] font-mono text-[#4ade80]">
+                          <Check className="w-3 h-3" /> ANSWERED
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono text-zinc-500 italic">PENDING ANSWER</span>
+                      )}
+                      
+                      {/* Q10 Timed Countdown */}
+                      {q.type === "timed_mcq" && timedCount !== null && (
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#ffc24b] bg-[#ffc24b]/10 px-2 py-0.5 rounded border border-[#ffc24b]/20">
+                          <Clock className="w-3.5 h-3.5 animate-pulse" />
+                          <span>00:{String(timedCount).padStart(2, '0')}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div className="p-6 md:p-8 space-y-6">
-                <p className="text-lg font-bold leading-relaxed">{currentQuestion.prompt}</p>
+                  {/* Card Content */}
+                  <div className="p-6 sm:p-8 space-y-6">
+                    <p className="text-base sm:text-lg font-bold leading-relaxed text-zinc-100">{q.prompt}</p>
 
-                {/* ================= TYPE 1: MCQ & TIMED MCQ ================= */}
-                {(currentQuestion.type === "mcq" || currentQuestion.type === "timed_mcq") && (
-                  <div className="grid grid-cols-1 gap-3">
-                    {currentQuestion.options?.map((o: any, idx: number) => {
-                      const letter = String.fromCharCode(65 + idx);
-                      const isSelected = responses[currentQuestion.id] === o.id;
-                      return (
-                        <button
-                          key={o.id}
-                          disabled={responses[currentQuestion.id] === "EXPIRED"}
-                          onClick={() => handleAnswerSelect(currentQuestion.id, o.id)}
-                          className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
-                            isSelected 
-                              ? "bg-[#49d3e8]/5 border-[#49d3e8] shadow-lg shadow-[#49d3e8]/5" 
-                              : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700"
-                          } disabled:opacity-50`}
-                        >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
-                            isSelected 
-                              ? "bg-[#49d3e8] text-zinc-950 border-[#49d3e8]" 
-                              : "bg-zinc-950 text-zinc-400 border-zinc-800"
-                          }`}>
-                            {letter}
-                          </div>
-                          <span className="text-sm font-semibold">{o.text}</span>
-                        </button>
-                      );
-                    })}
-                    {responses[currentQuestion.id] === "EXPIRED" && (
-                      <p className="text-xs text-[#ff5c5c] font-mono italic">Time limit expired for this sprint! Locked in with no choice.</p>
+                    {/* ================= TYPE 1: MCQ & TIMED MCQ ================= */}
+                    {(q.type === "mcq" || q.type === "timed_mcq") && (
+                      <div className="grid grid-cols-1 gap-3">
+                        {q.options?.map((o: any, idx: number) => {
+                          const letter = String.fromCharCode(65 + idx);
+                          const isSelected = responses[q.id] === o.id;
+                          return (
+                            <button
+                              key={o.id}
+                              disabled={responses[q.id] === "EXPIRED"}
+                              onClick={() => handleAnswerSelect(q.id, o.id)}
+                              className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                                isSelected 
+                                  ? "bg-purple-500/5 border-purple-500 shadow-lg shadow-purple-500/5 text-white" 
+                                  : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-300 hover:text-white"
+                              } disabled:opacity-50`}
+                            >
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
+                                isSelected 
+                                  ? "bg-purple-600 text-white border-purple-500" 
+                                  : "bg-zinc-950 text-zinc-400 border-purple-900/20"
+                              }`}>
+                                {letter}
+                              </div>
+                              <span className="text-sm font-semibold">{o.text}</span>
+                            </button>
+                          );
+                        })}
+                        {responses[q.id] === "EXPIRED" && (
+                          <p className="text-xs text-[#ff5c5c] font-mono italic">Time limit expired for this sprint! Locked in with no choice.</p>
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
 
-                {/* ================= TYPE 2: DIRECT ANSWER ================= */}
-                {currentQuestion.type === "direct" && (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      className="w-full bg-[#1e1f24] border border-zinc-800 rounded-xl p-4 font-mono text-sm tracking-wide text-white outline-none focus:border-[#49d3e8] placeholder-zinc-600"
-                      placeholder="Type keyboard shortcuts or terms precisely..."
-                      value={responses[currentQuestion.id] || ""}
-                      onChange={(e) => handleAnswerSelect(currentQuestion.id, e.target.value)}
-                    />
-                    <p className="text-[10px] text-zinc-500 font-mono">Case-insensitive. For complex keys, use standard notation (e.g. Shift+Delete).</p>
-                  </div>
-                )}
+                    {/* ================= TYPE 2: DIRECT ANSWER ================= */}
+                    {q.type === "direct" && (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm tracking-wide text-white outline-none focus:border-purple-500 placeholder-zinc-600"
+                          placeholder="Type keyboard shortcuts or terms precisely..."
+                          value={responses[q.id] || ""}
+                          onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
+                        />
+                        <p className="text-[10px] text-zinc-500 font-mono">Case-insensitive. For complex keys, use standard notation (e.g. Shift+Delete).</p>
+                      </div>
+                    )}
 
-                {/* ================= TYPE 3: TRUE / FALSE ================= */}
-                {currentQuestion.type === "truefalse" && (
-                  <div className="space-y-4">
-                    <div className="p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl font-mono text-sm leading-relaxed text-zinc-300">
-                      {currentQuestion.trueFalseStatement}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <button
-                        onClick={() => handleAnswerSelect(currentQuestion.id, true)}
-                        className={`py-4 rounded-xl border text-sm font-mono font-bold tracking-wider transition-all cursor-pointer ${
-                          responses[currentQuestion.id] === true
-                            ? "bg-[#4ade80]/10 border-[#4ade80] text-[#4ade80] shadow"
-                            : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        TRUE CUT
-                      </button>
-                      <button
-                        onClick={() => handleAnswerSelect(currentQuestion.id, false)}
-                        className={`py-4 rounded-xl border text-sm font-mono font-bold tracking-wider transition-all cursor-pointer ${
-                          responses[currentQuestion.id] === false
-                            ? "bg-[#ff5c5c]/10 border-[#ff5c5c] text-[#ff5c5c] shadow"
-                            : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        FALSE CUT
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ================= TYPE 4: FILL THE GAP ================= */}
-                {currentQuestion.type === "fillgap" && (
-                  <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
-                    <div className="text-base sm:text-lg leading-loose font-body text-zinc-200">
-                      {/* Splitting gaps */}
-                      {currentQuestion.gapTemplate.split("___")[0]}
-                      <input
-                        type="text"
-                        className="inline-block bg-[#1e1f24] border-b-2 border-[#49d3e8] rounded-t px-3 py-1 font-mono text-[#49d3e8] outline-none focus:bg-zinc-900 w-36 text-center text-sm"
-                        placeholder="_____"
-                        value={responses[currentQuestion.id] || ""}
-                        onChange={(e) => handleAnswerSelect(currentQuestion.id, e.target.value)}
-                      />
-                      {currentQuestion.gapTemplate.split("___")[1]}
-                    </div>
-                    <p className="text-[10px] text-zinc-500 font-mono">Fill in the blank with the exact technical term.</p>
-                  </div>
-                )}
-
-                {/* ================= TYPE 5: MEDIA MCQ ================= */}
-                {currentQuestion.type === "media_mcq" && (
-                  <div className="space-y-6">
-                    {/* Visual stream preview */}
-                    <div className="relative aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-black">
-                      <iframe
-                        src={currentQuestion.mediaUrl}
-                        className="absolute inset-0 w-full h-full border-0"
-                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 gap-3">
-                      {currentQuestion.options?.map((o: any, idx: number) => {
-                        const letter = String.fromCharCode(65 + idx);
-                        const isSelected = responses[currentQuestion.id] === o.id;
-                        return (
+                    {/* ================= TYPE 3: TRUE / FALSE ================= */}
+                    {q.type === "truefalse" && (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-zinc-950/80 border border-purple-900/20 rounded-2xl font-mono text-xs sm:text-sm leading-relaxed text-zinc-400">
+                          {q.trueFalseStatement}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                           <button
-                            key={o.id}
-                            onClick={() => handleAnswerSelect(currentQuestion.id, o.id)}
-                            className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
-                              isSelected 
-                                ? "bg-[#49d3e8]/5 border-[#49d3e8]" 
-                                : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700"
+                            onClick={() => handleAnswerSelect(q.id, true)}
+                            className={`py-3.5 rounded-xl border text-xs sm:text-sm font-mono font-bold tracking-wider transition-all cursor-pointer ${
+                              responses[q.id] === true
+                                ? "bg-[#4ade80]/10 border-[#4ade80] text-[#4ade80]"
+                                : "bg-zinc-950/60 border-purple-900/20 hover:border-purple-900/30 text-zinc-400"
                             }`}
                           >
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
-                              isSelected 
-                                ? "bg-[#49d3e8] text-zinc-950 border-[#49d3e8]" 
-                                : "bg-zinc-950 text-zinc-400 border-zinc-800"
-                            }`}>
-                              {letter}
-                            </div>
-                            <span className="text-sm font-semibold">{o.text}</span>
+                            TRUE CUT
                           </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ================= TYPE 6: SPOT THE DIFFERENCE ================= */}
-                {currentQuestion.type === "spot_diff" && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Clip A — Reference</div>
-                        <div className="relative aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center font-mono text-xs text-zinc-500">
-                          CLIP A REFERENCE
+                          <button
+                            onClick={() => handleAnswerSelect(q.id, false)}
+                            className={`py-3.5 rounded-xl border text-xs sm:text-sm font-mono font-bold tracking-wider transition-all cursor-pointer ${
+                              responses[q.id] === false
+                                ? "bg-[#ff5c5c]/10 border-[#ff5c5c] text-[#ff5c5c]"
+                                : "bg-zinc-950/60 border-purple-900/20 hover:border-purple-900/30 text-zinc-400"
+                            }`}
+                          >
+                            FALSE CUT
+                          </button>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Clip B — Edited differences</div>
-                        <div className="relative aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
+                    )}
+
+                    {/* ================= TYPE 4: FILL THE GAP ================= */}
+                    {q.type === "fillgap" && (
+                      <div className="p-6 bg-zinc-950/40 border border-purple-900/20 rounded-2xl space-y-4">
+                        <div className="text-sm sm:text-base leading-loose font-sans text-zinc-200">
+                          {q.gapTemplate.split("___")[0]}
+                          <input
+                            type="text"
+                            className="inline-block bg-zinc-950/60 border-b-2 border-purple-500 rounded-t px-3 py-1 font-mono text-purple-300 outline-none focus:bg-zinc-900 w-36 text-center text-sm"
+                            placeholder="_____"
+                            value={responses[q.id] || ""}
+                            onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
+                          />
+                          {q.gapTemplate.split("___")[1]}
+                        </div>
+                        <p className="text-[10px] text-zinc-500 font-mono">Fill in the blank with the exact technical term.</p>
+                      </div>
+                    )}
+
+                    {/* ================= TYPE 5: MEDIA MCQ ================= */}
+                    {q.type === "media_mcq" && (
+                      <div className="space-y-6">
+                        <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/20 bg-black">
                           <iframe
-                            src={currentQuestion.diffMediaUrl}
+                            src={q.mediaUrl}
                             className="absolute inset-0 w-full h-full border-0"
+                            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
                           />
                         </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Spotted Difference Timecode Second</label>
-                      <input
-                        type="number"
-                        min="0"
-                        className="w-full bg-[#1e1f24] border border-zinc-800 rounded-xl p-4 font-mono text-sm text-white outline-none focus:border-[#49d3e8]"
-                        placeholder="Enter the timestamp second (e.g. 12)..."
-                        value={responses[currentQuestion.id] || ""}
-                        onChange={(e) => handleAnswerSelect(currentQuestion.id, e.target.value)}
-                      />
-                      <p className="text-[10px] text-zinc-500 font-mono">Watch carefully and input the approximate elapsed second mark.</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* ================= TYPE 7: SLIDER COMPARE ================= */}
-                {currentQuestion.type === "slider_compare" && (
-                  <div className="space-y-6">
-                    <div className="relative aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950">
-                      <img
-                        src={currentQuestion.sliderMediaA}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        alt="Slider A"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div
-                        className="absolute inset-0 overflow-hidden"
-                        style={{ clipPath: `inset(0 0 0 ${sliderVal}%)` }}
-                      >
-                        <img
-                          src={currentQuestion.sliderMediaB}
-                          className="absolute inset-0 w-full h-full object-cover"
-                          alt="Slider B"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="absolute top-4 right-4 bg-zinc-950/70 border border-zinc-800 font-mono text-[9px] text-[#49d3e8] px-2 py-0.5 rounded">SIDE B</span>
-                      </div>
-                      
-                      <span className="absolute top-4 left-4 bg-zinc-950/70 border border-zinc-800 font-mono text-[9px] text-zinc-400 px-2 py-0.5 rounded">SIDE A</span>
-
-                      {/* Moving slider vertical bar */}
-                      <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] pointer-events-none"
-                        style={{ left: `${sliderVal}%` }}
-                      />
-                    </div>
-
-                    <div className="space-y-4">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={sliderVal}
-                        onChange={(e) => setSliderVal(parseInt(e.target.value, 10))}
-                        className="w-full accent-[#49d3e8] h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
-                      />
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <button
-                          onClick={() => handleAnswerSelect(currentQuestion.id, "A")}
-                          className={`py-3 rounded-xl border text-sm font-mono font-bold transition-all cursor-pointer ${
-                            responses[currentQuestion.id] === "A"
-                              ? "bg-[#49d3e8]/10 border-[#49d3e8] text-[#49d3e8]"
-                              : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700"
-                          }`}
-                        >
-                          SIDE A IS TEAL/ORANGE
-                        </button>
-                        <button
-                          onClick={() => handleAnswerSelect(currentQuestion.id, "B")}
-                          className={`py-3 rounded-xl border text-sm font-mono font-bold transition-all cursor-pointer ${
-                            responses[currentQuestion.id] === "B"
-                              ? "bg-[#49d3e8]/10 border-[#49d3e8] text-[#49d3e8]"
-                              : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700"
-                          }`}
-                        >
-                          SIDE B IS TEAL/ORANGE
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ================= TYPE 8: DRAG TO REORDER ================= */}
-                {currentQuestion.type === "sequence" && (
-                  <div className="space-y-3" onDragOver={handleSequenceDragOver}>
-                    {seqItems.map((item, idx) => (
-                      <div
-                        key={idx}
-                        draggable
-                        onDragStart={(e) => handleSequenceDragStart(e, idx)}
-                        onDrop={(e) => handleSequenceDrop(e, idx)}
-                        className="flex items-center gap-4 bg-[#1e1f24] border border-zinc-800 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:border-zinc-700 transition-colors"
-                      >
-                        <span className="font-mono text-xs text-[#49d3e8] bg-[#49d3e8]/10 px-2.5 py-1 rounded shrink-0">
-                          {String(idx + 1).padStart(2, '0')}
-                        </span>
-                        <div className="flex-1 font-body text-sm font-semibold">{item}</div>
-                        <div className="font-mono text-zinc-600 text-xs tracking-widest shrink-0">⠿⠿</div>
-                      </div>
-                    ))}
-                    <p className="text-[10px] text-zinc-500 font-mono mt-2">Drag and drop the items to reorder them in logical sequence.</p>
-                  </div>
-                )}
-
-                {/* ================= TYPE 9: MATCH PAIRS ================= */}
-                {currentQuestion.type === "match" && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Left draggable items */}
-                      <div className="space-y-3">
-                        <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Draggable Sound FX</div>
-                        {currentQuestion.matchPairs?.map((pair: any, idx: number) => {
-                          const isMatched = matchesMap[pair.left] !== undefined;
-                          return (
-                            <div
-                              key={idx}
-                              draggable={!isMatched}
-                              onDragStart={(e) => handleMatchDragStart(e, pair.left)}
-                              className={`p-4 border rounded-xl font-body text-sm font-bold flex items-center justify-between transition-colors ${
-                                isMatched 
-                                  ? "bg-zinc-950 border-zinc-800 text-zinc-600 opacity-40 select-none" 
-                                  : "bg-[#1e1f24] border-zinc-800 hover:border-zinc-700 cursor-grab active:cursor-grabbing text-zinc-200"
-                              }`}
-                            >
-                              <span>🔊 {pair.left}</span>
-                              {!isMatched && <span className="font-mono text-xs text-[#49d3e8]">DRAG</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Right drop slots */}
-                      <div className="space-y-3">
-                        <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Target Editing Actions</div>
-                        {currentQuestion.matchPairs?.map((pair: any, idx: number) => {
-                          const matchedLeft = Object.keys(matchesMap).find(k => matchesMap[k] === pair.right);
-                          return (
-                            <div
-                              key={idx}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={() => handleMatchDrop(pair.right)}
-                              className={`p-4 border rounded-xl flex items-center justify-between text-sm transition-all ${
-                                matchedLeft 
-                                  ? "bg-[#49d3e8]/5 border-[#49d3e8]" 
-                                  : "bg-zinc-950 border-dashed border-zinc-800 text-zinc-400"
-                              }`}
-                            >
-                              <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">ACTION {idx + 1}</span>
-                                <span className="font-semibold text-zinc-300">{pair.right}</span>
-                              </div>
-                              {matchedLeft ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs text-[#49d3e8] bg-[#49d3e8]/10 px-2 py-0.5 rounded">🔊 {matchedLeft}</span>
-                                  <button
-                                    onClick={() => handleMatchClear(matchedLeft)}
-                                    className="text-zinc-500 hover:text-[#ff5c5c] cursor-pointer text-xs"
-                                  >
-                                    ✕
-                                  </button>
+                        <div className="grid grid-cols-1 gap-3">
+                          {q.options?.map((o: any, idx: number) => {
+                            const letter = String.fromCharCode(65 + idx);
+                            const isSelected = responses[q.id] === o.id;
+                            return (
+                              <button
+                                key={o.id}
+                                onClick={() => handleAnswerSelect(q.id, o.id)}
+                                className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                                  isSelected 
+                                    ? "bg-purple-500/5 border-purple-500 text-white" 
+                                    : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-300"
+                                }`}
+                              >
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold border shrink-0 ${
+                                  isSelected 
+                                    ? "bg-purple-600 text-white border-purple-500" 
+                                    : "bg-zinc-950 text-zinc-400 border-purple-900/20"
+                                }`}>
+                                  {letter}
                                 </div>
-                              ) : (
-                                <span className="font-mono text-[10px] text-zinc-600 italic border border-zinc-800 border-dashed p-1 rounded">DROP SLOT</span>
-                              )}
-                            </div>
-                          );
-                        })}
+                                <span className="text-sm font-semibold">{o.text}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* ================= TYPE 6: SPOT THE DIFFERENCE ================= */}
+                    {q.type === "spot_diff" && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Clip A — Reference</div>
+                            <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center font-mono text-xs text-zinc-500">
+                              CLIP A REFERENCE
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Clip B — Edited differences</div>
+                            <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
+                              <iframe
+                                src={q.diffMediaUrl}
+                                className="absolute inset-0 w-full h-full border-0"
+                                allowFullScreen
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Spotted Difference Timecode Second</label>
+                          <input
+                            type="number"
+                            min="0"
+                            className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm text-white outline-none focus:border-purple-500"
+                            placeholder="Enter the timestamp second (e.g. 12)..."
+                            value={responses[q.id] || ""}
+                            onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
+                          />
+                          <p className="text-[10px] text-zinc-500 font-mono">Watch carefully and input the approximate elapsed second mark.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ================= TYPE 7: SLIDER COMPARE ================= */}
+                    {q.type === "slider_compare" && (
+                      <div className="space-y-6">
+                        <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/20 bg-zinc-950">
+                          <img
+                            src={q.sliderMediaA}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            alt="Slider A"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div
+                            className="absolute inset-0 overflow-hidden"
+                            style={{ clipPath: `inset(0 0 0 ${sliderVal}%)` }}
+                          >
+                            <img
+                              src={q.sliderMediaB}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              alt="Slider B"
+                              referrerPolicy="no-referrer"
+                            />
+                            <span className="absolute top-4 right-4 bg-zinc-950/70 border border-purple-900/20 font-mono text-[9px] text-purple-400 px-2 py-0.5 rounded">SIDE B</span>
+                          </div>
+                          
+                          <span className="absolute top-4 left-4 bg-zinc-950/70 border border-purple-900/20 font-mono text-[9px] text-zinc-400 px-2 py-0.5 rounded">SIDE A</span>
+
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] pointer-events-none"
+                            style={{ left: `${sliderVal}%` }}
+                          />
+                        </div>
+
+                        <div className="space-y-4">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={sliderVal}
+                            onChange={(e) => setSliderVal(parseInt(e.target.value, 10))}
+                            className="w-full accent-purple-500 h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
+                          />
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <button
+                              onClick={() => handleAnswerSelect(q.id, "A")}
+                              className={`py-3 rounded-xl border text-xs sm:text-sm font-mono font-bold transition-all cursor-pointer ${
+                                responses[q.id] === "A"
+                                  ? "bg-purple-500/10 border-purple-500 text-purple-300"
+                                  : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-400"
+                              }`}
+                            >
+                              SIDE A IS TEAL/ORANGE
+                            </button>
+                            <button
+                              onClick={() => handleAnswerSelect(q.id, "B")}
+                              className={`py-3 rounded-xl border text-xs sm:text-sm font-mono font-bold transition-all cursor-pointer ${
+                                responses[q.id] === "B"
+                                  ? "bg-purple-500/10 border-purple-500 text-purple-300"
+                                  : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-900/30 text-zinc-400"
+                              }`}
+                            >
+                              SIDE B IS TEAL/ORANGE
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ================= TYPE 8: DRAG TO REORDER ================= */}
+                    {q.type === "sequence" && (
+                      <div className="space-y-3" onDragOver={handleSequenceDragOver}>
+                        {(shuffledSequences[q.id] || []).map((item, idx) => (
+                          <div
+                            key={idx}
+                            draggable
+                            onDragStart={(e) => handleSequenceDragStart(e, q.id, idx)}
+                            onDrop={(e) => handleSequenceDrop(e, q.id, idx)}
+                            className="flex items-center gap-4 bg-zinc-950/60 border border-purple-900/10 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:border-purple-500/30 transition-colors"
+                          >
+                            <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded shrink-0 border border-purple-500/10">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                            <div className="flex-1 font-sans text-sm font-semibold text-zinc-200">{item}</div>
+                            <div className="font-mono text-zinc-600 text-xs tracking-widest shrink-0 select-none">⠿⠿</div>
+                          </div>
+                        ))}
+                        <p className="text-[10px] text-zinc-500 font-mono mt-2">Drag and drop the items to reorder them in logical sequence.</p>
+                      </div>
+                    )}
+
+                    {/* ================= TYPE 9: MATCH PAIRS ================= */}
+                    {q.type === "match" && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          
+                          {/* Left items */}
+                          <div className="space-y-3">
+                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Draggable Sound FX</div>
+                            {q.matchPairs?.map((pair: any, idx: number) => {
+                              const qidMap = matchesMaps[q.id] || {};
+                              const isMatched = qidMap[pair.left] !== undefined;
+                              return (
+                                <div
+                                  key={idx}
+                                  draggable={!isMatched}
+                                  onDragStart={(e) => handleMatchDragStart(e, q.id, pair.left)}
+                                  className={`p-4 border rounded-xl font-sans text-sm font-bold flex items-center justify-between transition-colors ${
+                                    isMatched 
+                                      ? "bg-zinc-950/20 border-purple-950/10 text-zinc-600 opacity-40 select-none" 
+                                      : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-500/30 cursor-grab active:cursor-grabbing text-zinc-200"
+                                  }`}
+                                >
+                                  <span>🔊 {pair.left}</span>
+                                  {!isMatched && <span className="font-mono text-xs text-purple-400">DRAG</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Right drop targets */}
+                          <div className="space-y-3">
+                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Target Editing Actions</div>
+                            {q.matchPairs?.map((pair: any, idx: number) => {
+                              const qidMap = matchesMaps[q.id] || {};
+                              const matchedLeft = Object.keys(qidMap).find(k => qidMap[k] === pair.right);
+                              return (
+                                <div
+                                  key={idx}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={() => handleMatchDrop(q.id, pair.right)}
+                                  className={`p-4 border rounded-xl flex items-center justify-between text-sm transition-all ${
+                                    matchedLeft 
+                                      ? "bg-purple-500/5 border-purple-500" 
+                                      : "bg-zinc-950/40 border-dashed border-purple-900/20 text-zinc-400"
+                                  }`}
+                                >
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">ACTION {idx + 1}</span>
+                                    <span className="font-semibold text-zinc-300">{pair.right}</span>
+                                  </div>
+                                  {matchedLeft ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">🔊 {matchedLeft}</span>
+                                      <button
+                                        onClick={() => handleMatchClear(q.id, matchedLeft)}
+                                        className="text-zinc-500 hover:text-[#ff5c5c] cursor-pointer text-xs"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="font-mono text-[10px] text-zinc-600 italic border border-purple-900/20 border-dashed p-1 rounded select-none">DROP SLOT</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* ================= PREV / NEXT / SUBMIT NAVIGATION BAR ================= */}
-            <div className="flex items-center justify-between gap-4 mt-6">
-              <button
-                disabled={activeQuestionIdx === 0}
-                onClick={() => setActiveQuestionIdx(prev => prev - 1)}
-                className="px-5 py-3 border border-zinc-800 rounded-xl font-mono text-xs font-bold hover:border-[#49d3e8] hover:text-[#49d3e8] disabled:opacity-30 disabled:hover:border-zinc-800 disabled:hover:text-zinc-500 transition-colors cursor-pointer"
-              >
-                ← Prev Module
-              </button>
+                </div>
+              );
+            })}
 
-              {activeQuestionIdx < totalQuestions - 1 ? (
-                <button
-                  onClick={() => setActiveQuestionIdx(prev => prev + 1)}
-                  className="px-5 py-3 bg-[#1e1f24] hover:bg-[#282a30] border border-zinc-800 rounded-xl font-mono text-xs font-bold transition-colors cursor-pointer"
+            {/* ================= BOTTOM SUBMIT CONTROLS ================= */}
+            <div className="mt-12 bg-zinc-950/40 backdrop-blur-md border border-purple-900/20 rounded-3xl p-8 text-center space-y-6 shadow-xl">
+              <h2 className="text-xl font-mono font-bold text-white uppercase tracking-wider">Execute Project Evaluation</h2>
+              <p className="text-sm text-zinc-400 max-w-lg mx-auto leading-relaxed">
+                Once you have answered all {totalQuestions} analytical questions on the timeline above, compile and evaluate your answers to record your score.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+                <Link
+                  to={`/courses/${courseId}/video/${sessionId}/session`}
+                  className="px-6 py-3 border border-purple-900/20 hover:border-purple-500 text-zinc-300 font-mono text-xs font-bold rounded-xl transition-all"
                 >
-                  Next Module →
-                </button>
-              ) : (
+                  ← Resume Lecture
+                </Link>
+                
                 <button
-                  disabled={submittingAttempt || Object.keys(responses).length < totalQuestions}
+                  disabled={submittingAttempt || answeredCount < totalQuestions}
                   onClick={handleQuizSubmit}
-                  className="px-6 py-3 bg-gradient-to-r from-[#49d3e8] to-[#4ade80] text-zinc-950 font-mono text-xs font-extrabold rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-[#49d3e8]/10"
+                  className="px-8 py-3 bg-gradient-to-r from-purple-600 to-purple-400 text-white font-mono text-xs font-black rounded-xl hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-500/20"
                 >
                   {submittingAttempt ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Check className="w-4 h-4" />
                   )}
-                  Evaluate Timeline Quiz
+                  Evaluate All Answers
                 </button>
+              </div>
+
+              {answeredCount < totalQuestions && (
+                <p className="text-[11px] font-mono text-[#ffc24b] animate-pulse">
+                  * You have completed {answeredCount} out of {totalQuestions} questions. Fill in all remaining answers to unlock evaluation!
+                </p>
               )}
             </div>
 
-            {Object.keys(responses).length < totalQuestions && (
-              <p className="text-center text-[10px] font-mono text-zinc-500 mt-4">
-                Fill in all {totalQuestions} clip answers to unlock the evaluation compiler.
-              </p>
-            )}
           </div>
         )}
+
       </div>
     </div>
   );

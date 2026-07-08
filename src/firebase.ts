@@ -657,6 +657,137 @@ export const ensureDefaultStatisticsSeeded = async () => {
   }
 };
 
+export const DEFAULT_QUIZZES = [
+  {
+    id: "quiz_session_1",
+    title: "Session 1 — Introduction to Cutting & Invisible Edits",
+    description: "Test your analytical skills on edit points, transition timings, keyboard shortcuts, and visual aesthetics from Session 1.",
+    sessionId: 1,
+    status: "published",
+    questions: [
+      {
+        id: "q1_mcq",
+        type: "mcq",
+        prompt: "You need a hard cut to feel invisible on a fast pan. Which edit point do you choose?",
+        points: 1,
+        options: [
+          { id: "o1", text: "On the static frame, mid-pan", correct: false },
+          { id: "o2", text: "At the peak velocity of the pan (motion blur hides the cut)", correct: true },
+          { id: "o3", text: "One frame after the pan ends", correct: false },
+          { id: "o4", text: "On a hard audio beat only", correct: false }
+        ]
+      },
+      {
+        id: "q2_direct",
+        type: "direct",
+        prompt: "What keyboard shortcut ripple-deletes a clip and closes the gap in Premiere Pro (Windows)?",
+        points: 1,
+        acceptedAnswers: ["Shift+Delete", "Shift+Del", "Shift + Delete", "Shift + Del", "shift+delete"]
+      },
+      {
+        id: "q3_truefalse",
+        type: "truefalse",
+        prompt: "True or False Statement",
+        trueFalseStatement: "The 180-degree rule says two characters in a conversation should always be filmed from the same side of an imaginary line between them.",
+        trueFalseAnswer: true,
+        points: 1
+      },
+      {
+        id: "q4_fillgap",
+        type: "fillgap",
+        prompt: "Complete the sentence using the correct technical term.",
+        gapTemplate: "Bach l cut ma yban-ch, khass techni gebl ma tqata3 l clip tdir ___.",
+        gapAnswer: "J-cut",
+        points: 1
+      },
+      {
+        id: "q5_media_mcq",
+        type: "media_mcq",
+        prompt: "What transition technique is used at the 4-second mark of the clip above?",
+        mediaType: "video",
+        mediaUrl: "https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=false&loop=true&muted=true&preload=true&responsive=true",
+        points: 1,
+        options: [
+          { id: "o5", text: "Whip pan transition", correct: false },
+          { id: "o6", text: "Match cut on action", correct: true },
+          { id: "o7", text: "Cross dissolve", correct: false },
+          { id: "o8", text: "Speed ramp", correct: false }
+        ]
+      },
+      {
+        id: "q6_spot_diff",
+        type: "spot_diff",
+        prompt: "Same sequence, two exports. Click on the edited version. At what second (enter a number like 12) does Clip B differ from Clip A?",
+        diffMediaType: "video",
+        diffMediaUrl: "https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1",
+        diffCorrectSecond: 12,
+        points: 1
+      },
+      {
+        id: "q7_slider_compare",
+        type: "slider_compare",
+        prompt: "Drag to compare Side A and Side B. Which side uses the creative teal-and-orange color grading?",
+        sliderMediaA: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800",
+        sliderMediaB: "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=800",
+        sliderCorrectSide: "B",
+        points: 1
+      },
+      {
+        id: "q8_sequence",
+        type: "sequence",
+        prompt: "Drag these items into the correct color-grading workflow order (from first step to last).",
+        sequenceItems: [
+          "Primary correction (exposure, white balance)",
+          "Secondary correction (skin tones, skies)",
+          "Shot matching across the scene",
+          "Creative look / LUT pass"
+        ],
+        points: 1
+      },
+      {
+        id: "q9_match",
+        type: "match",
+        prompt: "Match each sound effect (left) to the editing action it belongs to (right).",
+        matchPairs: [
+          { left: "Whoosh", right: "Fast pan / whip transition" },
+          { id: "p1", left: "Impact hit", right: "Punch on hard cut" },
+          { id: "p2", left: "UI click", right: "Text pops on screen" }
+        ],
+        points: 1
+      },
+      {
+        id: "q10_timed_mcq",
+        type: "timed_mcq",
+        prompt: "What does the keyboard shortcut 'C' do on the Premiere Pro timeline?",
+        timeLimitSec: 10,
+        points: 1,
+        options: [
+          { id: "o9", text: "Razor / Cut tool", correct: true },
+          { id: "o10", text: "Copy clip", correct: false },
+          { id: "o11", text: "Crop effect", correct: false },
+          { id: "o12", text: "Center anchor point", correct: false }
+        ]
+      }
+    ]
+  }
+];
+
+export const ensureDefaultQuizzesSeeded = async () => {
+  try {
+    const quizRef = fbCollection(db, 'quizzes');
+    const snap = await fbGetDocs(quizRef);
+    if (snap.empty) {
+      console.log("Empty Firestore quizzes collection detected. Seeding fallback quizzes...");
+      for (const quiz of DEFAULT_QUIZZES) {
+        await fbSetDoc(fbDoc(db, 'quizzes', quiz.id), quiz);
+      }
+      console.log("Starter quizzes database seeding completed successfully.");
+    }
+  } catch (error) {
+    console.warn("Could not seed starter quizzes:", error);
+  }
+};
+
 // Recursive value helper to replace old CDN URLs with correct ones
 function migrateUrlsInValue(val: any): { updated: any; changed: boolean } {
   if (typeof val === 'string') {

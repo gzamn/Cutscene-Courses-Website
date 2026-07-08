@@ -24,6 +24,7 @@ import {
   ensureDefaultHeroVideosSeeded,
   ensureDefaultSpecialOffersSeeded,
   ensureDefaultStatisticsSeeded,
+  ensureDefaultQuizzesSeeded,
   DEFAULT_STATISTICS,
   query,
   where
@@ -2278,6 +2279,7 @@ export default function AdminPanel() {
   const fetchQuizzes = async () => {
     setLoadingQuizzes(true);
     try {
+      await ensureDefaultQuizzesSeeded();
       const snap = await getDocs(collection(db, 'quizzes'));
       const list = snap.docs.map(doc => ({
         id: doc.id,
@@ -3980,6 +3982,655 @@ export default function AdminPanel() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: CURRICULUM QUIZZES */}
+        {activeTab === 'quizzes' && (
+          <div className="space-y-8 animate-fade-in text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Curriculum Quizzes</h1>
+                <p className="text-gray-400 text-xs mt-1">Design academic challenges for your 10 course sessions. Built-in direct upload to Bunny CDN.</p>
+              </div>
+              <button
+                onClick={handleOpenCreateQuiz}
+                className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Add New Quiz
+              </button>
+            </div>
+
+            {loadingQuizzes ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+              </div>
+            ) : quizzes.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                <HelpCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
+                <p className="text-gray-400 font-bold">No quizzes found</p>
+                <p className="text-xs text-gray-650 mt-1">Design an interactive NLE-style check for students! Click the top button to start.</p>
+              </div>
+            ) : (
+              <div className="bg-zinc-950/40 border border-purple-950/20 rounded-[2.5rem] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-950/30 text-gray-400 text-[10px] uppercase font-bold tracking-widest bg-zinc-950/60">
+                        <th className="py-4 px-6">Session ID</th>
+                        <th className="py-4 px-6">Quiz Title</th>
+                        <th className="py-4 px-6">Questions</th>
+                        <th className="py-4 px-6">Status</th>
+                        <th className="py-4 px-6 text-right">Operations</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-950/15">
+                      {quizzes.slice().sort((a,b) => (a.sessionId || 1) - (b.sessionId || 1)).map((item) => (
+                        <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-6 font-mono text-xs text-purple-400 font-bold">
+                            Session {item.sessionId || 1}
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-white text-sm">{item.title}</div>
+                          </td>
+                          <td className="py-4 px-6 font-mono text-xs text-gray-400">
+                            {item.questions?.length || 0} Questions
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                              item.status === 'published'
+                                ? 'bg-emerald-950/40 border border-emerald-500/20 text-emerald-400'
+                                : 'bg-amber-950/40 border border-amber-500/20 text-amber-400'
+                            }`}>
+                              {item.status || 'draft'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-right space-x-2">
+                            <button
+                              onClick={() => startEditQuiz(item)}
+                              className="p-2 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Edit Quiz"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuiz(item.id, item.title)}
+                              className="p-2 hover:bg-red-950/40 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Delete Quiz"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* QUIZ FORM PARAMETERS MODAL */}
+            {showQuizModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/85 backdrop-blur-md cursor-pointer" onClick={() => setShowQuizModal(false)} />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className="relative bg-zinc-950 border border-purple-900/20 rounded-[2rem] p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl z-10 text-left space-y-6"
+                >
+                  <div className="flex items-center justify-between border-b border-purple-950/30 pb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-white font-mono uppercase tracking-wider">
+                        {editingQuizId ? 'Edit Academy Quiz' : 'Create Academy Quiz'}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5 font-sans">Build interactive NLE timelines and assign them to sessions</p>
+                    </div>
+                    <button onClick={() => setShowQuizModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-all cursor-pointer">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleQuizSubmit} className="space-y-6 font-sans">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="md:col-span-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Quiz Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={quizForm.title}
+                          onChange={(e) => setQuizForm({ ...quizForm, title: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500 font-bold font-sans"
+                          placeholder="e.g. Session 1 Check — Basics"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Session Assignment</label>
+                        <select
+                          value={quizForm.sessionId}
+                          onChange={(e) => setQuizForm({ ...quizForm, sessionId: Number(e.target.value) })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                        >
+                          {Array.from({ length: 10 }, (_, i) => (
+                            <option key={i + 1} value={i + 1}>
+                              Session {i + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Publishing Status</label>
+                        <select
+                          value={quizForm.status}
+                          onChange={(e) => setQuizForm({ ...quizForm, status: e.target.value as 'draft' | 'published' })}
+                          className="bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer font-bold"
+                        >
+                          <option value="draft">Draft (Hidden)</option>
+                          <option value="published">Published (Live)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-purple-950/20 pt-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-bold text-white font-mono uppercase tracking-wider">Question Sequence</h4>
+                          <p className="text-xs text-gray-550 mt-0.5">Build curriculum steps ({questions.length} total)</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleOpenAddQuestion}
+                          className="px-4 py-2 bg-purple-900/25 border border-purple-500/20 hover:border-purple-500/40 text-purple-400 hover:text-purple-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <HelpCircle className="w-3.5 h-3.5" />
+                          <span>+ Add Question</span>
+                        </button>
+                      </div>
+
+                      {questions.length === 0 ? (
+                        <div className="text-center py-12 bg-black/40 border border-dashed border-purple-900/10 rounded-2xl">
+                          <HelpCircle className="w-10 h-10 text-gray-600 mx-auto mb-2 animate-pulse" />
+                          <p className="text-xs text-gray-450 font-bold font-mono">No questions defined yet</p>
+                          <p className="text-[10px] text-gray-650 mt-0.5 font-sans">Click + Add Question to set up MCQ, slider compare, rapid fire, and more</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+                          {questions.map((q, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-black/50 border border-purple-950/20 rounded-2xl group hover:border-purple-500/10 transition-all">
+                              <div className="flex items-center gap-3">
+                                <span className="font-mono text-xs font-black text-purple-400 bg-purple-500/5 px-2.5 py-1 rounded-lg border border-purple-500/10">
+                                  Q{idx + 1}
+                                </span>
+                                <div>
+                                  <div className="text-xs font-bold text-white line-clamp-1 font-sans">{q.text}</div>
+                                  <div className="text-[10px] text-purple-350 font-mono mt-0.5 uppercase tracking-wider">{q.type}</div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => moveQuestion(idx, 'up')}
+                                  className="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-gray-400 hover:text-white rounded-lg disabled:opacity-30 transition-all cursor-pointer"
+                                  title="Move Up"
+                                >
+                                  ▲
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === questions.length - 1}
+                                  onClick={() => moveQuestion(idx, 'down')}
+                                  className="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-gray-400 hover:text-white rounded-lg disabled:opacity-30 transition-all cursor-pointer"
+                                  title="Move Down"
+                                >
+                                  ▼
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditQuestion(idx)}
+                                  className="p-1.5 bg-zinc-900 hover:bg-zinc-850 hover:text-purple-300 text-gray-400 rounded-lg transition-all cursor-pointer"
+                                  title="Edit Question"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const list = [...questions];
+                                    list.splice(idx, 1);
+                                    setQuestions(list);
+                                    showToast('success', 'Question removed.');
+                                  }}
+                                  className="p-1.5 bg-zinc-900 hover:bg-red-950/20 text-red-500 hover:text-red-400 rounded-lg transition-all cursor-pointer"
+                                  title="Delete Question"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t border-purple-950/20 flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowQuizModal(false)}
+                        className="px-5 py-3 bg-zinc-900 border border-white/5 hover:bg-zinc-800 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-300 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg"
+                      >
+                        Save Quiz Parameters
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </div>
+            )}
+
+            {/* DETAILED QUESTION SPECIFICATION MODAL */}
+            {showQuestionModal && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-md cursor-pointer" onClick={() => setShowQuestionModal(false)} />
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="relative bg-zinc-950 border border-purple-900/35 rounded-[2rem] p-8 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl z-10 text-left space-y-6"
+                >
+                  <div className="flex items-center justify-between border-b border-purple-950/30 pb-4">
+                    <div>
+                      <h4 className="text-lg font-bold text-white font-mono uppercase tracking-wider">
+                        {editingQuestionIndex !== null ? 'Edit Question Specifications' : 'Add Question Sequence Step'}
+                      </h4>
+                      <p className="text-xs text-gray-400 mt-0.5 font-sans">Configure visual tools, interaction mechanisms, and answer keys</p>
+                    </div>
+                    <button onClick={() => setShowQuestionModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-all cursor-pointer">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveQuestion} className="space-y-6 font-sans">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Challenge Mechanism Type</label>
+                        <select
+                          value={currentQuestionForm.type}
+                          onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, type: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer font-bold"
+                        >
+                          <option value="MCQ">Multiple Choice (MCQ)</option>
+                          <option value="Direct">Direct Answer (Exact Text/Key)</option>
+                          <option value="True/False">True / False Statement</option>
+                          <option value="Fill the Gap">Fill the Gap (Blank term)</option>
+                          <option value="Media Quiz">Media Quiz (Bunny clip/still + MCQ)</option>
+                          <option value="Spot-diff">Spot the Difference (Coordinates/Timing)</option>
+                          <option value="Slider">Before / After Slider Compare</option>
+                          <option value="Sequence">Drag to Reorder (List sequence)</option>
+                          <option value="Match">Match Pairs (Match rows)</option>
+                          <option value="Timed MCQ">Timed Rapid Fire MCQ</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Video Sync Timestamp (e.g. 00:05)</label>
+                        <input
+                          type="text"
+                          value={currentQuestionForm.videoTimestamp}
+                          onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, videoTimestamp: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                          placeholder="e.g. 00:05 or 00:00:15"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Question / Challenge Prompt</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={currentQuestionForm.text}
+                        onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, text: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+                        placeholder="What's the keyboard shortcut for the Razor tool in Premiere Pro?"
+                      />
+                    </div>
+
+                    {/* MEDIA FILE UPLOAD INTEGRATION */}
+                    {(currentQuestionForm.type === 'Media Quiz' || currentQuestionForm.type === 'Spot-diff' || currentQuestionForm.type === 'Slider') && (
+                      <div className="space-y-4 bg-purple-950/5 border border-purple-950/20 p-5 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 font-mono">
+                            Bunny CDN Direct Media Upload
+                          </label>
+                          {uploadingQuestionMedia && (
+                            <span className="text-[10px] text-gray-400 font-mono flex items-center gap-1.5">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
+                              Piping stream to CDN...
+                            </span>
+                          )}
+                        </div>
+
+                        {currentQuestionForm.type === 'Slider' ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">Side A (Before Clip)</span>
+                              <input
+                                type="file"
+                                accept="video/*,image/*,audio/*"
+                                onChange={(e) => handleUploadQuestionMedia(e, 'mediaUrl')}
+                                className="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={currentQuestionForm.mediaUrl}
+                                onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, mediaUrl: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                                placeholder="Public Side A URL..."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">Side B (After Clip)</span>
+                              <input
+                                type="file"
+                                accept="video/*,image/*,audio/*"
+                                onChange={(e) => handleUploadQuestionMedia(e, 'secondMediaUrl')}
+                                className="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={currentQuestionForm.secondMediaUrl}
+                                onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, secondMediaUrl: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                                placeholder="Public Side B URL..."
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              accept="video/*,image/*,audio/*"
+                              onChange={(e) => handleUploadQuestionMedia(e, 'mediaUrl')}
+                              className="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 cursor-pointer"
+                            />
+                            <input
+                              type="text"
+                              value={currentQuestionForm.mediaUrl}
+                              onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, mediaUrl: e.target.value })}
+                              className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                              placeholder="Direct HTTP URL path to CDN asset..."
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* INTERACTION COMPONENT FIELD PARAMETERS */}
+                    {(currentQuestionForm.type === 'MCQ' || currentQuestionForm.type === 'Media Quiz' || currentQuestionForm.type === 'Timed MCQ') && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-purple-950/20 pt-6">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Options (one option per line)
+                          </label>
+                          <textarea
+                            required
+                            rows={4}
+                            value={currentQuestionForm.optionsText}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, optionsText: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                            placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Exact Correct Answer Key string
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={currentQuestionForm.correctAnswer}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                            placeholder="Option A (Must exactly match one optionsText line)"
+                          />
+
+                          {currentQuestionForm.type === 'Timed MCQ' && (
+                            <div className="mt-4">
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                                Timer Limit (Seconds)
+                              </label>
+                              <input
+                                type="number"
+                                required
+                                min={3}
+                                value={currentQuestionForm.timerLimit}
+                                onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, timerLimit: Number(e.target.value) || 15 })}
+                                className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'Direct' && (
+                      <div className="border-t border-purple-950/20 pt-6">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                          Exact Correct Answer (e.g. C)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={currentQuestionForm.correctAnswer}
+                          onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                          placeholder="e.g. C"
+                        />
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'True/False' && (
+                      <div className="border-t border-purple-950/20 pt-6">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                          Correct Answer State
+                        </label>
+                        <select
+                          value={currentQuestionForm.correctAnswer}
+                          onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none cursor-pointer"
+                        >
+                          <option value="True">TRUE</option>
+                          <option value="False">FALSE</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'Fill the Gap' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-purple-950/20 pt-6">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Sentence Template (Use ___ for blank space)
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={currentQuestionForm.optionsText}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, optionsText: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                            placeholder="e.g. Gbel ma tbda t-edité, khass dima trattab l-projet f ___..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Blank Gap Correct Answer Term
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={currentQuestionForm.correctAnswer}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-bold"
+                            placeholder="e.g. folder"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'Spot-diff' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-purple-950/20 pt-6">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Timecode / Exact Seconds Difference Occurs
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={currentQuestionForm.correctAnswer}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                            placeholder="e.g. 5.5"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1 font-mono">Area X (%)</label>
+                            <input
+                              type="number"
+                              required
+                              value={currentQuestionForm.diffAreaX}
+                              onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, diffAreaX: Number(e.target.value) })}
+                              className="w-full bg-black border border-purple-900/30 rounded-lg p-2.5 text-xs text-white focus:outline-none font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1 font-mono">Area Y (%)</label>
+                            <input
+                              type="number"
+                              required
+                              value={currentQuestionForm.diffAreaY}
+                              onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, diffAreaY: Number(e.target.value) })}
+                              className="w-full bg-black border border-purple-900/30 rounded-lg p-2.5 text-xs text-white focus:outline-none font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1 font-mono">Radius (%)</label>
+                            <input
+                              type="number"
+                              required
+                              value={currentQuestionForm.diffAreaR}
+                              onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, diffAreaR: Number(e.target.value) })}
+                              className="w-full bg-black border border-purple-900/30 rounded-lg p-2.5 text-xs text-white focus:outline-none font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'Slider' && (
+                      <div className="border-t border-purple-950/20 pt-6">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                          Correct Side (Correct asset is:)
+                        </label>
+                        <select
+                          value={currentQuestionForm.correctAnswer}
+                          onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none cursor-pointer"
+                        >
+                          <option value="A">Side A (Before Clip)</option>
+                          <option value="B">Side B (After Clip)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'Sequence' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-purple-950/20 pt-6">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Sequence Items (One item per line, in arbitrary default order)
+                          </label>
+                          <textarea
+                            required
+                            rows={4}
+                            value={currentQuestionForm.optionsText}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, optionsText: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                            placeholder="Step C&#10;Step A&#10;Step B"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Correct Sequence Key (One item per line, sorted EXACTLY in correct answer order)
+                          </label>
+                          <textarea
+                            required
+                            rows={4}
+                            value={currentQuestionForm.correctAnswer}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                            placeholder="Step A&#10;Step B&#10;Step C"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {currentQuestionForm.type === 'Match' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-purple-950/20 pt-6">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Matching Prompt Items (One per line)
+                          </label>
+                          <textarea
+                            required
+                            rows={4}
+                            value={currentQuestionForm.optionsText}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, optionsText: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                            placeholder="Razor shortcut&#10;Selection shortcut"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                            Correct Matching Answer Keys (One per line, EXACT order matching prompt lines above)
+                          </label>
+                          <textarea
+                            required
+                            rows={4}
+                            value={currentQuestionForm.correctAnswer}
+                            onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, correctAnswer: e.target.value })}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                            placeholder="C&#10;V"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-4 border-t border-purple-950/20 flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowQuestionModal(false)}
+                        className="px-5 py-3 bg-zinc-900 border border-white/5 hover:bg-zinc-800 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-300 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+                      >
+                        {editingQuestionIndex !== null ? 'Save Changes' : 'Append Question'}
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
               </div>
             )}
           </div>

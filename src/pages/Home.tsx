@@ -192,7 +192,7 @@ export default function Home() {
           <div className="w-full rounded-2xl md:rounded-[2rem] overflow-hidden border border-purple-500/10 shadow-[0_20px_50px_rgba(168,85,247,0.15)] bg-zinc-950">
             <div style={{ position: 'relative', paddingTop: '56.25%' }}>
               <iframe
-                src="https://player.mediadelivery.net/embed/698778/8d82e4b7-fd27-4830-82e4-d8d0103fa005?autoplay=false&loop=true&muted=true&preload=true&responsive=true"
+                src="https://player.mediadelivery.net/embed/698778/8d82e4b7-fd27-4830-82e4-d8d0103fa005?autoplay=false&loop=true&muted=false&preload=true&responsive=true"
                 loading="lazy"
                 style={{ border: 0, position: 'absolute', top: 0, height: '100%', width: '100%' }}
                 allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen;"
