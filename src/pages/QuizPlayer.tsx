@@ -118,6 +118,123 @@ export const DEFAULT_SESSION_1_QUIZ = {
   ]
 };
 
+/* ================= ARABIC RTL FLOW DETECTOR & QUIZ QUESTION NORMALIZATION ================= */
+export const hasArabic = (text: any): boolean => {
+  if (!text) return false;
+  return /[\u0600-\u06FF]/.test(String(text));
+};
+
+export function normalizeQuiz(rawQuiz: any) {
+  if (!rawQuiz) return null;
+  
+  const normalizedQuestions = rawQuiz.questions?.map((q: any, i: number) => {
+    // Determine target normalized type
+    let targetType = String(q.type || "").toLowerCase().replace(/_/g, "").replace(/\//g, "").replace(/-/g, "").replace(/\s/g, "");
+    
+    // Map standard admin quiz types to internal players
+    if (targetType === "mcq") targetType = "mcq";
+    else if (targetType === "timedmcq" || targetType === "timedrapidfiremcq") targetType = "timed_mcq";
+    else if (targetType === "mediaquiz" || targetType === "media_mcq") targetType = "media_mcq";
+    else if (targetType === "direct" || targetType === "directanswer") targetType = "direct";
+    else if (targetType === "truefalse" || targetType === "true/false") targetType = "truefalse";
+    else if (targetType === "fillgap" || targetType === "fillthegap") targetType = "fillgap";
+    else if (targetType === "spotdiff") targetType = "spot_diff";
+    else if (targetType === "slider" || targetType === "slidercompare") targetType = "slider_compare";
+    else if (targetType === "sequence" || targetType === "dragtoreorder") targetType = "sequence";
+    else if (targetType === "match" || targetType === "matchpairs") targetType = "match";
+
+    const prompt = q.prompt || q.text || "";
+    const id = q.id || `custom_q_${i}`;
+    const points = q.points || 1;
+
+    let options = q.options || [];
+    // If options are string arrays (from custom quiz) and it's an MCQ, map to expected object array
+    if (["mcq", "timed_mcq", "media_mcq"].includes(targetType)) {
+      if (Array.isArray(options) && (options.length === 0 || typeof options[0] === "string")) {
+        options = options.map((optText: string, idx: number) => {
+          const isCorrect = String(optText).trim() === String(q.correctAnswer).trim();
+          return {
+            id: `opt_${idx}`,
+            text: optText,
+            correct: isCorrect
+          };
+        });
+      }
+    }
+
+    let acceptedAnswers = q.acceptedAnswers || [];
+    if (targetType === "direct" && q.correctAnswer) {
+      const correctAnsStr = String(q.correctAnswer).trim();
+      acceptedAnswers = [correctAnsStr, correctAnsStr.toLowerCase()];
+    }
+
+    let trueFalseStatement = q.trueFalseStatement || q.prompt || q.text || "";
+    let trueFalseAnswer = q.trueFalseAnswer;
+    if (targetType === "truefalse" && q.correctAnswer !== undefined) {
+      trueFalseAnswer = q.correctAnswer === "True" || q.correctAnswer === true;
+    }
+
+    let gapTemplate = q.gapTemplate || (q.options && q.options[0]) || "";
+    let gapAnswer = q.gapAnswer || q.correctAnswer || "";
+
+    let diffMediaUrl = q.mediaUrl || q.diffMediaUrl || "";
+    let diffCorrectSecond = Number(q.correctAnswer) || q.diffCorrectSecond || 0;
+
+    let sliderMediaA = q.mediaUrl || q.sliderMediaA || "";
+    let sliderMediaB = q.secondMediaUrl || q.sliderMediaB || "";
+    let sliderCorrectSide = q.correctAnswer || q.sliderCorrectSide || "A";
+
+    let sequenceItems = q.sequenceItems || [];
+    if (targetType === "sequence") {
+      if (Array.isArray(q.correctAnswer)) {
+        sequenceItems = q.correctAnswer;
+      } else if (Array.isArray(q.options)) {
+        sequenceItems = q.options;
+      }
+    }
+
+    let matchPairs = q.matchPairs || [];
+    if (targetType === "match") {
+      if (Array.isArray(q.options) && Array.isArray(q.correctAnswer)) {
+        matchPairs = q.options.map((leftItem: string, idx: number) => ({
+          id: `pair_${idx}`,
+          left: leftItem,
+          right: q.correctAnswer[idx] || ""
+        }));
+      }
+    }
+
+    let timeLimitSec = q.timeLimitSec || q.timerLimit || 15;
+
+    return {
+      ...q,
+      id,
+      type: targetType,
+      prompt,
+      points,
+      options,
+      acceptedAnswers,
+      trueFalseStatement,
+      trueFalseAnswer,
+      gapTemplate,
+      gapAnswer,
+      diffMediaUrl,
+      diffCorrectSecond,
+      sliderMediaA,
+      sliderMediaB,
+      sliderCorrectSide,
+      sequenceItems,
+      matchPairs,
+      timeLimitSec
+    };
+  });
+
+  return {
+    ...rawQuiz,
+    questions: normalizedQuestions
+  };
+}
+
 export default function QuizPlayer() {
   const { id: courseId, sessionId } = useParams<{ id: string; sessionId: string }>();
   const navigate = useNavigate();
@@ -151,6 +268,16 @@ export default function QuizPlayer() {
 
   // Timed MCQ prep countdown ref
   const prepTimerRef = useRef<any>(null);
+
+  const resultsBadgeRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (quizSubmitted && resultsBadgeRef.current) {
+      setTimeout(() => {
+        resultsBadgeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [quizSubmitted]);
 
   useEffect(() => {
     fetchQuizAndAttempts();
@@ -308,15 +435,16 @@ export default function QuizPlayer() {
         loadedQuiz = DEFAULT_SESSION_1_QUIZ;
       }
 
-      setQuiz(loadedQuiz);
+      const normalized = normalizeQuiz(loadedQuiz);
+      setQuiz(normalized);
 
-      if (user && loadedQuiz) {
+      if (user && normalized) {
         // 2. Fetch past quiz attempts
         const attemptsCol = collection(db, "quiz_attempts");
         const attQuery = query(
           attemptsCol, 
           where("studentId", "==", user.uid), 
-          where("quizId", "==", loadedQuiz.id)
+          where("quizId", "==", normalized.id)
         );
         const attSnap = await getDocs(attQuery);
         const attList = attSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
@@ -706,7 +834,40 @@ export default function QuizPlayer() {
         ) : quizSubmitted && lastAttemptResult ? (
           /* ================= 2. RESULTS PANEL ================= */
           <div className="space-y-8 animate-fade-in max-w-3xl mx-auto">
-            <div className={`p-8 rounded-3xl border text-center relative overflow-hidden ${
+            
+            <div className="space-y-4">
+              <h3 className="font-mono text-xs uppercase tracking-widest text-zinc-500">Timeline Review Diagnostic Panel</h3>
+              {quiz.questions.map((q: any, i: number) => {
+                const isCorrect = lastAttemptResult.detailedResults[q.id];
+                return (
+                  <div key={q.id} className="bg-zinc-950/40 backdrop-blur-md border border-purple-900/10 rounded-2xl p-6 transition-all">
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-900/10">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">QUESTION Q{i + 1}</span>
+                        <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">{q.type}</span>
+                      </div>
+                      <div className={`flex items-center gap-1 text-xs font-mono ${isCorrect ? "text-[#4ade80]" : "text-[#ff5c5c]"}`}>
+                        {isCorrect ? (
+                          <>
+                            <Check className="w-4 h-4" /> Passed
+                          </>
+                        ) : (
+                          <>
+                            <X className="w-4 h-4" /> Refined Correctly
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <p dir={hasArabic(q.prompt) ? "rtl" : "ltr"} className={`text-sm font-semibold text-zinc-200 ${hasArabic(q.prompt) ? "text-right" : "text-left"}`}>{q.prompt}</p>
+                    {!isCorrect && (
+                      <p className="text-xs text-zinc-500 italic mt-2">Correct answer has been scrambled to challenge your study skills. Re-examine the lectures and execute again!</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div ref={resultsBadgeRef} className={`p-8 rounded-3xl border text-center relative overflow-hidden ${
               lastAttemptResult.passed 
                 ? "bg-[#4ade80]/5 border-[#4ade80]/20 shadow-[0_0_40px_rgba(74,222,128,0.05)]" 
                 : "bg-[#ff5c5c]/5 border-[#ff5c5c]/20 shadow-[0_0_40px_rgba(255,92,92,0.05)]"
@@ -738,38 +899,6 @@ export default function QuizPlayer() {
                   </Link>
                 </div>
               )}
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="font-mono text-xs uppercase tracking-widest text-zinc-500">Timeline Review Diagnostic Panel</h3>
-              {quiz.questions.map((q: any, i: number) => {
-                const isCorrect = lastAttemptResult.detailedResults[q.id];
-                return (
-                  <div key={q.id} className="bg-zinc-950/40 backdrop-blur-md border border-purple-900/10 rounded-2xl p-6 transition-all">
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-900/10">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">QUESTION Q{i + 1}</span>
-                        <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">{q.type}</span>
-                      </div>
-                      <div className={`flex items-center gap-1 text-xs font-mono ${isCorrect ? "text-[#4ade80]" : "text-[#ff5c5c]"}`}>
-                        {isCorrect ? (
-                          <>
-                            <Check className="w-4 h-4" /> Passed
-                          </>
-                        ) : (
-                          <>
-                            <X className="w-4 h-4" /> Refined Correctly
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-sm font-semibold text-zinc-200">{q.prompt}</p>
-                    {!isCorrect && (
-                      <p className="text-xs text-zinc-500 italic mt-2">Correct answer has been scrambled to challenge your study skills. Re-examine the lectures and execute again!</p>
-                    )}
-                  </div>
-                );
-              })}
             </div>
 
             <div className="flex items-center justify-between pt-6 border-t border-purple-900/10">
@@ -901,7 +1030,7 @@ export default function QuizPlayer() {
 
                       return (
                         <>
-                          <p className="text-base sm:text-lg font-bold leading-relaxed text-zinc-100">{q.prompt}</p>
+                          <p dir={hasArabic(q.prompt) ? "rtl" : "ltr"} className={`text-base sm:text-lg font-bold leading-relaxed text-zinc-100 ${hasArabic(q.prompt) ? "text-right" : "text-left"}`}>{q.prompt}</p>
 
                           {/* ================= TYPE 1: MCQ & TIMED MCQ ================= */}
                           {(q.type === "mcq" || q.type === "timed_mcq") && (
@@ -927,7 +1056,7 @@ export default function QuizPlayer() {
                                     }`}>
                                       {letter}
                                     </div>
-                                    <span className="text-sm font-semibold">{o.text}</span>
+                                    <span dir={hasArabic(o.text) ? "rtl" : "ltr"} className={`text-sm font-semibold flex-1 ${hasArabic(o.text) ? "text-right" : "text-left"}`}>{o.text}</span>
                                   </button>
                                 );
                               })}
@@ -945,8 +1074,9 @@ export default function QuizPlayer() {
                       <div className="space-y-2">
                         <input
                           type="text"
+                          dir="auto"
                           disabled={isAnswered}
-                          className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm tracking-wide text-white outline-none focus:border-purple-500 placeholder-zinc-600 disabled:opacity-50"
+                          className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-sans text-sm tracking-wide text-white outline-none focus:border-purple-500 placeholder-zinc-600 disabled:opacity-50"
                           placeholder="Type keyboard shortcuts or terms precisely..."
                           value={tempResponses[q.id] || ""}
                           onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
@@ -958,7 +1088,7 @@ export default function QuizPlayer() {
                     {/* ================= TYPE 3: TRUE / FALSE ================= */}
                     {q.type === "truefalse" && (
                       <div className="space-y-4">
-                        <div className="p-4 bg-zinc-950/80 border border-purple-900/20 rounded-2xl font-mono text-xs sm:text-sm leading-relaxed text-zinc-400">
+                        <div dir={hasArabic(q.trueFalseStatement) ? "rtl" : "ltr"} className={`p-4 bg-zinc-950/80 border border-purple-900/20 rounded-2xl font-sans text-xs sm:text-sm leading-relaxed text-zinc-400 ${hasArabic(q.trueFalseStatement) ? "text-right" : "text-left"}`}>
                           {q.trueFalseStatement}
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -991,12 +1121,13 @@ export default function QuizPlayer() {
                     {/* ================= TYPE 4: FILL THE GAP ================= */}
                     {q.type === "fillgap" && (
                       <div className="p-6 bg-zinc-950/40 border border-purple-900/20 rounded-2xl space-y-4">
-                        <div className="text-sm sm:text-base leading-loose font-sans text-zinc-200">
+                        <div dir={hasArabic(q.gapTemplate) ? "rtl" : "ltr"} className={`text-sm sm:text-base leading-loose font-sans text-zinc-200 ${hasArabic(q.gapTemplate) ? "text-right" : "text-left"}`}>
                           {q.gapTemplate.split("___")[0]}
                           <input
                             type="text"
+                            dir="auto"
                             disabled={isAnswered}
-                            className="inline-block bg-zinc-950/60 border-b-2 border-purple-500 rounded-t px-3 py-1 font-mono text-purple-300 outline-none focus:bg-zinc-900 w-36 text-center text-sm disabled:opacity-50"
+                            className="inline-block bg-zinc-950/60 border-b-2 border-purple-500 rounded-t px-3 py-1 font-mono text-purple-300 outline-none focus:bg-zinc-900 w-36 text-center text-sm disabled:opacity-50 mx-2"
                             placeholder="_____"
                             value={tempResponses[q.id] || ""}
                             onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
@@ -1040,7 +1171,7 @@ export default function QuizPlayer() {
                                 }`}>
                                   {letter}
                                 </div>
-                                <span className="text-sm font-semibold">{o.text}</span>
+                                <span dir={hasArabic(o.text) ? "rtl" : "ltr"} className={`text-sm font-semibold flex-1 ${hasArabic(o.text) ? "text-right" : "text-left"}`}>{o.text}</span>
                               </button>
                             );
                           })}
@@ -1172,7 +1303,7 @@ export default function QuizPlayer() {
                             <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded shrink-0 border border-purple-500/10">
                               {String(idx + 1).padStart(2, '0')}
                             </span>
-                            <div className="flex-1 font-sans text-sm font-semibold text-zinc-200">{item}</div>
+                            <div dir={hasArabic(item) ? "rtl" : "ltr"} className={`flex-1 font-sans text-sm font-semibold text-zinc-200 ${hasArabic(item) ? "text-right" : "text-left"}`}>{item}</div>
                             <div className="font-mono text-zinc-600 text-xs tracking-widest shrink-0 select-none">⠿⠿</div>
                           </div>
                         ))}
@@ -1204,7 +1335,7 @@ export default function QuizPlayer() {
                                         : "bg-zinc-950/60 border-purple-900/10 hover:border-purple-500/30 cursor-grab active:cursor-grabbing text-zinc-200"
                                   }`}
                                 >
-                                  <span>🔊 {pair.left}</span>
+                                  <span dir={hasArabic(pair.left) ? "rtl" : "ltr"} className={`flex-1 ${hasArabic(pair.left) ? "text-right" : "text-left"}`}>🔊 {pair.left}</span>
                                   {!isMatched && !isAnswered && <span className="font-mono text-xs text-purple-400">DRAG</span>}
                                 </div>
                               );
@@ -1230,7 +1361,7 @@ export default function QuizPlayer() {
                                 >
                                   <div className="flex flex-col gap-1">
                                     <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">ACTION {idx + 1}</span>
-                                    <span className="font-semibold text-zinc-300">{pair.right}</span>
+                                    <span dir={hasArabic(pair.right) ? "rtl" : "ltr"} className={`font-semibold text-zinc-300 flex-1 ${hasArabic(pair.right) ? "text-right" : "text-left"}`}>{pair.right}</span>
                                   </div>
                                   {matchedLeft ? (
                                     <div className="flex items-center gap-2">
