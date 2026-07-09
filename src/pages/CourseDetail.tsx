@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck } from 'lucide-react';
+import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc } from '../firebase';
+import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc, deleteDoc } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { RainbowButton, SparkleButton } from '../components/AnimatedButtons';
 import { useRegion } from '../context/RegionContext';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
+  const isAdmin = userProfile?.role === 'admin';
   const { t, language } = useLanguage();
   const { getCoursePrice } = useRegion();
   const navigate = useNavigate();
@@ -280,6 +281,16 @@ export default function CourseDetail() {
     }
   };
 
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!window.confirm('Are you sure you want to delete this review?')) return;
+    try {
+      await deleteDoc(doc(db, 'reviews', reviewId));
+      alert('Review deleted successfully!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'reviews');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-transparent text-white pt-32 pb-20 animate-pulse">
@@ -545,29 +556,44 @@ export default function CourseDetail() {
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-                  {reviews.length > 0 ? reviews.map((review: any) => (
-                    <div key={review.id} className="bg-zinc-950 border border-purple-900/20 p-6 rounded-3xl space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center font-bold">
-                            {review.userName ? review.userName[0] : 'S'}
-                          </div>
-                          <div>
-                            <div className="font-bold text-sm">{review.userName || 'Student'}</div>
-                            <div className="text-xs text-gray-500">
-                              {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'Recent'}
+                  {reviews.length > 0 ? reviews.map((review: any) => {
+                    const isAuthor = user && user.uid === review.uid;
+                    const canDelete = isAuthor || isAdmin;
+                    return (
+                      <div key={review.id} className="bg-zinc-950 border border-purple-900/20 p-6 rounded-3xl space-y-4 relative group">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center font-bold">
+                              {review.userName ? review.userName[0] : 'S'}
+                            </div>
+                            <div>
+                              <div className="font-bold text-sm">{review.userName || 'Student'}</div>
+                              <div className="text-xs text-gray-500">
+                                {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'Recent'}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1 text-yellow-500">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'fill-current text-yellow-500' : 'opacity-30'}`} />
+                              ))}
+                            </div>
+                            {canDelete && (
+                              <button 
+                                onClick={() => handleDeleteReview(review.id)}
+                                className="text-zinc-500 hover:text-red-400 p-1 cursor-pointer transition-colors"
+                                title="Delete Review"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 text-yellow-500">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'fill-current text-yellow-500' : 'opacity-30'}`} />
-                          ))}
-                        </div>
+                        <p className="text-gray-400 text-sm leading-relaxed italic">"{review.comment}"</p>
                       </div>
-                      <p className="text-gray-400 text-sm leading-relaxed italic">"{review.comment}"</p>
-                    </div>
-                  )) : (
+                    );
+                  }) : (
                     <div className="col-span-2 text-center py-12 bg-zinc-950/30 rounded-3xl border border-dashed border-purple-900/20">
                       <p className="text-gray-500">{t('course.noReviews') || 'No reviews yet'}</p>
                     </div>

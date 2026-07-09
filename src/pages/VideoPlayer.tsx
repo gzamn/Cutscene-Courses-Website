@@ -85,7 +85,8 @@ const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => 
 
 export default function VideoPlayer() {
   const { id, chapter, type } = useParams<{ id: string; chapter: string; type: string }>();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
+  const isAdmin = userProfile?.role === 'admin';
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -1518,6 +1519,7 @@ export default function VideoPlayer() {
                 <div className="space-y-5 max-h-[350px] overflow-y-auto pr-1">
                   {comments.map((comment) => {
                     const isAuthor = user && user.uid === comment.uid;
+                    const canDelete = isAuthor || isAdmin;
                     const nameInitial = comment.userName ? comment.userName.charAt(0).toUpperCase() : 'S';
                     return (
                       <div key={comment.id} className="flex gap-3 text-sm relative group">
@@ -1543,9 +1545,11 @@ export default function VideoPlayer() {
                             <p className="text-zinc-300 leading-relaxed text-sm pr-10 whitespace-pre-wrap">{comment.content}</p>
                           )}
                         </div>
-                        {isAuthor && editingCommentId !== comment.id && (
+                        {canDelete && editingCommentId !== comment.id && (
                           <div className="absolute right-0 top-0 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleStartEditComment(comment)} className="text-zinc-500 hover:text-purple-400 p-1"><Edit2 className="w-4 h-4" /></button>
+                            {isAuthor && (
+                              <button onClick={() => handleStartEditComment(comment)} className="text-zinc-500 hover:text-purple-400 p-1"><Edit2 className="w-4 h-4" /></button>
+                            )}
                             <button onClick={() => handleDeleteComment(comment.id)} className="text-zinc-500 hover:text-red-400 p-1"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         )}
