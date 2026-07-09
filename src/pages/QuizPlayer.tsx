@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db, auth, getDocs, collection, query, where, addDoc, ensureDefaultQuizzesSeeded } from '../firebase';
 import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, ArrowRight, RotateCcw, Award, Clock, Loader2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 
 /* ================= 10-QUESTION GROUND TRUTH DEFAULT QUIZ FOR SESSION 1 ================= */
 export const DEFAULT_SESSION_1_QUIZ = {
@@ -674,6 +675,32 @@ export default function QuizPlayer() {
       });
       setQuizSubmitted(true);
       fetchQuizAndAttempts(); // Reload attempts
+
+      if (passed) {
+        // Trigger rich multi-angle confetti explosion
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+        // Extra side bursts
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0, y: 0.8 }
+          });
+        }, 200);
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1, y: 0.8 }
+          });
+        }, 400);
+      }
     } catch (err) {
       console.error("Error saving quiz attempt:", err);
     } finally {
