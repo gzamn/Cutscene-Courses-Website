@@ -1685,7 +1685,8 @@ export default function AdminPanel() {
             itemId: e.courseId,
             name: course?.title || 'Academy Course',
             status: e.status === 'approved' || e.paid ? 'approved' : 'pending',
-            enrolledAt: e.enrolledAt || ''
+            enrolledAt: e.enrolledAt || '',
+            rawRecord: e
           };
         }),
         ...storeList.map((p: any) => {
@@ -1695,7 +1696,8 @@ export default function AdminPanel() {
             itemId: p.productId,
             name: p.productName || 'Adobe Creative Cloud',
             status: p.status || 'pending',
-            submittedAt: p.submittedAt || p.purchasedAt || ''
+            submittedAt: p.submittedAt || p.purchasedAt || '',
+            rawRecord: p
           };
         })
       ];
@@ -7612,15 +7614,47 @@ export default function AdminPanel() {
                             <h4 className="font-bold text-white text-sm mt-0.5">{item.name}</h4>
                           </div>
                           
-                          {isApproved ? (
-                            <span className="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 tracking-wider">
-                              Approved
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 tracking-wider">
-                              Receipt Pending
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isApproved ? (
+                              <span className="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 tracking-wider">
+                                Approved
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 text-[9px] font-bold uppercase rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 tracking-wider">
+                                Pending
+                              </span>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                setIsShippedAccountsModalOpen(false);
+                                if (item.type === 'course') {
+                                  startEditEnrollment(item.rawRecord);
+                                } else {
+                                  startEditStorePurchase(item.rawRecord);
+                                }
+                              }}
+                              className="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-purple-400 rounded-lg transition-all border border-white/5 cursor-pointer inline-flex"
+                              title="Edit Request Details"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsShippedAccountsModalOpen(false);
+                                const studentName = selectedStudent.fullName || selectedStudent.displayName || 'this student';
+                                if (item.type === 'course') {
+                                  handleDeleteEnrollment(item.id, studentName);
+                                } else {
+                                  handleDeleteStorePurchase(item.id, studentName);
+                                }
+                              }}
+                              className="p-1.5 bg-zinc-900 hover:bg-red-950/20 border border-white/5 hover:border-red-500/20 text-red-500 rounded-lg transition-all cursor-pointer inline-flex"
+                              title="Delete Request"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Input Credentials Form or Locked Message */}

@@ -380,6 +380,28 @@ export default function QuizPlayer() {
     const currentIdx = quiz.questions.findIndex((q: any) => q.id === qid);
     if (currentIdx !== -1 && currentIdx < quiz.questions.length - 1) {
       const nextQ = quiz.questions[currentIdx + 1];
+
+      // Start the 5-second preparation countdown for the timed question instantly!
+      if (nextQ.type === "timed_mcq") {
+        if (!revealedTimedQuestions[nextQ.id] && !prepTimerRef.current) {
+          setPrepCountdownVal(prev => ({ ...prev, [nextQ.id]: 5 }));
+          let count = 5;
+          prepTimerRef.current = setInterval(() => {
+            count--;
+            if (count <= 0) {
+              if (prepTimerRef.current) {
+                clearInterval(prepTimerRef.current);
+                prepTimerRef.current = null;
+              }
+              setRevealedTimedQuestions(prev => ({ ...prev, [nextQ.id]: true }));
+              setPrepCountdownVal(prev => ({ ...prev, [nextQ.id]: 0 }));
+            } else {
+              setPrepCountdownVal(prev => ({ ...prev, [nextQ.id]: count }));
+            }
+          }, 1000);
+        }
+      }
+
       setTimeout(() => {
         const nextCard = document.getElementById(`q-card-${nextQ.id}`);
         if (nextCard) {
