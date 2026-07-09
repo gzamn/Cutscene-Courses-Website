@@ -118,11 +118,20 @@ export const DEFAULT_SESSION_1_QUIZ = {
   ]
 };
 
-/* ================= ARABIC RTL FLOW DETECTOR & QUIZ QUESTION NORMALIZATION ================= */
+/* ================= ARABIC RTL FLOW DETECTOR, SHUFFLE UTILITY & QUIZ QUESTION NORMALIZATION ================= */
 export const hasArabic = (text: any): boolean => {
   if (!text) return false;
   return /[\u0600-\u06FF]/.test(String(text));
 };
+
+export function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 export function normalizeQuiz(rawQuiz: any) {
   if (!rawQuiz) return null;
@@ -160,6 +169,8 @@ export function normalizeQuiz(rawQuiz: any) {
           };
         });
       }
+      // Shuffle multiple choice options
+      options = shuffleArray(options);
     }
 
     let acceptedAnswers = q.acceptedAnswers || [];
@@ -231,7 +242,7 @@ export function normalizeQuiz(rawQuiz: any) {
 
   return {
     ...rawQuiz,
-    questions: normalizedQuestions
+    questions: shuffleArray(normalizedQuestions || [])
   };
 }
 
@@ -272,12 +283,13 @@ export default function QuizPlayer() {
   const resultsBadgeRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (quizSubmitted && resultsBadgeRef.current) {
-      setTimeout(() => {
+    if (quizSubmitted && lastAttemptResult && resultsBadgeRef.current) {
+      const timer = setTimeout(() => {
         resultsBadgeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
+      }, 200);
+      return () => clearTimeout(timer);
     }
-  }, [quizSubmitted]);
+  }, [quizSubmitted, lastAttemptResult]);
 
   useEffect(() => {
     fetchQuizAndAttempts();
@@ -395,7 +407,7 @@ export default function QuizPlayer() {
     quiz.questions.forEach((q: any) => {
       if (q.type === "sequence") {
         if (!responses[q.id]) {
-          const shuffled = [...q.sequenceItems].sort(() => Math.random() - 0.5);
+          const shuffled = shuffleArray(q.sequenceItems) as string[];
           seqs[q.id] = shuffled;
           setTempResponses(prev => ({ ...prev, [q.id]: shuffled }));
         } else {
@@ -683,6 +695,7 @@ export default function QuizPlayer() {
     setSliderVal(50);
     setMatchesMaps({});
     setShuffledSequences({});
+    fetchQuizAndAttempts();
   };
 
   if (loading) {
