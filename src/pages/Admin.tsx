@@ -532,6 +532,36 @@ export default function AdminPanel() {
     isActive: false
   });
 
+  // Edit Enrollment Request states
+  const [showEditEnrollmentModal, setShowEditEnrollmentModal] = useState(false);
+  const [selectedEnrollmentToEdit, setSelectedEnrollmentToEdit] = useState<any>(null);
+  const [editEnrollmentForm, setEditEnrollmentForm] = useState({
+    fullName: '',
+    paymentMethod: 'CCP',
+    ccpRIP: '',
+    price: '',
+    status: 'pending_verification',
+    rejectionReason: '',
+    courseId: ''
+  });
+
+  // Edit Store Purchase Request states
+  const [showEditStorePurchaseModal, setShowEditStorePurchaseModal] = useState(false);
+  const [selectedStorePurchaseToEdit, setSelectedStorePurchaseToEdit] = useState<any>(null);
+  const [editStorePurchaseForm, setEditStorePurchaseForm] = useState({
+    displayName: '',
+    email: '',
+    phone: '',
+    productName: '',
+    productId: '',
+    duration: '',
+    paymentMethod: 'CCP / BaridiMob',
+    price: '',
+    currency: 'DZD',
+    status: 'pending',
+    rejectionReason: ''
+  });
+
   // Toast Helper
   const showToast = (type: 'success' | 'error', message: string) => {
     const id = Date.now().toString();
@@ -2044,6 +2074,131 @@ export default function AdminPanel() {
     }
   };
 
+  const startEditEnrollment = (enrollment: any) => {
+    setSelectedEnrollmentToEdit(enrollment);
+    setEditEnrollmentForm({
+      fullName: enrollment.fullName || '',
+      paymentMethod: enrollment.paymentMethod || 'CCP',
+      ccpRIP: enrollment.ccpRIP || '',
+      price: String(enrollment.price || ''),
+      status: enrollment.status || 'pending_verification',
+      rejectionReason: enrollment.rejectionReason || '',
+      courseId: enrollment.courseId || ''
+    });
+    setShowEditEnrollmentModal(true);
+  };
+
+  const handleEditEnrollmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEnrollmentToEdit) return;
+    try {
+      const docRef = doc(db, 'enrollments', selectedEnrollmentToEdit.id);
+      await setDoc(docRef, {
+        fullName: editEnrollmentForm.fullName,
+        paymentMethod: editEnrollmentForm.paymentMethod,
+        ccpRIP: editEnrollmentForm.ccpRIP,
+        price: Number(editEnrollmentForm.price) || editEnrollmentForm.price,
+        status: editEnrollmentForm.status,
+        paid: editEnrollmentForm.status === 'approved',
+        rejectionReason: editEnrollmentForm.status === 'rejected' ? editEnrollmentForm.rejectionReason : '',
+        courseId: editEnrollmentForm.courseId,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      showToast('success', 'Course enrollment request updated successfully.');
+      setShowEditEnrollmentModal(false);
+      setSelectedEnrollmentToEdit(null);
+      fetchEnrollments();
+    } catch (err: any) {
+      console.error('Edit enrollment submit error:', err);
+      showToast('error', 'Failed to update enrollment request: ' + err.message);
+    }
+  };
+
+  const handleDeleteEnrollment = (enrollmentId: string, studentName: string) => {
+    askConfirmation(
+      'Delete Enrollment Request',
+      `Are you absolutely sure you want to permanently delete the course enrollment request for "${studentName}"? This will wipe their transaction record and revoke their active access (if approved).`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'enrollments', enrollmentId));
+          showToast('success', 'Course enrollment request permanently deleted.');
+          fetchEnrollments();
+        } catch (err: any) {
+          console.error('Delete enrollment error:', err);
+          showToast('error', 'Failed to delete course enrollment request.');
+        }
+      },
+      'Delete permanently',
+      true
+    );
+  };
+
+  const startEditStorePurchase = (purchase: any) => {
+    setSelectedStorePurchaseToEdit(purchase);
+    setEditStorePurchaseForm({
+      displayName: purchase.displayName || '',
+      email: purchase.email || '',
+      phone: purchase.phone || '',
+      productName: purchase.productName || '',
+      productId: purchase.productId || '',
+      duration: purchase.duration || '',
+      paymentMethod: purchase.paymentMethod || 'CCP / BaridiMob',
+      price: String(purchase.price || ''),
+      currency: purchase.currency || 'DZD',
+      status: purchase.status || 'pending',
+      rejectionReason: purchase.rejectionReason || ''
+    });
+    setShowEditStorePurchaseModal(true);
+  };
+
+  const handleEditStorePurchaseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStorePurchaseToEdit) return;
+    try {
+      const docRef = doc(db, 'store_purchases', selectedStorePurchaseToEdit.id);
+      await setDoc(docRef, {
+        displayName: editStorePurchaseForm.displayName,
+        email: editStorePurchaseForm.email,
+        phone: editStorePurchaseForm.phone,
+        productName: editStorePurchaseForm.productName,
+        productId: editStorePurchaseForm.productId,
+        duration: editStorePurchaseForm.duration,
+        paymentMethod: editStorePurchaseForm.paymentMethod,
+        price: Number(editStorePurchaseForm.price) || editStorePurchaseForm.price,
+        currency: editStorePurchaseForm.currency,
+        status: editStorePurchaseForm.status,
+        rejectionReason: editStorePurchaseForm.status === 'rejected' ? editStorePurchaseForm.rejectionReason : '',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      showToast('success', 'Software subscription request updated successfully.');
+      setShowEditStorePurchaseModal(false);
+      setSelectedStorePurchaseToEdit(null);
+      fetchStorePurchases();
+    } catch (err: any) {
+      console.error('Edit store purchase submit error:', err);
+      showToast('error', 'Failed to update software request: ' + err.message);
+    }
+  };
+
+  const handleDeleteStorePurchase = (purchaseId: string, studentName: string) => {
+    askConfirmation(
+      'Delete Store Purchase Request',
+      `Are you absolutely sure you want to permanently delete the software subscription request for "${studentName}"? This will wipe their transaction record and delete any metadata.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'store_purchases', purchaseId));
+          showToast('success', 'Store purchase request permanently deleted.');
+          fetchStorePurchases();
+        } catch (err: any) {
+          console.error('Delete store purchase error:', err);
+          showToast('error', 'Failed to delete store purchase request.');
+        }
+      },
+      'Delete permanently',
+      true
+    );
+  };
+
 
   // PLANS
   const handlePlanSubmit = async (e: React.FormEvent) => {
@@ -3373,6 +3528,20 @@ export default function AdminPanel() {
                                       >
                                         Approve &amp; Unlock
                                       </button>
+                                      <button
+                                        onClick={() => startEditEnrollment(enrollment)}
+                                        className="p-2 bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-purple-500/20 text-purple-400 rounded-xl transition-all cursor-pointer flex items-center"
+                                        title="Detailed Edit"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteEnrollment(enrollment.id, student?.name || enrollment.fullName || 'Anonymous student')}
+                                        className="p-2 bg-zinc-900 hover:bg-red-950/20 border border-white/5 hover:border-red-500/20 text-red-500 rounded-xl transition-all cursor-pointer flex items-center"
+                                        title="Delete request"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
                                       {editingReceiptId === enrollment.id && (
                                         <button
                                           onClick={() => setEditingReceiptId(null)}
@@ -3383,17 +3552,24 @@ export default function AdminPanel() {
                                       )}
                                     </div>
                                   ) : (
-                                    <div className="flex items-center justify-end gap-3">
+                                    <div className="flex items-center justify-end gap-2">
                                       <span className="text-xs text-gray-500 font-bold uppercase tracking-wider select-none">
                                         {enrollment.status === 'approved' || enrollment.paid ? 'Access Granted' : 'Rejected'}
                                       </span>
                                       <button
-                                        onClick={() => setEditingReceiptId(enrollment.id)}
+                                        onClick={() => startEditEnrollment(enrollment)}
                                         className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-purple-500/20 text-purple-400 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
                                         title="Change Decision"
                                       >
                                         <Edit2 className="w-3.5 h-3.5" />
                                         Edit
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteEnrollment(enrollment.id, student?.name || enrollment.fullName || 'Anonymous student')}
+                                        className="p-2.5 bg-zinc-900 hover:bg-red-950/20 border border-white/5 hover:border-red-500/20 text-red-500 rounded-xl transition-all cursor-pointer flex items-center"
+                                        title="Delete request"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
                                   )}
@@ -3798,7 +3974,7 @@ export default function AdminPanel() {
                           </td>
                           <td className="py-4 px-6 text-right space-x-2 shrink-0">
                             {item.status === 'pending' ? (
-                              <>
+                              <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   onClick={() => handleApproveStorePurchase(item)}
                                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase cursor-pointer"
@@ -3811,9 +3987,39 @@ export default function AdminPanel() {
                                 >
                                   Reject
                                 </button>
-                              </>
+                                <button
+                                  onClick={() => startEditStorePurchase(item)}
+                                  className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-purple-500/20 text-purple-400 rounded-lg transition-all cursor-pointer inline-flex"
+                                  title="Edit Request Details"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteStorePurchase(item.id, item.displayName || 'Anonymous student')}
+                                  className="p-1.5 bg-zinc-900 hover:bg-red-950/20 border border-white/5 hover:border-red-500/20 text-red-500 rounded-lg transition-all cursor-pointer inline-flex"
+                                  title="Delete Request"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             ) : (
-                              <span className="text-xs text-gray-550 italic">Completed</span>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="text-xs text-gray-550 italic mr-2">Completed</span>
+                                <button
+                                  onClick={() => startEditStorePurchase(item)}
+                                  className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-purple-500/20 text-purple-400 rounded-lg transition-all cursor-pointer inline-flex"
+                                  title="Edit Request Details"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteStorePurchase(item.id, item.displayName || 'Anonymous student')}
+                                  className="p-1.5 bg-zinc-900 hover:bg-red-950/20 border border-white/5 hover:border-red-500/20 text-red-500 rounded-lg transition-all cursor-pointer inline-flex"
+                                  title="Delete Request"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -7469,6 +7675,360 @@ export default function AdminPanel() {
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT ENROLLMENT MODAL */}
+      <AnimatePresence>
+        {showEditEnrollmentModal && selectedEnrollmentToEdit && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+            <div 
+              className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" 
+              onClick={() => {
+                setShowEditEnrollmentModal(false);
+                setSelectedEnrollmentToEdit(null);
+              }} 
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-zinc-950 border border-purple-900/40 rounded-[2.5rem] w-full max-w-lg p-8 space-y-6 shadow-2xl overflow-hidden text-left relative z-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-purple-400 tracking-widest block">Database Record Editor</span>
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <Edit2 className="w-6 h-6 text-purple-500" />
+                    <span>Edit Course Enrollment Request</span>
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditEnrollmentModal(false);
+                    setSelectedEnrollmentToEdit(null);
+                  }}
+                  className="p-2 hover:bg-white/5 border border-white/5 hover:border-purple-500/20 rounded-xl transition-all text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditEnrollmentSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Student Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editEnrollmentForm.fullName}
+                    onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, fullName: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Payment Method</label>
+                    <select
+                      value={editEnrollmentForm.paymentMethod}
+                      onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, paymentMethod: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                    >
+                      <option value="CCP">CCP</option>
+                      <option value="BaridiMob">BaridiMob</option>
+                      <option value="CCP RIP">CCP RIP</option>
+                      <option value="Stripe">Stripe</option>
+                      <option value="PayPal">PayPal</option>
+                      <option value="Cash">Cash</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Price (DZD)</label>
+                    <input
+                      type="text"
+                      required
+                      value={editEnrollmentForm.price}
+                      onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, price: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">CCP Transaction RIP</label>
+                  <input
+                    type="text"
+                    value={editEnrollmentForm.ccpRIP || ''}
+                    onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, ccpRIP: e.target.value })}
+                    placeholder="RIP Number (for ccp/baridimob transfers)"
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Target Academy Course</label>
+                  <select
+                    value={editEnrollmentForm.courseId}
+                    onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, courseId: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                  >
+                    <option value="">-- Choose Course --</option>
+                    {courses.map(c => (
+                      <option key={c.id} value={c.id}>{c.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Verification Status</label>
+                  <select
+                    value={editEnrollmentForm.status}
+                    onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, status: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                  >
+                    <option value="pending_verification">Pending Verification</option>
+                    <option value="approved">Approved &amp; Active</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+
+                {editEnrollmentForm.status === 'rejected' && (
+                  <div className="space-y-1 animate-fade-in">
+                    <label className="text-[10px] font-black uppercase text-red-400 tracking-widest font-mono">Rejection Reason</label>
+                    <textarea
+                      required
+                      value={editEnrollmentForm.rejectionReason}
+                      onChange={(e) => setEditEnrollmentForm({ ...editEnrollmentForm, rejectionReason: e.target.value })}
+                      placeholder="Why was this receipt validation request rejected? (visible to student)"
+                      rows={3}
+                      className="w-full bg-black border border-red-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                    />
+                  </div>
+                )}
+
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-purple-900/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditEnrollmentModal(false);
+                      setSelectedEnrollmentToEdit(null);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-zinc-900 border border-white/5 text-gray-300 hover:text-white hover:bg-zinc-800 text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-purple-950/20"
+                  >
+                    Save Request Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT STORE PURCHASE MODAL */}
+      <AnimatePresence>
+        {showEditStorePurchaseModal && selectedStorePurchaseToEdit && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+            <div 
+              className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" 
+              onClick={() => {
+                setShowEditStorePurchaseModal(false);
+                setSelectedStorePurchaseToEdit(null);
+              }} 
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-zinc-950 border border-purple-900/40 rounded-[2.5rem] w-full max-w-lg p-8 space-y-6 shadow-2xl overflow-hidden text-left relative z-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-purple-400 tracking-widest block">Database Record Editor</span>
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <Edit2 className="w-6 h-6 text-purple-500" />
+                    <span>Edit Software subscription request</span>
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditStorePurchaseModal(false);
+                    setSelectedStorePurchaseToEdit(null);
+                  }}
+                  className="p-2 hover:bg-white/5 border border-white/5 hover:border-purple-500/20 rounded-xl transition-all text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditStorePurchaseSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Student Display Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.displayName}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, displayName: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Student Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={editStorePurchaseForm.email}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, email: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Phone Number</label>
+                    <input
+                      type="text"
+                      value={editStorePurchaseForm.phone || ''}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, phone: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Product Duration</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.duration}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, duration: e.target.value })}
+                      placeholder="e.g. 1 Month, 12 Months"
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Product Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.productName}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, productName: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Product ID</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.productId}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, productId: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Price</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.price}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, price: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Currency</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.currency}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, currency: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Payment Method</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStorePurchaseForm.paymentMethod}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, paymentMethod: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest font-mono">Verification Status</label>
+                    <select
+                      value={editStorePurchaseForm.status}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, status: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved / Completed</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+                {editStorePurchaseForm.status === 'rejected' && (
+                  <div className="space-y-1 animate-fade-in">
+                    <label className="text-[10px] font-black uppercase text-red-400 tracking-widest font-mono">Rejection Reason</label>
+                    <textarea
+                      required
+                      value={editStorePurchaseForm.rejectionReason}
+                      onChange={(e) => setEditStorePurchaseForm({ ...editStorePurchaseForm, rejectionReason: e.target.value })}
+                      placeholder="Why was this software license verification request rejected? (visible to student)"
+                      rows={3}
+                      className="w-full bg-black border border-red-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                    />
+                  </div>
+                )}
+
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-purple-900/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditStorePurchaseModal(false);
+                      setSelectedStorePurchaseToEdit(null);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-zinc-900 border border-white/5 text-gray-300 hover:text-white hover:bg-zinc-800 text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-purple-950/20"
+                  >
+                    Save Request Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
