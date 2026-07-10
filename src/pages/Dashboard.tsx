@@ -27,6 +27,8 @@ export default function Dashboard() {
   const [storePurchases, setStorePurchases] = useState<any[]>([]);
   const [shippedAccounts, setShippedAccounts] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<string>('overview');
+  const [quizAttempts, setQuizAttempts] = useState<any[]>([]);
+  const [quizzes, setQuizzes] = useState<any[]>([]);
 
 
   // Direct video upload states
@@ -635,6 +637,20 @@ export default function Dashboard() {
       setShippedAccounts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => console.error('Error listening to shipped accounts:', error));
 
+    // Listen to quiz attempts
+    const qQuizAttempts = query(collection(db, 'quiz_attempts'), where('studentId', '==', user.uid));
+    const unsubQuizAttempts = onSnapshot(qQuizAttempts, (snapshot) => {
+      // Sort attempts latest first
+      const sortedAttempts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+      setQuizAttempts(sortedAttempts);
+    }, (error) => console.error('Error listening to quiz attempts:', error));
+
+    // Listen to quizzes
+    const unsubQuizzes = onSnapshot(collection(db, 'quizzes'), (snapshot) => {
+      setQuizzes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => console.error('Error listening to quizzes:', error));
+
     return () => {
       unsubEnrollments();
       unsubProgress();
@@ -642,6 +658,8 @@ export default function Dashboard() {
       unsubVideos();
       unsubStorePurchases();
       unsubShippedAccounts();
+      unsubQuizAttempts();
+      unsubQuizzes();
     };
   }, [user]);
 
@@ -1041,6 +1059,18 @@ export default function Dashboard() {
               >
                 <Trophy className="w-4 h-4" />
                 <span>My Certificates</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('quizzes')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  activeTab === 'quizzes'
+                    ? 'bg-purple-950/45 text-purple-350 border border-purple-500/20 shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                <span>My Quizzes</span>
               </button>
 
               <button
@@ -1741,6 +1771,81 @@ export default function Dashboard() {
                 )}
               </div>
             </section>
+            )}
+
+            {/* Quizzes and Performance */}
+            {activeTab === 'quizzes' && (
+              <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
+                  <Clock className="w-6 h-6 text-purple-500" />
+                  {language === 'ar' ? 'اختباراتي وأدائي' : language === 'fr' ? 'Mes Quiz & Performances' : 'My Quizzes & Performance'}
+                </h2>
+                <div className="space-y-4">
+                  {quizAttempts.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {quizAttempts.map((attempt) => {
+                        const matchingQuiz = quizzes.find(q => q.id === attempt.quizId);
+                        const quizTitle = matchingQuiz ? matchingQuiz.title : `Session ${attempt.sessionId} Quiz`;
+                        const formattedDate = attempt.submittedAt ? new Date(attempt.submittedAt).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '';
+                        const formattedTime = attempt.submittedAt ? new Date(attempt.submittedAt).toLocaleTimeString(undefined, { timeStyle: 'short' }) : '';
+                        
+                        // Parse duration
+                        const durationSeconds = attempt.timeTaken || 0;
+                        const durationMinutesStr = durationSeconds > 0 
+                          ? `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s` 
+                          : '--';
+
+                        return (
+                          <div key={attempt.id} className="bg-black/40 border border-purple-900/20 p-5 rounded-2xl flex flex-col justify-between space-y-4">
+                            <div>
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">
+                                  {language === 'ar' ? `المحاولة #${attempt.attemptNumber}` : language === 'fr' ? `Tentative #${attempt.attemptNumber}` : `Attempt #${attempt.attemptNumber}`}
+                                </span>
+                                <span className={`text-xs font-mono font-bold ${attempt.passed ? 'text-green-400' : 'text-red-400'}`}>
+                                  {attempt.passed 
+                                    ? (language === 'ar' ? 'ناجح' : language === 'fr' ? 'Réussi' : 'Passed') 
+                                    : (language === 'ar' ? 'تحتاج تحسين' : language === 'fr' ? 'Échoué' : 'Requires Review')}
+                                </span>
+                              </div>
+                              <h3 className="font-bold text-sm text-white line-clamp-1">{quizTitle}</h3>
+                              <p className="text-xs text-zinc-500 mt-1">
+                                {formattedDate} {language === 'ar' ? 'في' : 'at'} {formattedTime}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-purple-900/10 text-xs font-mono">
+                              <div>
+                                <span className="text-zinc-500 block text-[10px] uppercase">{language === 'ar' ? 'الدرجة' : language === 'fr' ? 'Score' : 'Score'}</span>
+                                <span className={`font-bold text-sm ${attempt.passed ? 'text-green-400' : 'text-red-400'}`}>
+                                  {attempt.score}%
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block text-[10px] uppercase">{language === 'ar' ? 'الوقت المستغرق' : language === 'fr' ? 'Temps pris' : 'Time Taken'}</span>
+                                <span className="font-bold text-sm text-purple-300">
+                                  {durationMinutesStr}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 border border-dashed border-purple-900/20 rounded-2xl bg-zinc-950/40">
+                      <Clock className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
+                      <p className="text-gray-500 text-sm">
+                        {language === 'ar' 
+                          ? 'لم تقم بإجراء أي اختبارات بعد.' 
+                          : language === 'fr' 
+                            ? "Vous n'avez pas encore passé de quiz." 
+                            : 'You have not taken any quizzes yet.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
 
             {/* Useful Resources */}

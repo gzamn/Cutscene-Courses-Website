@@ -398,7 +398,8 @@
         "score": { "type": "number" },
         "passed": { "type": "boolean" },
         "submittedAt": { "type": "string" },
-        "lockoutUntil": { "type": "string" }
+        "lockoutUntil": { "type": "string" },
+        "timeTaken": { "type": "integer" }
       },
       "required": ["id", "studentId", "quizId", "attemptNumber", "answers", "score", "passed", "submittedAt"]
     }

@@ -2423,6 +2423,7 @@ export default function AdminPanel() {
     correctAnswer: 'Option A',
     mediaUrl: '',
     secondMediaUrl: '',
+    spotDiffVideosCount: 1,
     diffAreaX: 50,
     diffAreaY: 50,
     diffAreaR: 10,
@@ -2500,6 +2501,7 @@ export default function AdminPanel() {
       correctAnswer: 'Option A',
       mediaUrl: '',
       secondMediaUrl: '',
+      spotDiffVideosCount: 1,
       diffAreaX: 50,
       diffAreaY: 50,
       diffAreaR: 10,
@@ -2523,6 +2525,7 @@ export default function AdminPanel() {
       correctAnswer: typeof q.correctAnswer === 'string' ? q.correctAnswer : Array.isArray(q.correctAnswer) ? q.correctAnswer.join('\n') : '',
       mediaUrl: q.mediaUrl || '',
       secondMediaUrl: q.secondMediaUrl || '',
+      spotDiffVideosCount: q.spotDiffVideosCount !== undefined ? Number(q.spotDiffVideosCount) : (q.secondMediaUrl ? 2 : 1),
       diffAreaX: q.diffArea?.x || 50,
       diffAreaY: q.diffArea?.y || 50,
       diffAreaR: q.diffArea?.r || 10,
@@ -2560,6 +2563,7 @@ export default function AdminPanel() {
       correctAnswer: parsedCorrectAnswer,
       mediaUrl: currentQuestionForm.mediaUrl || null,
       secondMediaUrl: currentQuestionForm.secondMediaUrl || null,
+      spotDiffVideosCount: currentQuestionForm.type === 'Spot-diff' ? Number(currentQuestionForm.spotDiffVideosCount || 1) : null,
       diffArea: currentQuestionForm.type === 'Spot-diff' ? {
         x: Number(currentQuestionForm.diffAreaX),
         y: Number(currentQuestionForm.diffAreaY),
@@ -4528,6 +4532,22 @@ export default function AdminPanel() {
                           )}
                         </div>
 
+                        {currentQuestionForm.type === 'Spot-diff' && (
+                          <div className="space-y-3 pb-3 border-b border-purple-900/10">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">
+                              Spot-diff Video Presentation Mode
+                            </span>
+                            <select
+                              value={currentQuestionForm.spotDiffVideosCount}
+                              onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, spotDiffVideosCount: Number(e.target.value) })}
+                              className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none"
+                            >
+                              <option value={1}>Show 1 Video (Edited/Difference Clip only)</option>
+                              <option value={2}>Show 2 Videos (Reference Clip A & Edited Clip B side-by-side)</option>
+                            </select>
+                          </div>
+                        )}
+
                         {currentQuestionForm.type === 'Slider' ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -4563,8 +4583,46 @@ export default function AdminPanel() {
                               />
                             </div>
                           </div>
+                        ) : currentQuestionForm.type === 'Spot-diff' && currentQuestionForm.spotDiffVideosCount === 2 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">Clip A (Reference Video)</span>
+                              <input
+                                type="file"
+                                accept="video/*"
+                                onChange={(e) => handleUploadQuestionMedia(e, 'mediaUrl')}
+                                className="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={currentQuestionForm.mediaUrl}
+                                onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, mediaUrl: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                                placeholder="Reference Video A URL..."
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">Clip B (Difference Video)</span>
+                              <input
+                                type="file"
+                                accept="video/*"
+                                onChange={(e) => handleUploadQuestionMedia(e, 'secondMediaUrl')}
+                                className="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 cursor-pointer"
+                              />
+                              <input
+                                type="text"
+                                value={currentQuestionForm.secondMediaUrl}
+                                onChange={(e) => setCurrentQuestionForm({ ...currentQuestionForm, secondMediaUrl: e.target.value })}
+                                className="w-full bg-black border border-purple-900/30 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                                placeholder="Difference Video B URL..."
+                              />
+                            </div>
+                          </div>
                         ) : (
                           <div className="space-y-2">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">
+                              {currentQuestionForm.type === 'Spot-diff' ? 'Difference Video Clip' : 'Media Asset File'}
+                            </span>
                             <input
                               type="file"
                               accept="video/*,image/*,audio/*"

@@ -4,6 +4,7 @@ import { db, auth, getDocs, collection, query, where, addDoc, ensureDefaultQuizz
 import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, ArrowRight, RotateCcw, Award, Clock, Loader2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
+import { useLanguage } from '../context/LanguageContext';
 
 /* ================= 10-QUESTION GROUND TRUTH DEFAULT QUIZ FOR SESSION 1 ================= */
 export const DEFAULT_SESSION_1_QUIZ = {
@@ -190,6 +191,8 @@ export function normalizeQuiz(rawQuiz: any) {
     let gapAnswer = q.gapAnswer || q.correctAnswer || "";
 
     let diffMediaUrl = q.mediaUrl || q.diffMediaUrl || "";
+    let diffSecondMediaUrl = q.secondMediaUrl || q.diffSecondMediaUrl || "";
+    let spotDiffVideosCount = Number(q.spotDiffVideosCount) || (q.secondMediaUrl ? 2 : 1);
     let diffCorrectSecond = Number(q.correctAnswer) || q.diffCorrectSecond || 0;
 
     let sliderMediaA = q.mediaUrl || q.sliderMediaA || "";
@@ -231,6 +234,8 @@ export function normalizeQuiz(rawQuiz: any) {
       gapTemplate,
       gapAnswer,
       diffMediaUrl,
+      diffSecondMediaUrl,
+      spotDiffVideosCount,
       diffCorrectSecond,
       sliderMediaA,
       sliderMediaB,
@@ -247,7 +252,41 @@ export function normalizeQuiz(rawQuiz: any) {
   };
 }
 
+function playSuccessSound() {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    
+    const playTone = (freq: number, start: number, duration: number, type: OscillatorType = "sine") => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      
+      gain.gain.setValueAtTime(0.12, start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(start);
+      osc.stop(start + duration);
+    };
+
+    const now = ctx.currentTime;
+    playTone(523.25, now, 0.4);       // C5
+    playTone(659.25, now + 0.1, 0.4); // E5
+    playTone(783.99, now + 0.2, 0.4); // G5
+    playTone(1046.50, now + 0.3, 0.6, "triangle"); // C6 (sweet triangle finish)
+  } catch (error) {
+    console.warn("Failed to play success audio:", error);
+  }
+}
+
 export default function QuizPlayer() {
+  const { language } = useLanguage();
   const { id: courseId, sessionId } = useParams<{ id: string; sessionId: string }>();
   const navigate = useNavigate();
   const [quiz, setQuiz] = useState<any>(null);
@@ -260,6 +299,9 @@ export default function QuizPlayer() {
   const [submittingAttempt, setSubmittingAttempt] = useState(false);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [lastAttemptResult, setLastAttemptResult] = useState<any>(null);
+
+  // Timer state for quiz duration
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
 
   // Student Responses
   const [responses, setResponses] = useState<{ [qid: string]: any }>({});
@@ -291,6 +333,15 @@ export default function QuizPlayer() {
       return () => clearTimeout(timer);
     }
   }, [quizSubmitted, lastAttemptResult]);
+
+  // Timer effect to increment seconds spent taking the quiz
+  useEffect(() => {
+    if (loading || quizSubmitted || lockoutTimeLeft > 0) return;
+    const interval = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading, quizSubmitted, lockoutTimeLeft]);
 
   useEffect(() => {
     fetchQuizAndAttempts();
@@ -660,7 +711,8 @@ export default function QuizPlayer() {
       score: scorePercentage,
       passed,
       submittedAt: new Date().toISOString(),
-      lockoutUntil
+      lockoutUntil,
+      timeTaken: elapsedTime
     };
 
     try {
@@ -671,12 +723,15 @@ export default function QuizPlayer() {
         passed,
         correctCount,
         totalQuestions,
-        detailedResults
+        detailedResults,
+        timeTaken: elapsedTime
       });
       setQuizSubmitted(true);
       fetchQuizAndAttempts(); // Reload attempts
 
       if (passed) {
+        // Play success sound
+        playSuccessSound();
         // Trigger rich multi-angle confetti explosion
         confetti({
           particleCount: 150,
@@ -722,6 +777,7 @@ export default function QuizPlayer() {
     setSliderVal(50);
     setMatchesMaps({});
     setShuffledSequences({});
+    setElapsedTime(0);
     fetchQuizAndAttempts();
   };
 
@@ -775,10 +831,16 @@ export default function QuizPlayer() {
                 <ArrowLeft className="w-3 h-3" /> Exit
               </Link>
               
-              <div className="hidden sm:block">
-                <span className="font-mono text-xs text-zinc-400">
+              <div className="flex items-center gap-3">
+                <span className="hidden sm:inline font-mono text-xs text-zinc-400">
                   PROGRESS: <b className="text-purple-400">{answeredCount}</b>/{totalQuestions} QUESTIONS
                 </span>
+                {!quizSubmitted && (
+                  <span className="font-mono text-xs text-zinc-400 flex items-center gap-1 bg-zinc-900/60 border border-purple-500/15 px-2 py-0.5 rounded">
+                    <Clock className="w-3.5 h-3.5 text-purple-400 animate-pulse shrink-0" />
+                    {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -927,6 +989,9 @@ export default function QuizPlayer() {
               </p>
               <p className="text-xs text-zinc-500 mt-1 font-mono">
                 CLEARED {lastAttemptResult.correctCount} OF {lastAttemptResult.totalQuestions} QUESTIONS.
+              </p>
+              <p className="text-xs text-purple-400 mt-1.5 font-mono uppercase">
+                TIME TAKEN: <b>{Math.floor((lastAttemptResult.timeTaken || elapsedTime) / 60)}m {(lastAttemptResult.timeTaken || elapsedTime) % 60}s</b>
               </p>
 
               {lastAttemptResult.passed && (
@@ -1222,37 +1287,76 @@ export default function QuizPlayer() {
                     {/* ================= TYPE 6: SPOT THE DIFFERENCE ================= */}
                     {q.type === "spot_diff" && (
                       <div className="space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Clip A — Reference</div>
-                            <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center font-mono text-xs text-zinc-500">
-                              CLIP A REFERENCE
+                        {q.spotDiffVideosCount === 2 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                                {language === 'ar' ? 'الفيديو أ — المرجع' : language === 'fr' ? 'Clip A — Référence' : 'Clip A — Reference'}
+                              </div>
+                              <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center font-mono text-xs text-zinc-500">
+                                {q.diffMediaUrl ? (
+                                  <iframe
+                                    src={q.diffMediaUrl}
+                                    className="absolute inset-0 w-full h-full border-0"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <span>{language === 'ar' ? 'فيديو المرجع غير متوفر' : language === 'fr' ? 'Aucun clip de référence fourni' : 'No reference video provided'}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                                {language === 'ar' ? 'الفيديو ب — الفروقات المعدلة' : language === 'fr' ? 'Clip B — Différences modifiées' : 'Clip B — Edited differences'}
+                              </div>
+                              <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
+                                {q.diffSecondMediaUrl || q.diffMediaUrl ? (
+                                  <iframe
+                                    src={q.diffSecondMediaUrl || q.diffMediaUrl}
+                                    className="absolute inset-0 w-full h-full border-0"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <span className="text-zinc-500 font-mono text-xs">{language === 'ar' ? 'فيديو الفروقات غير متوفر' : language === 'fr' ? 'Aucun clip de différence fourni' : 'No difference video provided'}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
+                        ) : (
                           <div className="space-y-2">
-                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Clip B — Edited differences</div>
-                            <div className="relative aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
-                              <iframe
-                                src={q.diffMediaUrl}
-                                className="absolute inset-0 w-full h-full border-0"
-                                allowFullScreen
-                              />
+                            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                              {language === 'ar' ? 'فيديو تحديد الفروقات' : language === 'fr' ? 'Clip vidéo de détection de différence' : 'Spot the Difference Video Clip'}
+                            </div>
+                            <div className="relative max-w-2xl mx-auto aspect-video rounded-xl overflow-hidden border border-purple-900/10 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
+                              {q.diffMediaUrl ? (
+                                <iframe
+                                  src={q.diffMediaUrl}
+                                  className="absolute inset-0 w-full h-full border-0"
+                                  allowFullScreen
+                                />
+                              ) : (
+                                <span className="text-zinc-500 font-mono text-xs">{language === 'ar' ? 'الفيديو غير متوفر' : language === 'fr' ? 'Aucune vidéo fournie' : 'No video provided'}</span>
+                              )}
                             </div>
                           </div>
-                        </div>
+                        )}
                         
-                        <div className="space-y-2">
-                          <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Spotted Difference Timecode Second</label>
+                        <div className="space-y-2 max-w-md mx-auto pt-2">
+                          <label className="block text-[10px] font-mono text-zinc-400 uppercase tracking-widest">
+                            {language === 'ar' ? 'تحديد ثانية فارق التوقيت الزمني' : language === 'fr' ? 'Repère de seconde de la différence' : 'Spotted Difference Timecode Second'}
+                          </label>
                           <input
                             type="number"
                             min="0"
                             disabled={isAnswered}
                             className="w-full bg-zinc-950/60 border border-purple-900/20 rounded-xl p-4 font-mono text-sm text-white outline-none focus:border-purple-500 disabled:opacity-50"
-                            placeholder="Enter the timestamp second (e.g. 12)..."
+                            placeholder={language === 'ar' ? 'أدخل ثانية الطابع الزمني (مثال: 12)...' : language === 'fr' ? 'Saisissez la seconde du repère (ex: 12)...' : 'Enter the timestamp second (e.g. 12)...'}
                             value={tempResponses[q.id] || ""}
                             onChange={(e) => handleAnswerSelect(q.id, e.target.value)}
                           />
-                          <p className="text-[10px] text-zinc-500 font-mono">Watch carefully and input the approximate elapsed second mark.</p>
+                          <p className="text-[10px] text-zinc-500 font-mono">
+                            {language === 'ar' ? 'شاهد بعناية وأدخل علامة الثانية المنقضية التقريبية للفرق.' : language === 'fr' ? 'Regardez attentivement et saisissez la seconde approximative de l\'écart.' : 'Watch carefully and input the approximate elapsed second mark.'}
+                          </p>
                         </div>
                       </div>
                     )}
