@@ -87,6 +87,14 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
+    // Uploaded Student Chapter-Specific Exercise Submissions
+    match /exercise_submissions/{submissionId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
     // Inter-Student lesson discussion comments
     match /comments/{commentId} {
       allow read: if true;

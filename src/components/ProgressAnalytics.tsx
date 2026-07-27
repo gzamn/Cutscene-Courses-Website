@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { 
   ResponsiveContainer, 
@@ -15,21 +15,43 @@ import {
   AreaChart, 
   Area 
 } from 'recharts';
-import { BarChart3, PieChart as PieIcon, Layers, BookOpen, CheckCircle, HelpCircle } from 'lucide-react';
+import { BarChart3, PieChart as PieIcon, Layers, BookOpen, CheckCircle, HelpCircle, Flame, Clock, TrendingUp, Award, Activity, Sparkles } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ProgressAnalyticsProps {
   enrollments: any[];
   progress: any[];
   courses: any[];
   chaptersCountMap: { [courseId: string]: number };
+  quizzes?: any[];
+  quizAttempts?: any[];
+  streak?: number;
 }
 
 export default function ProgressAnalytics({ 
   enrollments, 
   progress, 
   courses, 
-  chaptersCountMap 
+  chaptersCountMap,
+  quizzes = [],
+  quizAttempts = [],
+  streak = 0
 }: ProgressAnalyticsProps) {
+  const { t } = useLanguage();
+
+  // Helper to convert ISO string to 'YYYY-MM-DD' in local timezone
+  const getLocalDateString = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return null;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      return null;
+    }
+  };
   // Filter for valid approved/paid enrollments
   const activeEnrollments = enrollments.filter(e => e.paid || e.status === 'approved');
   
@@ -65,24 +87,7 @@ export default function ProgressAnalytics({
 
   if (currentCourse) {
     if (isVideoEditing) {
-      if (currentCourse.chapters && currentCourse.chapters.length > 0) {
-        currentCourse.chapters.forEach((ch: any) => {
-          let chSessionsCount = 0;
-          if (Array.isArray(ch.sessions)) {
-            chSessionsCount = ch.sessions.filter((s: any) => s.url).length;
-          } else {
-            chSessionsCount = [
-              ch.session_url_1,
-              ch.session_url_2,
-              ch.session_url_3,
-              ch.session_url_4
-            ].filter(Boolean).length;
-          }
-          totalSessionsCount += chSessionsCount;
-        });
-      } else {
-        totalSessionsCount = 12; // Fallback
-      }
+      totalSessionsCount = 9; // EXACTLY 9 sessions as requested by user
       totalHomeworksCount = 0; // No homeworks for video editing courses
     } else {
       const numChapters = currentCourse.chapters && currentCourse.chapters.length > 0
@@ -112,6 +117,78 @@ export default function ProgressAnalytics({
   const sessionPercent = totalSessionsCount > 0 ? Math.round((sessionsCompleted / totalSessionsCount) * 100) : 0;
   const homeworkPercent = totalHomeworksCount > 0 ? Math.round((homeworksCompleted / totalHomeworksCount) * 100) : 0;
 
+  // Course specific quizzes
+  const courseQuizzes = useMemo(() => {
+    return quizzes.filter(q => {
+      if (courseId === '1') {
+        return q.status === 'published' && q.sessionId >= 1 && q.sessionId <= 9;
+      }
+      return q.courseId === courseId && q.status === 'published';
+    });
+  }, [quizzes, courseId]);
+
+  // Quiz attempts for the current course's quizzes
+  const courseQuizAttempts = useMemo(() => {
+    return quizAttempts.filter(attempt => 
+      courseQuizzes.some(q => q.id === attempt.quizId)
+    );
+  }, [quizAttempts, courseQuizzes]);
+
+  const passedQuizzesCount = useMemo(() => {
+    return courseQuizzes.filter(q => 
+      quizAttempts.some(attempt => attempt.quizId === q.id && attempt.passed)
+    ).length;
+  }, [courseQuizzes, quizAttempts]);
+
+  const quizClearedPercent = courseQuizzes.length > 0
+    ? Math.round((passedQuizzesCount / courseQuizzes.length) * 100)
+    : 0;
+
+  const averageQuizScore = useMemo(() => {
+    return courseQuizAttempts.length > 0
+      ? Math.round(courseQuizAttempts.reduce((sum, att) => sum + (att.score || 0), 0) / courseQuizAttempts.length)
+      : 0;
+  }, [courseQuizAttempts]);
+
+  // Compute past 7 days of learning history (video completions or quiz attempts)
+  const last7DaysActivity = useMemo(() => {
+    const activity = [];
+    const studyDates = new Set<string>();
+    progress.forEach((p: any) => {
+      if (p.completed && p.updatedAt) {
+        const dStr = getLocalDateString(p.updatedAt);
+        if (dStr) studyDates.add(dStr);
+      }
+    });
+    quizAttempts.forEach((q: any) => {
+      if (q.submittedAt) {
+        const dStr = getLocalDateString(q.submittedAt);
+        if (dStr) studyDates.add(dStr);
+      }
+    });
+
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayLabelsFr = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = getLocalDateString(d.toISOString());
+      const dayOfWeek = d.getDay();
+      const isToday = i === 0;
+
+      let label = dayLabels[dayOfWeek];
+      activity.push({
+        dateStr: dStr,
+        dayLabel: label,
+        dayNumber: d.getDate(),
+        completed: dStr ? studyDates.has(dStr) : false,
+        isToday,
+      });
+    }
+    return activity;
+  }, [progress, quizAttempts]);
+
   // Data for Module Type chart
   const moduleData = [];
   if (totalSessionsCount > 0) {
@@ -130,6 +207,15 @@ export default function ProgressAnalytics({
       total: totalHomeworksCount,
       percentage: homeworkPercent,
       color: '#f59e0b', // Amber
+    });
+  }
+  if (courseQuizzes.length > 0) {
+    moduleData.push({
+      name: 'Quizzes Cleared',
+      completed: passedQuizzesCount,
+      total: courseQuizzes.length,
+      percentage: quizClearedPercent,
+      color: '#ec4899', // Pink
     });
   }
 
@@ -328,7 +414,12 @@ export default function ProgressAnalytics({
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(124, 58, 237, 0.05)' }} />
               <Bar dataKey="percentage" radius={[12, 12, 0, 0]}>
                 {moduleData.map((entry, index) => {
-                  const fillGrad = index === 0 ? "url(#purpleGrad)" : index === 1 ? "url(#pinkGrad)" : "url(#amberGrad)";
+                  let fillGrad = "url(#purpleGrad)";
+                  if (entry.name.toLowerCase().includes('homework')) {
+                    fillGrad = "url(#amberGrad)";
+                  } else if (entry.name.toLowerCase().includes('quiz')) {
+                    fillGrad = "url(#pinkGrad)";
+                  }
                   return <Cell key={`cell-${index}`} fill={fillGrad} stroke={entry.color} strokeWidth={1} />;
                 })}
               </Bar>
@@ -374,7 +465,7 @@ export default function ProgressAnalytics({
         </ResponsiveContainer>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-500 pt-2 font-medium">
+      <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-500 pt-2 font-medium border-b border-purple-900/10 pb-6">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
@@ -384,8 +475,151 @@ export default function ProgressAnalytics({
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
             <span>Homeworks</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-pink-500" />
+            <span>Quizzes</span>
+          </div>
         </div>
         <p className="italic">Data synchronized with Firestore cloud progress ledger</p>
+      </div>
+
+      {/* STREAK & QUIZ ANALYTICS BLOCKS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+        {/* Daily Study Streak Tracker */}
+        <div className="bg-zinc-950/60 border border-purple-900/15 rounded-3xl p-6 space-y-5 shadow-inner">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-orange-500/10 rounded-xl">
+                <Flame className={`w-5 h-5 ${streak > 0 ? 'text-orange-500 animate-pulse' : 'text-gray-400'}`} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Daily Study Streak</h3>
+                <p className="text-[10px] text-gray-400">Keep up your daily learning momentum</p>
+              </div>
+            </div>
+            <div className="px-3 py-1 bg-orange-950/40 border border-orange-500/20 rounded-full text-xs font-bold text-orange-400 flex items-center gap-1">
+              <span>{streak} Day Streak</span>
+            </div>
+          </div>
+
+          {/* Last 7 Days Circles */}
+          <div className="space-y-3">
+            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Weekly Activity (Past 7 Days)</div>
+            <div className="flex justify-between items-center bg-black/45 border border-purple-900/10 rounded-2xl p-4 gap-2 overflow-x-auto">
+              {last7DaysActivity.map((day, idx) => (
+                <div key={idx} className="flex flex-col items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] text-gray-500 font-bold">{day.dayLabel}</span>
+                  <div 
+                    className={`w-9 h-9 rounded-full flex items-center justify-center border transition-all duration-300 ${
+                      day.completed 
+                        ? 'bg-gradient-to-br from-orange-500 to-red-500 border-transparent shadow-lg shadow-orange-500/15 text-white' 
+                        : day.isToday
+                          ? 'bg-zinc-950 border-purple-500/50 text-purple-400'
+                          : 'bg-zinc-950 border-purple-900/20 text-gray-600'
+                    }`}
+                  >
+                    {day.completed ? (
+                      <CheckCircle className="w-4 h-4 text-white font-bold animate-bounce" />
+                    ) : (
+                      <span className="text-xs font-bold">{day.dayNumber}</span>
+                    )}
+                  </div>
+                  {day.isToday && <span className="text-[9px] text-purple-400 font-extrabold uppercase tracking-widest">Today</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-400 leading-relaxed italic bg-purple-950/10 border border-purple-900/10 p-3.5 rounded-2xl">
+            {streak > 0 
+              ? `🔥 Outstanding! You have studied for ${streak} consecutive day${streak === 1 ? '' : 's'}. Complete a new video session or submit a quiz attempt tomorrow to keep this streak burning!`
+              : `👋 Start a brand-new study streak today! Simply mark any video lesson as complete or complete a quiz to begin tracking your consecutive days of learning.`
+            }
+          </div>
+        </div>
+
+        {/* Course Quiz Analytics */}
+        <div className="bg-zinc-950/60 border border-purple-900/15 rounded-3xl p-6 space-y-4 flex flex-col justify-between shadow-inner">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-pink-500/10 rounded-xl">
+                <Award className="w-5 h-5 text-pink-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Interactive Quiz Analytics</h3>
+                <p className="text-[10px] text-gray-400">Evaluation metrics of your quiz performance</p>
+              </div>
+            </div>
+          </div>
+
+          {courseQuizzes.length === 0 ? (
+            <div className="flex-grow flex flex-col items-center justify-center p-6 text-center text-gray-500 border border-dashed border-purple-900/15 rounded-2xl bg-black/10">
+              <HelpCircle className="w-8 h-8 text-purple-900/40 mb-2" />
+              <div className="text-xs font-bold text-gray-400">No quizzes available for this course</div>
+              <div className="text-[10px] text-gray-500 mt-1">This course currently has no active published quizzes.</div>
+            </div>
+          ) : (
+            <div className="flex-grow flex flex-col justify-between gap-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-black/30 border border-purple-900/10 p-3 rounded-2xl text-center">
+                  <div className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Cleared / Total</div>
+                  <div className="text-base font-black text-white mt-1">
+                    {passedQuizzesCount} <span className="text-[10px] font-normal text-gray-500">/ {courseQuizzes.length}</span>
+                  </div>
+                </div>
+                <div className="bg-black/30 border border-purple-900/10 p-3 rounded-2xl text-center">
+                  <div className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Success Rate</div>
+                  <div className="text-base font-black text-pink-400 mt-1">
+                    {quizClearedPercent}%
+                  </div>
+                </div>
+                <div className="bg-black/30 border border-purple-900/10 p-3 rounded-2xl text-center">
+                  <div className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Avg Score</div>
+                  <div className="text-base font-black text-amber-400 mt-1">
+                    {averageQuizScore}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Quiz Performance Records</div>
+                <div className="max-h-36 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {courseQuizzes.map((quiz) => {
+                    const attemptsForQuiz = courseQuizAttempts.filter(att => att.quizId === quiz.id);
+                    const hasPassed = attemptsForQuiz.some(att => att.passed);
+                    const highestScore = attemptsForQuiz.length > 0 
+                      ? Math.max(...attemptsForQuiz.map(att => att.score || 0)) 
+                      : 0;
+
+                    return (
+                      <div key={quiz.id} className="bg-black/45 border border-purple-900/10 p-2.5 rounded-xl flex items-center justify-between text-xs gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-white truncate text-xs">{quiz.title}</div>
+                          <div className="text-[10px] text-gray-500 mt-0.5">Session {quiz.sessionId || 1} • {attemptsForQuiz.length} {attemptsForQuiz.length === 1 ? 'attempt' : 'attempts'}</div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <div className="font-extrabold text-white text-xs">{attemptsForQuiz.length > 0 ? `${highestScore}%` : '—'}</div>
+                            <div className="text-[8px] text-gray-500 font-bold uppercase">High Score</div>
+                          </div>
+                          <div>
+                            {hasPassed ? (
+                              <span className="px-2 py-0.5 bg-green-950/50 border border-green-500/20 text-green-400 text-[9px] font-black uppercase rounded-md tracking-wider">Passed</span>
+                            ) : attemptsForQuiz.length > 0 ? (
+                              <span className="px-2 py-0.5 bg-red-950/50 border border-red-500/20 text-red-400 text-[9px] font-black uppercase rounded-md tracking-wider">Try Again</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-500 text-[9px] font-black uppercase rounded-md tracking-wider">Unopened</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </motion.section>
   );

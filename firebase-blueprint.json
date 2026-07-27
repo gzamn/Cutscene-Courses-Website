@@ -110,6 +110,20 @@
       },
       "required": ["uid", "courseId"]
     },
+    "ExerciseSubmission": {
+      "title": "Exercise Submission",
+      "description": "Student upload record for specific chapter exercises",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "courseId": { "type": "string" },
+        "chapter": { "type": "integer" },
+        "name": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "uploadedAt": { "type": "string" }
+      },
+      "required": ["uid", "courseId", "chapter", "downloadUrl"]
+    },
     "Comment": {
       "title": "Comment",
       "description": "Course or video player discussion comments",
@@ -436,6 +450,10 @@
     "homework_submissions/{submissionId}": {
       "schema": "Submission",
       "description": "Uploaded exercise assignments"
+    },
+    "exercise_submissions/{submissionId}": {
+      "schema": "ExerciseSubmission",
+      "description": "Chapter-specific exercise submissions uploaded by students"
     },
     "comments/{commentId}": {
       "schema": "Comment",

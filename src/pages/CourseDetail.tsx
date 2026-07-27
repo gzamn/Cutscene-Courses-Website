@@ -329,12 +329,28 @@ export default function CourseDetail() {
     );
   }
 
-  const outcomesList = course.outcomes || [
-    'Gain professional-grade editing skills',
-    'Master advanced workflows and pipelines',
-    'Build a standout creative portfolio',
-    'Get direct industry-standard credentials'
-  ];
+  const outcomesList = Array.isArray(course.outcomes)
+    ? course.outcomes
+    : Array.isArray(course.learningOutcomes)
+      ? course.learningOutcomes
+      : typeof course.outcomes === 'string'
+        ? (course.outcomes as string).split('\n').map(s => s.trim()).filter(Boolean)
+        : [
+            'Gain professional-grade editing skills',
+            'Master advanced workflows and pipelines',
+            'Build a standout creative portfolio',
+            'Get direct industry-standard credentials'
+          ];
+
+  const requirementsList = Array.isArray(course.requirements)
+    ? course.requirements
+    : typeof course.requirements === 'string'
+      ? (course.requirements as string).split('\n').map(s => s.trim()).filter(Boolean)
+      : [
+          'A computer capable of video editing',
+          'No prior knowledge or experience required',
+          'A passion to learn and create'
+        ];
 
   return (
     <div className="min-h-screen bg-transparent text-white pt-32 pb-20">
@@ -433,21 +449,49 @@ export default function CourseDetail() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
             <div className="lg:col-span-2 space-y-16">
-              {/* Learning Outcomes */}
-              <div>
-                <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
-                    <ShieldCheck className="w-6 h-6 text-purple-500" />
-                  </div>
-                  {t('course.outcomes') || 'What You Will Learn'}
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {outcomesList.map((outcome: string, idx: number) => (
-                    <div key={idx} className="flex gap-4 p-5 bg-zinc-950/40 border border-purple-950/10 rounded-2xl">
-                      <CheckCircle2 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
-                      <span className="text-gray-300 text-sm leading-relaxed">{outcome}</span>
+              {/* Learning Outcomes & Requirements Side-by-Side */}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 items-stretch bg-zinc-950/20 border border-purple-950/10 p-8 rounded-3xl">
+                {/* Learning Outcomes */}
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
+                    <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
+                      <ShieldCheck className="w-5 h-5 text-purple-500" />
                     </div>
-                  ))}
+                    {t('course.outcomes') || 'What You Will Learn'}
+                  </h2>
+                  <div className="space-y-4">
+                    {outcomesList.map((outcome: string, idx: number) => (
+                      <div key={idx} className="flex gap-4 p-4 bg-zinc-950/40 border border-purple-950/10 rounded-2xl">
+                        <CheckCircle2 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                        <span className="text-gray-300 text-sm leading-relaxed">{outcome}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Vertical Gradient Stylish Simplistic Separator Line */}
+                <div className="hidden lg:flex flex-col items-center justify-center px-4">
+                  <div className="w-[1px] h-full bg-gradient-to-b from-transparent via-purple-500/30 to-transparent" />
+                </div>
+                {/* Horizontal Gradient Line for mobile */}
+                <div className="block lg:hidden h-[1px] w-full bg-gradient-to-r from-transparent via-purple-500/30 to-transparent my-4" />
+
+                {/* Course Requirements */}
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
+                    <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-purple-500" />
+                    </div>
+                    {t('course.requirements') || 'Course Requirements'}
+                  </h2>
+                  <div className="space-y-4">
+                    {requirementsList.map((req: string, idx: number) => (
+                      <div key={idx} className="flex gap-4 p-4 bg-zinc-950/40 border border-purple-950/10 rounded-2xl">
+                        <CheckCircle2 className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+                        <span className="text-gray-300 text-sm leading-relaxed">{req}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 

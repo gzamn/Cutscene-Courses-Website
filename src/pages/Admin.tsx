@@ -6,7 +6,8 @@ import {
   Layers, ChevronRight, Users, Film, Settings, Trash2, Edit2, 
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
   Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
-  Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw, Key, Lock
+  Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw, Key, Lock,
+  Flame, Upload
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +33,7 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 
-type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes';
+type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises';
 
 interface Toast {
   id: string;
@@ -69,6 +70,23 @@ export default function AdminPanel() {
   const [courses, setCourses] = useState<any[]>([]);
   const [chapters, setChapters] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
+  const [exerciseSubmissions, setExerciseSubmissions] = useState<any[]>([]);
+  const [loadingExercises, setLoadingExercises] = useState<boolean>(false);
+  const [exerciseActiveSubTab, setExerciseActiveSubTab] = useState<'submissions' | 'configurator'>('submissions');
+  const [selectedConfigChapterId, setSelectedConfigChapterId] = useState<string | null>(null);
+  const [exerciseForm, setExerciseForm] = useState({
+    title: '',
+    videoUrl: '',
+    brief: '',
+    tasksRaw: ''
+  });
+  const [showExerciseGradingModal, setShowExerciseGradingModal] = useState<boolean>(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
+  const [gradingForm, setGradingForm] = useState<any>({
+    score: 10,
+    reviewerNote: '',
+    taskResults: {} as { [key: string]: boolean }
+  });
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [studentWorks, setStudentWorks] = useState<any[]>([]);
   const [storeProducts, setStoreProducts] = useState<any[]>([]);
@@ -407,7 +425,9 @@ export default function AdminPanel() {
     duration: '8 weeks',
     certificateUrl: '',
     trailerUrl: '',
-    is_coming_soon: false
+    is_coming_soon: false,
+    requirements: '',
+    outcomes: ''
   });
 
   const [showWorkModal, setShowWorkModal] = useState(false);
@@ -478,6 +498,9 @@ export default function AdminPanel() {
     thumbnail_url: '',
     exercise_url: '',
     homework_url: '',
+    exercise_title: '',
+    exercise_brief: '',
+    exercise_tasks_raw: '',
     session_url_1: '',
     session_url_2: '',
     session_url_3: '',
@@ -589,6 +612,7 @@ export default function AdminPanel() {
       fetchCourses();
       fetchUsers();
       fetchStudentWorks();
+      fetchExerciseSubmissions();
       fetchEnrollments();
       fetchStoreProducts();
       fetchStorePurchases();
@@ -720,6 +744,98 @@ export default function AdminPanel() {
     } finally {
       setLoadingUsers(false);
     }
+  };
+
+  const fetchExerciseSubmissions = async () => {
+    setLoadingExercises(true);
+    try {
+      const snap = await getDocs(collection(db, 'exercise_submissions'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort by uploadedAt descending
+      const sorted = list.sort((a: any, b: any) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+      setExerciseSubmissions(sorted);
+    } catch (err: any) {
+      console.error('Fetch exercises error:', err);
+      showToast('error', 'Failed loading exercise submissions.');
+    } finally {
+      setLoadingExercises(false);
+    }
+  };
+
+  const handleOpenGradingModal = (sub: any) => {
+    setSelectedSubmission(sub);
+    setGradingForm({
+      score: sub.score || 10,
+      reviewerNote: sub.reviewerNote || '',
+      taskResults: sub.taskResults || {}
+    });
+    setShowExerciseGradingModal(true);
+  };
+
+  const handleGradeSubmissionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSubmission) return;
+
+    try {
+      const docRef = doc(db, 'exercise_submissions', selectedSubmission.id);
+      await updateDoc(docRef, {
+        status: 'reviewed',
+        score: Number(gradingForm.score),
+        taskResults: gradingForm.taskResults,
+        reviewerNote: gradingForm.reviewerNote,
+        reviewedAt: new Date().toISOString()
+      });
+
+      showToast('success', 'Exercise submission reviewed and graded!');
+      setShowExerciseGradingModal(false);
+      setSelectedSubmission(null);
+      fetchExerciseSubmissions();
+    } catch (err: any) {
+      console.error('Grading submission error:', err);
+      showToast('error', `Failed to grade submission: ${err.message}`);
+    }
+  };
+
+  const handleSaveConfiguredExercise = async (chapterId: string, e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCourseId) {
+      showToast('error', 'Please select a parent course first.');
+      return;
+    }
+    try {
+      const chRef = doc(db, `courses/${selectedCourseId}/chapters`, chapterId);
+      const tasks = exerciseForm.tasksRaw
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      await updateDoc(chRef, {
+        exercise_title: exerciseForm.title,
+        exercise_url: exerciseForm.videoUrl,
+        exercise_brief: exerciseForm.brief,
+        exercise_tasks_raw: exerciseForm.tasksRaw,
+        exercise_tasks: tasks
+      });
+
+      showToast('success', 'Exercise configuration & checklist updated successfully!');
+      fetchChaptersForCourse(selectedCourseId);
+    } catch (err: any) {
+      console.error('Save configured exercise error:', err);
+      showToast('error', `Failed to save exercise configuration: ${err.message}`);
+    }
+  };
+
+  const selectChapterForConfig = (ch: any) => {
+    setSelectedConfigChapterId(ch.id);
+    setExerciseForm({
+      title: ch.exercise_title || '',
+      videoUrl: ch.exercise_url || '',
+      brief: ch.exercise_brief || '',
+      tasksRaw: ch.exercise_tasks_raw || ch.exercise_tasks?.join('\n') || ''
+    });
   };
 
   const fetchStudentWorks = async () => {
@@ -1304,6 +1420,15 @@ export default function AdminPanel() {
         certificateUrl: courseForm.certificateUrl || '',
         trailerUrl: courseForm.trailerUrl || '',
         isComingSoon: !!courseForm.is_coming_soon,
+        requirements: courseForm.requirements
+          ? courseForm.requirements.split('\n').map(s => s.trim()).filter(Boolean)
+          : [],
+        outcomes: courseForm.outcomes
+          ? courseForm.outcomes.split('\n').map(s => s.trim()).filter(Boolean)
+          : [],
+        learningOutcomes: courseForm.outcomes
+          ? courseForm.outcomes.split('\n').map(s => s.trim()).filter(Boolean)
+          : [],
         updatedAt: serverTimestamp()
       };
 
@@ -1337,7 +1462,9 @@ export default function AdminPanel() {
         duration: '8 weeks',
         certificateUrl: '',
         trailerUrl: '',
-        is_coming_soon: false
+        is_coming_soon: false,
+        requirements: '',
+        outcomes: ''
       });
       fetchCourses();
     } catch (err: any) {
@@ -1360,7 +1487,19 @@ export default function AdminPanel() {
       duration: course.duration || '8 weeks',
       certificateUrl: course.certificateUrl || '',
       trailerUrl: course.trailerUrl || '',
-      is_coming_soon: !!course.isComingSoon
+      is_coming_soon: !!course.isComingSoon,
+      requirements: Array.isArray(course.requirements)
+        ? course.requirements.join('\n')
+        : typeof course.requirements === 'string'
+          ? course.requirements
+          : '',
+      outcomes: Array.isArray(course.outcomes)
+        ? course.outcomes.join('\n')
+        : Array.isArray(course.learningOutcomes)
+          ? course.learningOutcomes.join('\n')
+          : typeof course.outcomes === 'string'
+            ? course.outcomes
+            : ''
     });
     setShowCourseModal(true);
   };
@@ -1426,6 +1565,13 @@ export default function AdminPanel() {
         thumbnail_url: chapterForm.thumbnail_url || '',
         exercise_url: chapterForm.exercise_url || '',
         homework_url: chapterForm.homework_url || '',
+        exercise_title: chapterForm.exercise_title || '',
+        exercise_brief: chapterForm.exercise_brief || '',
+        exercise_tasks_raw: chapterForm.exercise_tasks_raw || '',
+        exercise_tasks: (chapterForm.exercise_tasks_raw || '')
+          .split('\n')
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.length > 0),
         session_url_1: url,
         session_url_2: '',
         session_url_3: '',
@@ -1461,6 +1607,9 @@ export default function AdminPanel() {
         thumbnail_url: '',
         exercise_url: '',
         homework_url: '',
+        exercise_title: '',
+        exercise_brief: '',
+        exercise_tasks_raw: '',
         session_url_1: '',
         session_url_2: '',
         session_url_3: '',
@@ -1493,6 +1642,9 @@ export default function AdminPanel() {
       thumbnail_url: chapter.thumbnail_url || '',
       exercise_url: chapter.exercise_url || '',
       homework_url: chapter.homework_url || '',
+      exercise_title: chapter.exercise_title || '',
+      exercise_brief: chapter.exercise_brief || '',
+      exercise_tasks_raw: chapter.exercise_tasks_raw || '',
       session_url_1: url,
       session_url_2: '',
       session_url_3: '',
@@ -1518,6 +1670,9 @@ export default function AdminPanel() {
       thumbnail_url: '',
       exercise_url: '',
       homework_url: '',
+      exercise_title: '',
+      exercise_brief: '',
+      exercise_tasks_raw: '',
       session_url_1: '',
       session_url_2: '',
       session_url_3: '',
@@ -2456,6 +2611,9 @@ export default function AdminPanel() {
     if (activeTab === 'quizzes') {
       fetchQuizzes();
     }
+    if (activeTab === 'exercises') {
+      fetchExerciseSubmissions();
+    }
   }, [activeTab]);
 
   const handleUploadQuestionMedia = async (e: React.ChangeEvent<HTMLInputElement>, field: 'mediaUrl' | 'secondMediaUrl') => {
@@ -2716,6 +2874,7 @@ export default function AdminPanel() {
         { id: 'chapters', name: 'Course Sessions', icon: Layers },
         { id: 'student-works', name: 'Showcase Gallery', icon: Film },
         { id: 'quizzes', name: 'Curriculum Quizzes', icon: HelpCircle },
+        { id: 'exercises', name: 'Exercise Submissions', icon: Flame },
       ]
     },
     {
@@ -3004,7 +3163,9 @@ export default function AdminPanel() {
                       duration: '8 weeks',
                       certificateUrl: '',
                       trailerUrl: '',
-                      is_coming_soon: false
+                      is_coming_soon: false,
+                      requirements: '',
+                      outcomes: ''
                     });
                     setShowCourseModal(true);
                   }}
@@ -4199,6 +4360,308 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* TAB: EXERCISE SUBMISSIONS */}
+        {activeTab === 'exercises' && (
+          <div className="space-y-8 animate-fade-in text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-white tracking-tight">Practical Exercises Workspace</h1>
+                <p className="text-gray-400 text-xs mt-1">Review student practical submissions or configure class session exercises and evaluation criteria checklists.</p>
+              </div>
+            </div>
+
+            {/* Sub-tab selection */}
+            <div className="flex border-b border-purple-950/20 pb-px gap-6">
+              <button
+                onClick={() => setExerciseActiveSubTab('submissions')}
+                className={`pb-4 text-xs font-black uppercase tracking-widest transition-all relative cursor-pointer ${
+                  exerciseActiveSubTab === 'submissions'
+                    ? 'text-white'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                TUTOR REVIEW DECK
+                {exerciseActiveSubTab === 'submissions' && (
+                  <motion.div layoutId="exerciseSubActiveBorder" className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500" />
+                )}
+              </button>
+              <button
+                onClick={() => setExerciseActiveSubTab('configurator')}
+                className={`pb-4 text-xs font-black uppercase tracking-widest transition-all relative cursor-pointer ${
+                  exerciseActiveSubTab === 'configurator'
+                    ? 'text-white'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                EXERCISE BUILDER & CONFIGURATOR
+                {exerciseActiveSubTab === 'configurator' && (
+                  <motion.div layoutId="exerciseSubActiveBorder" className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500" />
+                )}
+              </button>
+            </div>
+
+            {exerciseActiveSubTab === 'submissions' && (
+              <>
+                {loadingExercises ? (
+                  <div className="py-20 flex justify-center">
+                    <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+                  </div>
+                ) : exerciseSubmissions.length === 0 ? (
+                  <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                    <Flame className="w-12 h-12 text-purple-500/40 mx-auto mb-4 animate-pulse" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white">No Submissions Found</h3>
+                    <p className="text-gray-400 text-xs mt-1.5">No student has submitted an active chapter exercise for review yet.</p>
+                  </div>
+                ) : (
+                  <div className="bg-black/40 border border-purple-950/20 rounded-[2rem] overflow-hidden shadow-xl">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-zinc-950 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
+                          <tr>
+                            <th className="py-4 px-6">Student</th>
+                            <th className="py-4 px-6">Session / Module</th>
+                            <th className="py-4 px-6">Submission File</th>
+                            <th className="py-4 px-6">Evaluation Score</th>
+                            <th className="py-4 px-6">Submitted At</th>
+                            <th className="py-4 px-6 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-purple-950/10 bg-zinc-950/10">
+                          {exerciseSubmissions.map((sub: any) => {
+                            const studentUser = usersList.find((u: any) => u.id === (sub.uid || sub.userId));
+                            const matchCourse = courses.find((c: any) => c.id === sub.courseId);
+                            
+                            return (
+                              <tr key={sub.id} className="hover:bg-purple-950/5 transition-colors">
+                                <td className="py-4 px-6">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-white text-xs">{studentUser?.fullName || 'Anonymous student'}</span>
+                                    <span className="text-[10px] font-mono text-gray-500">{studentUser?.email || sub.userId || sub.uid}</span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-6">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-white text-xs">
+                                      {matchCourse?.title || 'Course Module'}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-purple-400">
+                                      Session Position: {sub.chapter ?? sub.chapterId}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-6">
+                                  <a 
+                                    href={sub.downloadUrl || sub.fileUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1.5 transition-all"
+                                  >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    <span className="truncate max-w-[150px]">{sub.name || sub.fileName || 'View Submission Link'}</span>
+                                  </a>
+                                </td>
+                                <td className="py-4 px-6">
+                                  {sub.status === 'reviewed' ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-2 py-0.5 rounded-md bg-emerald-950 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold">
+                                        {sub.score || 0} / 10
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-950 border border-amber-500/30 text-amber-400 text-[10px] font-mono font-bold animate-pulse">
+                                      Needs Review
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-4 px-6 text-xs text-gray-400 font-mono">
+                                  {sub.uploadedAt ? new Date(sub.uploadedAt).toLocaleString() : 'N/A'}
+                                </td>
+                                <td className="py-4 px-6 text-right">
+                                  <button
+                                    onClick={() => handleOpenGradingModal(sub)}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                                      sub.status === 'reviewed'
+                                        ? 'bg-zinc-900 border border-purple-900/30 text-purple-300 hover:bg-zinc-850'
+                                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-md'
+                                    }`}
+                                  >
+                                    {sub.status === 'reviewed' ? 'Re-grade / Edit' : 'Evaluate & Grade'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {exerciseActiveSubTab === 'configurator' && (
+              <div className="space-y-6">
+                <div className="bg-zinc-950/40 border border-purple-900/10 p-6 rounded-[2rem] space-y-4">
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <label className="text-xs font-black uppercase tracking-widest text-purple-400 whitespace-nowrap shrink-0">Select Curriculum Course:</label>
+                    <select
+                      value={selectedCourseId}
+                      onChange={(e) => {
+                        setSelectedCourseId(e.target.value);
+                        setSelectedConfigChapterId(null);
+                        if (e.target.value) {
+                          fetchChaptersForCourse(e.target.value);
+                        }
+                      }}
+                      className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-3 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">-- Choose Course --</option>
+                      {courses.map(c => (
+                        <option key={c.id} value={c.id}>{c.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {!selectedCourseId ? (
+                  <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                    <HelpCircle className="w-12 h-12 text-purple-500/40 mx-auto mb-4 animate-pulse" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white">Select a Course</h3>
+                    <p className="text-gray-400 text-xs mt-1.5">Choose a course above to load sessions and configure their practical exercises & evaluation criteria.</p>
+                  </div>
+                ) : loadingChapters ? (
+                  <div className="py-20 flex justify-center">
+                    <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+                  </div>
+                ) : chapters.length === 0 ? (
+                  <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                    <HelpCircle className="w-12 h-12 text-purple-500/40 mx-auto mb-4" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white">No Sessions Exist</h3>
+                    <p className="text-gray-400 text-xs mt-1.5">Create sessions in the "Course Sessions" tab first for this course.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    
+                    {/* Left Panel: Course Sessions list */}
+                    <div className="lg:col-span-5 space-y-3">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Select a Session to Configure</div>
+                      {chapters.map((ch: any) => {
+                        const hasExercise = !!ch.exercise_title || !!ch.exercise_url || (ch.exercise_tasks && ch.exercise_tasks.length > 0);
+                        const isSelected = selectedConfigChapterId === ch.id;
+                        return (
+                          <div
+                            key={ch.id}
+                            onClick={() => selectChapterForConfig(ch)}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer text-left ${
+                              isSelected
+                                ? 'bg-purple-950/30 border-purple-500/40 text-white'
+                                : 'bg-black/20 hover:bg-black/45 border-purple-950/20 text-gray-300'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="font-bold text-xs sm:text-sm">{ch.title || `Session ${ch.position}`}</div>
+                              <span className="font-mono text-[9px] text-purple-400 shrink-0 uppercase tracking-wider font-extrabold px-1.5 py-0.5 bg-purple-950/40 border border-purple-900/20 rounded-md">
+                                Pos {ch.position}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-purple-950/10">
+                              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">Exercise Status</span>
+                              {hasExercise ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-emerald-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  Configured ({ch.exercise_tasks?.length || 0} tasks)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-amber-500">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  Missing Setup
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Right Panel: Configurations Form */}
+                    <div className="lg:col-span-7">
+                      {!selectedConfigChapterId ? (
+                        <div className="p-12 text-center bg-zinc-950/20 border border-dashed border-purple-950/20 rounded-[2rem] text-xs text-gray-500 font-bold uppercase">
+                          Please select a session on the left to edit its practical exercise payload
+                        </div>
+                      ) : (
+                        <form onSubmit={(e) => handleSaveConfiguredExercise(selectedConfigChapterId, e)} className="bg-zinc-950/40 border border-purple-900/15 p-6 sm:p-8 rounded-[2rem] space-y-5 text-left">
+                          <div className="border-b border-purple-950/20 pb-4">
+                            <h3 className="font-bold text-white text-base font-sans tracking-tight">Configure Practical Exercise</h3>
+                            <p className="text-[11px] text-gray-400 mt-0.5">Determine briefing media, tasks objectives, and checklist guidelines for active grading.</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5">Exercise Title</label>
+                            <input
+                              type="text"
+                              required
+                              value={exerciseForm.title}
+                              onChange={(e) => setExerciseForm({ ...exerciseForm, title: e.target.value })}
+                              placeholder="e.g. Cut the Interview: Sync & Assemblage"
+                              className="w-full bg-black border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500/60 font-mono"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5">Exercise Video Briefing URL (Vimeo / YouTube / Bunny Player link)</label>
+                            <input
+                              type="url"
+                              value={exerciseForm.videoUrl}
+                              onChange={(e) => setExerciseForm({ ...exerciseForm, videoUrl: e.target.value })}
+                              placeholder="e.g. https://iframe.mediadelivery.net/embed/..."
+                              className="w-full bg-black border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500/60 font-mono"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5">Exercise Instructions & Description</label>
+                            <textarea
+                              rows={3}
+                              value={exerciseForm.brief}
+                              onChange={(e) => setExerciseForm({ ...exerciseForm, brief: e.target.value })}
+                              placeholder="Type student task instruction details..."
+                              className="w-full bg-black border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500/60 h-20 resize-none leading-relaxed"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400">Evaluation Checklist Requirements</label>
+                              <span className="text-[9px] font-mono text-gray-500">One per line</span>
+                            </div>
+                            <textarea
+                              rows={5}
+                              required
+                              value={exerciseForm.tasksRaw}
+                              onChange={(e) => setExerciseForm({ ...exerciseForm, tasksRaw: e.target.value })}
+                              placeholder="Import footage and sync sequences&#10;Build rough assembly cut following beats&#10;Match color grading of target clip&#10;Integrate continuous audio pacing"
+                              className="w-full bg-black border border-purple-900/20 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-purple-500/60 h-28 font-mono leading-relaxed"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full py-4 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-purple-600/15 cursor-pointer mt-2"
+                          >
+                            Save Exercise Configuration
+                          </button>
+                        </form>
+                      )}
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB: CURRICULUM QUIZZES */}
         {activeTab === 'quizzes' && (
           <div className="space-y-8 animate-fade-in text-white">
@@ -4583,10 +5046,12 @@ export default function AdminPanel() {
                               />
                             </div>
                           </div>
-                        ) : currentQuestionForm.type === 'Spot-diff' && currentQuestionForm.spotDiffVideosCount === 2 ? (
+                        ) : currentQuestionForm.type === 'Spot-diff' ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">Clip A (Reference Video)</span>
+                              <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">
+                                Clip A (Reference Video) {currentQuestionForm.spotDiffVideosCount === 1 && <span className="text-purple-400/70">(Optional in 1-Video Mode)</span>}
+                              </span>
                               <input
                                 type="file"
                                 accept="video/*"
@@ -4621,7 +5086,7 @@ export default function AdminPanel() {
                         ) : (
                           <div className="space-y-2">
                             <span className="text-[10px] text-gray-400 uppercase font-bold block font-mono">
-                              {currentQuestionForm.type === 'Spot-diff' ? 'Difference Video Clip' : 'Media Asset File'}
+                              Media Asset File
                             </span>
                             <input
                               type="file"
@@ -6641,6 +7106,28 @@ export default function AdminPanel() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Learning Outcomes (One per line)</label>
+                  <textarea
+                    rows={3}
+                    value={courseForm.outcomes || ''}
+                    onChange={(e) => setCourseForm({ ...courseForm, outcomes: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="e.g. Master professional video editing&#10;Incorporate advanced color grading&#10;Optimize editing efficiency"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course Requirements (One per line)</label>
+                  <textarea
+                    rows={3}
+                    value={courseForm.requirements || ''}
+                    onChange={(e) => setCourseForm({ ...courseForm, requirements: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    placeholder="e.g. A computer capable of video editing&#10;Adobe Premiere Pro installed&#10;No prior experience required"
+                  />
+                </div>
+
                 <div className="p-4 bg-zinc-900 rounded-xl border border-white/5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-300">Is this course free for sandbox trial?</span>
@@ -6788,7 +7275,7 @@ export default function AdminPanel() {
                     />
                   </div>
 
-                  <div className="pt-2 border-t border-purple-900/15">
+                  <div className="pt-2 border-t border-purple-900/15 space-y-4">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Homework Assignment Submission Link</label>
                       <input
@@ -6799,6 +7286,52 @@ export default function AdminPanel() {
                         placeholder="https://..."
                       />
                     </div>
+
+                    <div className="border-t border-purple-900/10 pt-3 space-y-3">
+                      <div className="text-[10px] font-mono text-purple-400 font-extrabold uppercase tracking-widest">Exercise Builder</div>
+                      
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exercise Briefing Video URL</label>
+                        <input
+                          type="url"
+                          value={chapterForm.exercise_url}
+                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                          placeholder="e.g. YouTube embed or direct stream link"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exercise Title</label>
+                        <input
+                          type="text"
+                          value={chapterForm.exercise_title}
+                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_title: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                          placeholder="e.g. Cut the Interview: Sync & Rough Assembly"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exercise Briefing / Instructions</label>
+                        <textarea
+                          value={chapterForm.exercise_brief}
+                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_brief: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-18 resize-none"
+                          placeholder="What must the student do? Describe instructions..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Evaluation Checklist (One requirement per line)</label>
+                        <textarea
+                          value={chapterForm.exercise_tasks_raw}
+                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_tasks_raw: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-24 font-mono leading-relaxed"
+                          placeholder="Import footage and sync&#10;Build rough cut on the beat&#10;Color match camera angles&#10;Add J/L cut transition"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -6808,6 +7341,206 @@ export default function AdminPanel() {
                 >
                   Save Session
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2.05: EXERCISE GRADING MODAL */}
+      <AnimatePresence>
+        {showExerciseGradingModal && selectedSubmission && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={() => setShowExerciseGradingModal(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Evaluate Practical Exercise</h2>
+                  <p className="text-gray-400 text-xs">Verify student performance, check criteria off, and write tutor feedback</p>
+                </div>
+                <button onClick={() => setShowExerciseGradingModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleGradeSubmissionSubmit} className="space-y-5">
+                {/* Student Details Info Panel */}
+                <div className="p-4 bg-zinc-900/50 border border-purple-900/10 rounded-2xl space-y-2">
+                  <div className="text-[9px] font-mono uppercase text-purple-400 tracking-wider">Student Submission Details</div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400">Tutor/Student:</span>
+                    <span className="text-white font-bold">
+                      {usersList.find((u: any) => u.id === (selectedSubmission.uid || selectedSubmission.userId))?.fullName || 'Anonymous'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400">Class Session ID:</span>
+                    <span className="text-white font-mono font-bold">
+                      Chapter Position {selectedSubmission.chapter ?? selectedSubmission.chapterId}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-purple-900/5">
+                    <span className="text-gray-400">Delivered Work:</span>
+                    <a 
+                      href={selectedSubmission.downloadUrl || selectedSubmission.fileUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 bg-purple-950/40 hover:bg-purple-900/40 border border-purple-500/20 rounded-lg text-purple-400 text-[10px] font-mono font-bold uppercase flex items-center gap-1 transition-all"
+                    >
+                      <Upload className="w-3 h-3" />
+                      View Project File
+                    </a>
+                  </div>
+                </div>
+
+                {/* Submission Video Preview Panel */}
+                {(() => {
+                  const mediaUrl = selectedSubmission.downloadUrl || selectedSubmission.fileUrl;
+                  if (!mediaUrl) return null;
+
+                  // Determine if direct video file
+                  const isDirectVideo = mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') || mediaUrl.endsWith('.ogg') || mediaUrl.includes('storage.bunnycdn.com') || mediaUrl.includes('bunnycdn');
+                  
+                  return (
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Student Submission Media Player</label>
+                      <div className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-purple-900/30 shadow-inner group">
+                        {isDirectVideo ? (
+                          <video 
+                            src={mediaUrl} 
+                            controls 
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <iframe
+                            src={mediaUrl}
+                            className="w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Practical Checklist Criteria */}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Checklist Criteria Evaluation</label>
+                  {(() => {
+                    const matchChapter = chapters.find((ch: any) => 
+                      ch.courseId === selectedSubmission.courseId && 
+                      Number(ch.position) === Number(selectedSubmission.chapter ?? selectedSubmission.chapterId)
+                    );
+                    const tasks = matchChapter?.exercise_tasks || [];
+
+                    if (tasks.length === 0) {
+                      return (
+                        <div className="p-3.5 bg-zinc-950/40 rounded-xl text-center text-xs text-gray-500 border border-dashed border-purple-900/5">
+                          No evaluation checklist items defined for this chapter.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {tasks.map((task: string, idx: number) => {
+                          const isChecked = !!gradingForm.taskResults[idx.toString()];
+                          return (
+                            <label 
+                              key={idx} 
+                              className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                                isChecked 
+                                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' 
+                                  : 'bg-rose-950/10 border-rose-950/30 text-rose-300 hover:bg-rose-950/20'
+                              }`}
+                            >
+                              <div className="mt-0.5 shrink-0">
+                                {isChecked ? (
+                                  <div className="w-5 h-5 rounded-full bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-center">
+                                    <Check className="w-3.5 h-3.5 text-emerald-400 font-bold" />
+                                  </div>
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-rose-950/20 border border-rose-500/30 flex items-center justify-center">
+                                    <X className="w-3 h-3 text-rose-500 font-bold" />
+                                  </div>
+                                )}
+                              </div>
+                              <input 
+                                type="checkbox"
+                                className="hidden"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const updatedTasks = { ...gradingForm.taskResults };
+                                  updatedTasks[idx.toString()] = e.target.checked;
+                                  setGradingForm({ ...gradingForm, taskResults: updatedTasks });
+                                }}
+                              />
+                              <span className="text-xs leading-tight font-medium mt-0.5">{task}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Dynamic Scoring Dial */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Award Performance Score</label>
+                    <span className="text-xs font-mono font-extrabold text-purple-400">{gradingForm.score} / 10 Points</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={gradingForm.score}
+                    onChange={(e) => setGradingForm({ ...gradingForm, score: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                  <div className="flex justify-between text-[8px] font-mono text-gray-650 mt-1">
+                    <span>0 (Unacceptable)</span>
+                    <span>5 (Passing)</span>
+                    <span>10 (Outstanding)</span>
+                  </div>
+                </div>
+
+                {/* Tutor Notes Feedback */}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Reviewer Feedback & Guidance Notes</label>
+                  <textarea
+                    required
+                    value={gradingForm.reviewerNote}
+                    onChange={(e) => setGradingForm({ ...gradingForm, reviewerNote: e.target.value })}
+                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-24 resize-none leading-relaxed"
+                    placeholder="Provide detailed, actionable feedback. E.g., 'Fantastic sync work! Your color grading matches beautifully, but look closely at the J-cut transition timing...'"
+                  />
+                </div>
+
+                {/* Form Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowExerciseGradingModal(false)}
+                    className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-850 text-gray-400 hover:text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-3.5 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-purple-600/10"
+                  >
+                    Publish Review
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

@@ -53,34 +53,6 @@ export default function Home() {
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
 
-  const [continueWatching, setContinueWatching] = useState<any | null>(null);
-  const [showContinueWatching, setShowContinueWatching] = useState(false);
-
-  // Auto trigger sliding panel for user resuming custom content
-  useEffect(() => {
-    try {
-      // Check session storage first to enforce once-per-session constraint
-      const isDismissed = sessionStorage.getItem('continue_watching_dismissed');
-      if (isDismissed === 'true') {
-        return;
-      }
-
-      const stored = localStorage.getItem('continue_watching');
-      if (stored) {
-        const item = JSON.parse(stored);
-        if (item && item.courseId && item.currentTime > 5) {
-          setContinueWatching(item);
-          const timer = setTimeout(() => {
-            setShowContinueWatching(true);
-          }, 1500);
-          return () => clearTimeout(timer);
-        }
-      }
-    } catch (e) {
-      console.warn("Failed reading continue_watching local storage", e);
-    }
-  }, []);
-
   const [wordIdx, setWordIdx] = useState(0);
   const animatedWords = [
     { en: 'video editing', fr: 'montage vidéo', ar: 'مونتاج فيديو' },

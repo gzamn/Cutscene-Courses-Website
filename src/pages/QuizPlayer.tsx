@@ -937,37 +937,83 @@ export default function QuizPlayer() {
           /* ================= 2. RESULTS PANEL ================= */
           <div className="space-y-8 animate-fade-in max-w-3xl mx-auto">
             
-            <div className="space-y-4">
-              <h3 className="font-mono text-xs uppercase tracking-widest text-zinc-500">Timeline Review Diagnostic Panel</h3>
-              {quiz.questions.map((q: any, i: number) => {
-                const isCorrect = lastAttemptResult.detailedResults[q.id];
-                return (
-                  <div key={q.id} className="bg-zinc-950/40 backdrop-blur-md border border-purple-900/10 rounded-2xl p-6 transition-all">
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-900/10">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">QUESTION Q{i + 1}</span>
-                        <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">{q.type}</span>
+            {lastAttemptResult.passed ? (
+              <div className="space-y-4">
+                <h3 className="font-mono text-xs uppercase tracking-widest text-zinc-500">Timeline Review Diagnostic Panel</h3>
+                {quiz.questions.map((q: any, i: number) => {
+                  const isCorrect = lastAttemptResult.detailedResults[q.id];
+                  return (
+                    <div key={q.id} className="bg-zinc-950/40 backdrop-blur-md border border-purple-900/10 rounded-2xl p-6 transition-all">
+                      <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-900/10">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10">QUESTION Q{i + 1}</span>
+                          <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">{q.type}</span>
+                        </div>
+                        <div className={`flex items-center gap-1 text-xs font-mono ${isCorrect ? "text-[#4ade80]" : "text-[#ff5c5c]"}`}>
+                          {isCorrect ? (
+                            <>
+                              <Check className="w-4 h-4" /> Passed
+                            </>
+                          ) : (
+                            <>
+                              <X className="w-4 h-4" /> Refined Correctly
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className={`flex items-center gap-1 text-xs font-mono ${isCorrect ? "text-[#4ade80]" : "text-[#ff5c5c]"}`}>
-                        {isCorrect ? (
-                          <>
-                            <Check className="w-4 h-4" /> Passed
-                          </>
-                        ) : (
-                          <>
-                            <X className="w-4 h-4" /> Refined Correctly
-                          </>
-                        )}
-                      </div>
+                      <p dir={hasArabic(q.prompt) ? "rtl" : "ltr"} className={`text-sm font-semibold text-zinc-200 ${hasArabic(q.prompt) ? "text-right" : "text-left"}`}>{q.prompt}</p>
+                      {!isCorrect && (
+                        <p className="text-xs text-zinc-500 italic mt-2">Correct answer has been scrambled to challenge your study skills. Re-examine the lectures and execute again!</p>
+                      )}
                     </div>
-                    <p dir={hasArabic(q.prompt) ? "rtl" : "ltr"} className={`text-sm font-semibold text-zinc-200 ${hasArabic(q.prompt) ? "text-right" : "text-left"}`}>{q.prompt}</p>
-                    {!isCorrect && (
-                      <p className="text-xs text-zinc-500 italic mt-2">Correct answer has been scrambled to challenge your study skills. Re-examine the lectures and execute again!</p>
-                    )}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-zinc-950/40 backdrop-blur-md border border-purple-900/10 rounded-3xl p-6 md:p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <h3 className="font-mono text-xs uppercase tracking-widest text-zinc-500">
+                    {language === 'ar' ? 'ملخص الأداء والتقييم' : language === 'fr' ? 'Résumé des Performances' : 'Performance Evaluation Summary'}
+                  </h3>
+                  <p className="text-sm text-zinc-400 max-w-lg mx-auto">
+                    {language === 'ar' 
+                      ? 'لم يتم اجتياز الاختبار هذه المرة. لتشجيع مهاراتك الدراسية ومساعدتك على التعلم، تم إخفاء تفاصيل الأسئلة الصحيحة والخاطئة المحددة.'
+                      : language === 'fr'
+                      ? "Le quiz n'a pas été validé cette fois. Pour encourager l'apprentissage, les détails des réponses correctes et incorrectes spécifiques sont masqués."
+                      : "The quiz was not passed this time. To encourage learning, details of which specific questions you got right or wrong are hidden."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                  <div className="bg-[#4ade80]/5 border border-[#4ade80]/20 rounded-2xl p-4 text-center">
+                    <span className="text-[10px] uppercase font-mono text-[#4ade80]/70 block mb-1">
+                      {language === 'ar' ? 'الإجابات الصحيحة' : language === 'fr' ? 'Correctes' : 'Correct'}
+                    </span>
+                    <span className="text-2xl font-mono font-black text-[#4ade80]">
+                      {lastAttemptResult.correctCount}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="bg-[#ff5c5c]/5 border border-[#ff5c5c]/20 rounded-2xl p-4 text-center">
+                    <span className="text-[10px] uppercase font-mono text-[#ff5c5c]/70 block mb-1">
+                      {language === 'ar' ? 'الإجابات الخاطئة' : language === 'fr' ? 'Incorrectes' : 'Incorrect'}
+                    </span>
+                    <span className="text-2xl font-mono font-black text-[#ff5c5c]">
+                      {lastAttemptResult.totalQuestions - lastAttemptResult.correctCount}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-purple-950/10 border border-purple-900/15 rounded-2xl p-5 text-center">
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    {language === 'ar'
+                      ? `لقد أجبت بشكل صحيح على ${lastAttemptResult.correctCount} من أصل ${lastAttemptResult.totalQuestions} أسئلة، ووقعت في الخطأ في ${lastAttemptResult.totalQuestions - lastAttemptResult.correctCount} أسئلة. يرجى مراجعة مادة الجلسة والمحاولة مرة أخرى لتحسين النتيجة.`
+                      : language === 'fr'
+                      ? `Vous avez répondu correctement à ${lastAttemptResult.correctCount} questions sur ${lastAttemptResult.totalQuestions}, et fait ${lastAttemptResult.totalQuestions - lastAttemptResult.correctCount} erreurs. Veuillez revoir le matériel de la session et réessayer.`
+                      : `You answered ${lastAttemptResult.correctCount} correct and ${lastAttemptResult.totalQuestions - lastAttemptResult.correctCount} incorrect out of ${lastAttemptResult.totalQuestions} questions. Please review the session material and try again to improve your score.`}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div ref={resultsBadgeRef} className={`p-8 rounded-3xl border text-center relative overflow-hidden ${
               lastAttemptResult.passed 
@@ -987,8 +1033,16 @@ export default function QuizPlayer() {
               <p className="text-sm text-zinc-400 mt-2">
                 Your score: <b className={lastAttemptResult.passed ? "text-[#4ade80]" : "text-[#ff5c5c]"}>{lastAttemptResult.score}%</b> (Passing is 70%)
               </p>
-              <p className="text-xs text-zinc-500 mt-1 font-mono">
-                CLEARED {lastAttemptResult.correctCount} OF {lastAttemptResult.totalQuestions} QUESTIONS.
+              <p className="text-xs text-zinc-500 mt-1 font-mono uppercase">
+                {lastAttemptResult.passed ? (
+                  `CLEARED ${lastAttemptResult.correctCount} OF ${lastAttemptResult.totalQuestions} QUESTIONS.`
+                ) : language === 'ar' ? (
+                  `النتيجة: ${lastAttemptResult.correctCount} صحيحة و ${lastAttemptResult.totalQuestions - lastAttemptResult.correctCount} خاطئة من أصل ${lastAttemptResult.totalQuestions} أسئلة.`
+                ) : language === 'fr' ? (
+                  `${lastAttemptResult.correctCount} correctes & ${lastAttemptResult.totalQuestions - lastAttemptResult.correctCount} incorrectes sur ${lastAttemptResult.totalQuestions} questions.`
+                ) : (
+                  `${lastAttemptResult.correctCount} RIGHT & ${lastAttemptResult.totalQuestions - lastAttemptResult.correctCount} WRONG OUT OF ${lastAttemptResult.totalQuestions} QUESTIONS.`
+                )}
               </p>
               <p className="text-xs text-purple-400 mt-1.5 font-mono uppercase">
                 TIME TAKEN: <b>{Math.floor((lastAttemptResult.timeTaken || elapsedTime) / 60)}m {(lastAttemptResult.timeTaken || elapsedTime) % 60}s</b>

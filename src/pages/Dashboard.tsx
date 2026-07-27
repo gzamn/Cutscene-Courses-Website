@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, ref, uploadBytes, getDownloadURL } from '../firebase';
-import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen, Share2, Loader2, X, Sparkles, ShieldAlert, Award, FileText, Eye, EyeOff, Copy, Check, Key } from 'lucide-react';
+import { BookOpen, Trophy, Clock, Star, Upload, Trash2, CheckCircle2, PlayCircle, Download, ExternalLink, Lock, FolderOpen, Share2, Loader2, X, Sparkles, ShieldAlert, Award, FileText, Eye, EyeOff, Copy, Check, Key, Flame } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
@@ -29,6 +29,63 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [quizAttempts, setQuizAttempts] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
+
+  // Helper to convert ISO string to 'YYYY-MM-DD' in local timezone
+  const getLocalDateString = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return null;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      return null;
+    }
+  };
+
+  // Compute daily study streak using progress and quiz attempts
+  const streak = useMemo(() => {
+    const studyDates = new Set<string>();
+    progress.forEach((p: any) => {
+      if (p.completed && p.updatedAt) {
+        const dateStr = getLocalDateString(p.updatedAt);
+        if (dateStr) studyDates.add(dateStr);
+      }
+    });
+    quizAttempts.forEach((q: any) => {
+      if (q.submittedAt) {
+        const dateStr = getLocalDateString(q.submittedAt);
+        if (dateStr) studyDates.add(dateStr);
+      }
+    });
+
+    if (studyDates.size === 0) return 0;
+
+    const todayStr = getLocalDateString(new Date().toISOString());
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday.toISOString());
+
+    if (!studyDates.has(todayStr) && !studyDates.has(yesterdayStr)) {
+      return 0;
+    }
+
+    let currentCheckDate = studyDates.has(todayStr) ? new Date() : yesterday;
+    let currentStreak = 0;
+
+    while (true) {
+      const checkStr = getLocalDateString(currentCheckDate.toISOString());
+      if (checkStr && studyDates.has(checkStr)) {
+        currentStreak++;
+        currentCheckDate.setDate(currentCheckDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return currentStreak;
+  }, [progress, quizAttempts]);
 
 
   // Direct video upload states
@@ -672,7 +729,7 @@ export default function Dashboard() {
         const courseId = enrollment.courseId;
         const prog = getCourseProgress(courseId);
         
-        if (prog === 100) {
+        if (prog === 100 && hasPassedAllQuizzes(courseId)) {
           // Check if certificate already exists
           const certExists = certificates.some(c => c.courseId === courseId);
           if (!certExists) {
@@ -896,32 +953,66 @@ export default function Dashboard() {
     }
   };
 
+  const hasPassedAllQuizzes = (courseId: string) => {
+    const courseQuizzes = quizzes.filter(q => {
+      if (courseId === '1') {
+        return q.status === 'published' && q.sessionId >= 1 && q.sessionId <= 9;
+      }
+      return q.courseId === courseId && q.status === 'published';
+    });
+    
+    if (courseQuizzes.length === 0) return true;
+    
+    return courseQuizzes.every(q => {
+      return quizAttempts.some(attempt => attempt.quizId === q.id && attempt.passed);
+    });
+  };
+
   const getCourseProgress = (courseId: string) => {
+    const isVideoEditing = courseId === '1';
     const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
     
-    const chaptersCount = chaptersCountMap[courseId] || (courseId === '1' ? 12 : courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
-    const totalLessons = chaptersCount * 2;
-    
-    if (totalLessons === 0) return 0;
-    return Math.min(100, Math.round((courseProgress.length / totalLessons) * 100));
+    if (isVideoEditing) {
+      const completedSessions = courseProgress.filter(p => p.type === 'session').length;
+      return Math.min(100, Math.round((completedSessions / 9) * 100));
+    } else {
+      const chaptersCount = chaptersCountMap[courseId] || (courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+      const totalLessons = chaptersCount * 2;
+      
+      const completedSessions = courseProgress.filter(p => p.type === 'session').length;
+      const completedHomeworks = courseProgress.filter(p => p.type === 'homework').length;
+      
+      const totalCompleted = completedSessions + completedHomeworks;
+      if (totalLessons === 0) return 0;
+      return Math.min(100, Math.round((totalCompleted / totalLessons) * 100));
+    }
   };
 
   const getContinueUrl = (courseId: string) => {
+    const isVideoEditing = courseId === '1';
     const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
-    const completedSet = new Set(courseProgress.map(p => `${p.chapter}-${p.type}`));
     
-    const chaptersCount = chaptersCountMap[courseId] || (courseId === '1' ? 12 : courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
-    
-    for (let c = 1; c <= chaptersCount; c++) {
-      for (const type of ['session', 'homework']) {
-        if (!completedSet.has(`${c}-${type}`)) {
-          return `/courses/${courseId}/video/${c}/${type}`;
+    if (isVideoEditing) {
+      const completedSessions = new Set(courseProgress.filter(p => p.type === 'session').map(p => p.chapter));
+      for (let s = 1; s <= 9; s++) {
+        if (!completedSessions.has(s)) {
+          return `/courses/${courseId}/video/${s}/session`;
         }
       }
+      return `/courses/${courseId}/video/1/session`;
+    } else {
+      const completedSet = new Set(courseProgress.map(p => `${p.chapter}-${p.type}`));
+      const chaptersCount = chaptersCountMap[courseId] || (courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+      
+      for (let c = 1; c <= chaptersCount; c++) {
+        for (const type of ['session', 'homework']) {
+          if (!completedSet.has(`${c}-${type}`)) {
+            return `/courses/${courseId}/video/${c}/${type}`;
+          }
+        }
+      }
+      return `/courses/${courseId}/video/1/session`;
     }
-    
-    // Default to chapter 1 session if everything completed
-    return `/courses/${courseId}/video/1/session`;
   };
 
   const validEnrollments = enrollments.filter(e => e.format !== 'plan' && (e.receiptUrl || e.paid || e.status === 'approved' || e.status === 'pending_verification'));
@@ -976,6 +1067,62 @@ export default function Dashboard() {
     })
   ];
 
+  const quizStatsMap = useMemo(() => {
+    const stats: { [quizId: string]: { totalAttempts: number; passedAttempts: number; totalTime: number; attemptsWithTime: number; highestScore: number; quizTitle: string } } = {};
+    
+    quizAttempts.forEach(attempt => {
+      const quizId = attempt.quizId;
+      const matchingQuiz = quizzes.find(q => q.id === quizId);
+      const quizTitle = matchingQuiz ? matchingQuiz.title : `Session ${attempt.sessionId} Quiz`;
+      
+      if (!stats[quizId]) {
+        stats[quizId] = {
+          totalAttempts: 0,
+          passedAttempts: 0,
+          totalTime: 0,
+          attemptsWithTime: 0,
+          highestScore: 0,
+          quizTitle
+        };
+      }
+      
+      stats[quizId].totalAttempts++;
+      if (attempt.passed) {
+        stats[quizId].passedAttempts++;
+      }
+      if (attempt.timeTaken && attempt.timeTaken > 0) {
+        stats[quizId].totalTime += attempt.timeTaken;
+        stats[quizId].attemptsWithTime++;
+      }
+      if (attempt.score !== undefined && attempt.score > stats[quizId].highestScore) {
+        stats[quizId].highestScore = attempt.score;
+      }
+    });
+    
+    return Object.entries(stats).map(([quizId, s]) => {
+      const successRate = s.totalAttempts > 0 ? Math.round((s.passedAttempts / s.totalAttempts) * 100) : 0;
+      const avgSpeed = s.attemptsWithTime > 0 ? Math.round(s.totalTime / s.attemptsWithTime) : null;
+      return {
+        quizId,
+        quizTitle: s.quizTitle,
+        totalAttempts: s.totalAttempts,
+        passedAttempts: s.passedAttempts,
+        successRate,
+        avgSpeed,
+        highestScore: s.highestScore
+      };
+    });
+  }, [quizAttempts, quizzes]);
+
+  const adobeLicensedItems = purchasedItems.filter(item => {
+    const isVideoEditing = item.itemId === '1' || 
+      item.name?.toLowerCase().includes('video editing') || 
+      item.name?.toLowerCase().includes('مونتاج') || 
+      item.name?.toLowerCase().includes('cinematic');
+    
+    return !isVideoEditing;
+  });
+
   const latestActivity = [...progress]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
@@ -989,7 +1136,7 @@ export default function Dashboard() {
             <h1 className="text-4xl font-bold mb-2">{t('dashboard.welcome')}, {userProfile?.displayName || 'Student'}!</h1>
             <p className="text-gray-400">{t('dashboard.subtitle')}</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <div className="bg-zinc-900/50 border border-purple-900/30 p-4 rounded-2xl flex items-center gap-3">
               <BookOpen className="w-6 h-6 text-purple-500" />
               <div>
@@ -997,6 +1144,21 @@ export default function Dashboard() {
                 <div className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard.enrolled')}</div>
               </div>
             </div>
+            
+            <div className="bg-zinc-900/50 border border-purple-900/30 p-4 rounded-2xl flex items-center gap-3 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <Flame className={`w-6 h-6 ${streak > 0 ? 'text-orange-500 animate-pulse' : 'text-gray-500'}`} />
+              <div>
+                <div className="text-2xl font-bold flex items-center gap-1">
+                  {streak}
+                  <span className="text-xs font-normal text-gray-400">
+                    {streak === 1 ? 'Day' : 'Days'}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider">{t('dashboard.streak') || 'Learning Streak'}</div>
+              </div>
+            </div>
+
             <div className="bg-zinc-900/50 border border-purple-900/30 p-4 rounded-2xl flex items-center gap-3">
               <Trophy className="w-6 h-6 text-yellow-500" />
               <div>
@@ -1107,6 +1269,9 @@ export default function Dashboard() {
                 progress={progress} 
                 courses={firestoreCourses} 
                 chaptersCountMap={chaptersCountMap} 
+                quizzes={quizzes}
+                quizAttempts={quizAttempts}
+                streak={streak}
               />
             )}
 
@@ -1122,9 +1287,10 @@ export default function Dashboard() {
                   const course = firestoreCourses.find(c => c.id === enrollment.courseId);
                   if (!course) return null;
                   const prog = getCourseProgress(course.id);
+                  const isVideoEditing = course.id === '1';
                   const courseLessons = progress.filter(p => p.courseId === course.id && p.completed);
                   
-                  const totalChapters = course.chapters?.length || course.lessons?.length || 12;
+                  const totalChapters = isVideoEditing ? 9 : (course.chapters?.length || course.lessons?.length || (course.id === '2' ? 18 : course.id === '3' ? 24 : 12));
                   
                   const isLocked = !enrollment.paid || enrollment.status === 'pending_verification';
                   
@@ -1176,9 +1342,14 @@ export default function Dashboard() {
                         <div className="space-y-4 mt-auto">
                           {/* Circular Progress & Info Section */}
                           {(() => {
-                            const chaptersCount = chaptersCountMap[course.id] || (course.id === '1' ? 12 : course.id === '2' ? 18 : course.id === '3' ? 24 : 10);
-                            const totalLessons = chaptersCount * 2;
-                            const completedLessonsCount = isLocked ? 0 : courseLessons.length;
+                            const isVideoEditing = course.id === '1';
+                            const chaptersCount = chaptersCountMap[course.id] || (course.id === '2' ? 18 : course.id === '3' ? 24 : 10);
+                            const totalLessons = isVideoEditing ? 9 : (chaptersCount * 2);
+                            const completedLessonsCount = isLocked ? 0 : (
+                              isVideoEditing 
+                                ? progress.filter(p => p.courseId === course.id && p.type === 'session' && p.completed).length
+                                : courseLessons.length
+                            );
                             
                             const getLessonsLabel = () => {
                               if (language === 'ar') return 'درس';
@@ -1260,7 +1431,11 @@ export default function Dashboard() {
                                   </div>
                                   <div className="text-[10px] text-gray-500 font-medium">
                                     {prog === 100 && !isLocked ? (
-                                      <span className="text-yellow-500 font-bold flex items-center gap-1">🏆 {getCompletedLabel()}!</span>
+                                      hasPassedAllQuizzes(course.id) ? (
+                                        <span className="text-yellow-500 font-bold flex items-center gap-1">🏆 {getCompletedLabel()}!</span>
+                                      ) : (
+                                        <span className="text-purple-400 font-semibold flex items-center gap-1">⏱️ Pass Quizzes for Cert</span>
+                                      )
                                     ) : (
                                       <span>{totalLessons - completedLessonsCount} {getRemainingLabel()}</span>
                                     )}
@@ -1277,7 +1452,9 @@ export default function Dashboard() {
                               <div className="flex flex-wrap gap-1.5">
                                 {Array.from({ length: totalChapters }).map((_, i) => {
                                   const chapter = i + 1;
-                                  const isChapterDone = courseLessons.some(p => p.chapter === chapter);
+                                  const isChapterDone = isVideoEditing 
+                                    ? progress.some(p => p.courseId === course.id && p.type === 'session' && p.chapter === chapter && p.completed)
+                                    : courseLessons.some(p => p.chapter === chapter && p.completed);
                                   return (
                                     <motion.div
                                       key={chapter}
@@ -1594,7 +1771,7 @@ export default function Dashboard() {
             )}
 
             {/* SOFTWARE LICENSES SECTION */}
-            {activeTab === 'adobe' && purchasedItems.length > 0 && (
+            {activeTab === 'adobe' && (
               <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 space-y-6">
                 <div>
                   <h2 className="text-xl font-bold flex items-center gap-3">
@@ -1606,127 +1783,138 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                <div className="space-y-4">
-                  {purchasedItems.map((item) => {
-                    const account = shippedAccounts.find(sa => sa.productId === item.itemId);
-                    const isApproved = item.status === 'approved';
+                {adobeLicensedItems.length > 0 ? (
+                  <div className="space-y-4">
+                    {adobeLicensedItems.map((item) => {
+                      const account = shippedAccounts.find(sa => sa.productId === item.itemId);
+                      const isApproved = item.status === 'approved';
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="bg-black border border-purple-900/20 rounded-2xl p-5 flex flex-col justify-between space-y-4"
-                      >
-                        {/* Title and Badge */}
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="overflow-hidden">
-                            <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest block mb-1">
-                              {item.type === 'course' ? (language === 'ar' ? 'دورة تدريبية' : 'Academy Course') : (language === 'ar' ? 'منتج من المتجر' : 'Store Product')}
-                            </span>
-                            <h4 className="font-bold text-gray-100 text-xs truncate" title={item.name}>{item.name}</h4>
+                      return (
+                        <div
+                          key={item.id}
+                          className="bg-black border border-purple-900/20 rounded-2xl p-5 flex flex-col justify-between space-y-4"
+                        >
+                          {/* Title and Badge */}
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="overflow-hidden">
+                              <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest block mb-1">
+                                {item.type === 'course' ? (language === 'ar' ? 'دورة تدريبية' : 'Academy Course') : (language === 'ar' ? 'منتج من المتجر' : 'Store Product')}
+                              </span>
+                              <h4 className="font-bold text-gray-100 text-xs truncate" title={item.name}>{item.name}</h4>
+                            </div>
+
+                            {/* Status Badge */}
+                            {!isApproved ? (
+                              <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                                <Lock className="w-2.5 h-2.5" />
+                                {language === 'ar' ? 'مغلق' : 'Locked'}
+                              </span>
+                            ) : account ? (
+                              <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-green-500/10 border border-green-500/20 text-green-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                                <Check className="w-2.5 h-2.5" />
+                                {language === 'ar' ? 'نشط' : 'Active'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 uppercase tracking-wider flex items-center gap-1 shrink-0 animate-pulse">
+                                <Clock className="w-2.5 h-2.5 animate-pulse" />
+                                {language === 'ar' ? 'سيتم الشحن قريباً' : 'will be shipped shortly'}
+                              </span>
+                            )}
                           </div>
 
-                          {/* Status Badge */}
+                          {/* Content States */}
                           {!isApproved ? (
-                            <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Lock className="w-2.5 h-2.5" />
-                              {language === 'ar' ? 'مغلق' : 'Locked'}
-                            </span>
-                          ) : account ? (
-                            <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-green-500/10 border border-green-500/20 text-green-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Check className="w-2.5 h-2.5" />
-                              {language === 'ar' ? 'نشط' : 'Active'}
-                            </span>
+                            /* LOCKED STATE */
+                            <div className="bg-black/60 border border-yellow-900/10 rounded-xl p-3 flex flex-col items-center text-center space-y-1">
+                              <Lock className="w-5 h-5 text-yellow-500/50" />
+                              <div className="text-[10px] font-bold text-gray-300">
+                                {language === 'ar' ? 'بانتظار الموافقة على الإيصال' : 'Locked until receipt approval'}
+                              </div>
+                              <p className="text-[9px] text-gray-500 max-w-xs leading-relaxed">
+                                {language === 'ar' ? 'يرجى الانتظار بينما يقوم التحقق من الإيصال.' : 'Please wait while we validate your receipt submission.'}
+                              </p>
+                            </div>
+                          ) : !account ? (
+                            /* APPROVED BUT NOT SHIPPED */
+                            <div className="bg-black/60 border border-purple-900/15 rounded-xl p-3 flex flex-col items-center text-center space-y-1">
+                              <Clock className="w-5 h-5 text-purple-400 animate-pulse" />
+                              <div className="text-[10px] font-bold text-purple-400">
+                                {language === 'ar' ? 'سيتم شحن الترخيص قريباً جداً' : 'will be shipped shortly'}
+                              </div>
+                              <p className="text-[9px] text-gray-500 max-w-xs leading-relaxed">
+                                {language === 'ar' ? 'يقوم فريق الإدارة لدينا حالياً بإعداد الترخيص الخاص بك.' : 'Our administration is preparing your custom license credentials.'}
+                              </p>
+                            </div>
                           ) : (
-                            <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 uppercase tracking-wider flex items-center gap-1 shrink-0 animate-pulse">
-                              <Clock className="w-2.5 h-2.5 animate-pulse" />
-                              {language === 'ar' ? 'سيتم الشحن قريباً' : 'will be shipped shortly'}
-                            </span>
+                            /* SHIPPED (CREDENTIALS DISCLOSED) */
+                            <div className="space-y-2 pt-1">
+                              {/* Email Field */}
+                              <div className="bg-black/80 border border-purple-900/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                                <div className="flex flex-col text-left overflow-hidden">
+                                  <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">Email</span>
+                                  <span className="text-xs font-mono text-gray-300 truncate">
+                                    {visibleCredentials[`${item.id}-email`] ? account.email : '••••••••••••'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => toggleCredentialVisibility(item.id, 'email')}
+                                    className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                    title="Toggle Visibility"
+                                  >
+                                    {visibleCredentials[`${item.id}-email`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopyText(account.email, item.id, 'email')}
+                                    className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                    title="Copy Email"
+                                  >
+                                    {copiedFields[`${item.id}-email`] ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Password Field */}
+                              <div className="bg-black/80 border border-purple-900/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                                <div className="flex flex-col text-left overflow-hidden">
+                                  <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">Password</span>
+                                  <span className="text-xs font-mono text-gray-300 truncate">
+                                    {visibleCredentials[`${item.id}-password`] ? account.password : '••••••••••••'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => toggleCredentialVisibility(item.id, 'password')}
+                                    className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                    title="Toggle Visibility"
+                                  >
+                                    {visibleCredentials[`${item.id}-password`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopyText(account.password, item.id, 'password')}
+                                    className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
+                                    title="Copy Password"
+                                  >
+                                    {copiedFields[`${item.id}-password`] ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
-
-                        {/* Content States */}
-                        {!isApproved ? (
-                          /* LOCKED STATE */
-                          <div className="bg-black/60 border border-yellow-900/10 rounded-xl p-3 flex flex-col items-center text-center space-y-1">
-                            <Lock className="w-5 h-5 text-yellow-500/50" />
-                            <div className="text-[10px] font-bold text-gray-300">
-                              {language === 'ar' ? 'بانتظار الموافقة على الإيصال' : 'Locked until receipt approval'}
-                            </div>
-                            <p className="text-[9px] text-gray-500 max-w-xs leading-relaxed">
-                              {language === 'ar' ? 'يرجى الانتظار بينما يقوم التحقق من الإيصال.' : 'Please wait while we validate your receipt submission.'}
-                            </p>
-                          </div>
-                        ) : !account ? (
-                          /* APPROVED BUT NOT SHIPPED */
-                          <div className="bg-black/60 border border-purple-900/15 rounded-xl p-3 flex flex-col items-center text-center space-y-1">
-                            <Clock className="w-5 h-5 text-purple-400 animate-pulse" />
-                            <div className="text-[10px] font-bold text-purple-400">
-                              {language === 'ar' ? 'سيتم شحن الترخيص قريباً جداً' : 'will be shipped shortly'}
-                            </div>
-                            <p className="text-[9px] text-gray-500 max-w-xs leading-relaxed">
-                              {language === 'ar' ? 'يقوم فريق الإدارة لدينا حالياً بإعداد الترخيص الخاص بك.' : 'Our administration is preparing your custom license credentials.'}
-                            </p>
-                          </div>
-                        ) : (
-                          /* SHIPPED (CREDENTIALS DISCLOSED) */
-                          <div className="space-y-2 pt-1">
-                            {/* Email Field */}
-                            <div className="bg-black/80 border border-purple-900/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
-                              <div className="flex flex-col text-left overflow-hidden">
-                                <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">Email</span>
-                                <span className="text-xs font-mono text-gray-300 truncate">
-                                  {visibleCredentials[`${item.id}-email`] ? account.email : '••••••••••••'}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  onClick={() => toggleCredentialVisibility(item.id, 'email')}
-                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
-                                  title="Toggle Visibility"
-                                >
-                                  {visibleCredentials[`${item.id}-email`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                                </button>
-                                <button
-                                  onClick={() => handleCopyText(account.email, item.id, 'email')}
-                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
-                                  title="Copy Email"
-                                >
-                                  {copiedFields[`${item.id}-email`] ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Password Field */}
-                            <div className="bg-black/80 border border-purple-900/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
-                              <div className="flex flex-col text-left overflow-hidden">
-                                <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">Password</span>
-                                <span className="text-xs font-mono text-gray-300 truncate">
-                                  {visibleCredentials[`${item.id}-password`] ? account.password : '••••••••••••'}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  onClick={() => toggleCredentialVisibility(item.id, 'password')}
-                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
-                                  title="Toggle Visibility"
-                                >
-                                  {visibleCredentials[`${item.id}-password`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                                </button>
-                                <button
-                                  onClick={() => handleCopyText(account.password, item.id, 'password')}
-                                  className="p-1 hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 rounded transition-colors cursor-pointer"
-                                  title="Copy Password"
-                                >
-                                  {copiedFields[`${item.id}-password`] ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border border-dashed border-purple-900/20 rounded-2xl bg-zinc-950/40">
+                    <Key className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">
+                      {language === 'ar' 
+                        ? 'لا توجد تراخيص نشطة حالياً.' 
+                        : "No active licenses available at this time."}
+                    </p>
+                  </div>
+                )}
               </section>
             )}
 
@@ -1775,12 +1963,105 @@ export default function Dashboard() {
 
             {/* Quizzes and Performance */}
             {activeTab === 'quizzes' && (
-              <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
-                  <Clock className="w-6 h-6 text-purple-500" />
-                  {language === 'ar' ? 'اختباراتي وأدائي' : language === 'fr' ? 'Mes Quiz & Performances' : 'My Quizzes & Performance'}
-                </h2>
-                <div className="space-y-4">
+              <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 space-y-8">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-3">
+                    <Clock className="w-6 h-6 text-purple-500" />
+                    {language === 'ar' ? 'اختباراتي وأدائي' : language === 'fr' ? 'Mes Quiz & Performances' : 'My Quizzes & Performance'}
+                  </h2>
+                  <p className="text-gray-400 text-xs mt-1">
+                    {language === 'ar' ? 'تحليل الأداء التفصيلي ومعدلات النجاح وسرعة حل الاختبارات.' : 'Detailed performance analytics, success rates, and solving speed.'}
+                  </p>
+                </div>
+
+                {/* Aggregate Quiz Analytics Dashboard */}
+                {quizAttempts.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-zinc-900/30 border border-purple-900/20 rounded-3xl p-6">
+                    <div className="bg-black/40 border border-purple-900/10 p-4 rounded-2xl text-center">
+                      <span className="text-[10px] uppercase text-zinc-500 block mb-1">
+                        {language === 'ar' ? 'إجمالي المحاولات' : 'Total Attempts'}
+                      </span>
+                      <span className="text-2xl font-black text-white">{quizAttempts.length}</span>
+                    </div>
+                    <div className="bg-black/40 border border-purple-900/10 p-4 rounded-2xl text-center">
+                      <span className="text-[10px] uppercase text-zinc-500 block mb-1">
+                        {language === 'ar' ? 'الاختبارات التي تم حلها' : 'Unique Quizzes'}
+                      </span>
+                      <span className="text-2xl font-black text-purple-400">{quizStatsMap.length}</span>
+                    </div>
+                    <div className="bg-black/40 border border-purple-900/10 p-4 rounded-2xl text-center">
+                      <span className="text-[10px] uppercase text-zinc-500 block mb-1">
+                        {language === 'ar' ? 'متوسط معدل النجاح' : 'Avg Success Rate'}
+                      </span>
+                      <span className="text-2xl font-black text-green-400">
+                        {Math.round(
+                          (quizAttempts.filter(a => a.passed).length / quizAttempts.length) * 100
+                        )}%
+                      </span>
+                    </div>
+                    <div className="bg-black/40 border border-purple-900/10 p-4 rounded-2xl text-center">
+                      <span className="text-[10px] uppercase text-zinc-500 block mb-1">
+                        {language === 'ar' ? 'متوسط السرعة' : 'Avg Solving Speed'}
+                      </span>
+                      <span className="text-2xl font-black text-yellow-400">
+                        {(() => {
+                          const attemptsWithTime = quizAttempts.filter(a => a.timeTaken && a.timeTaken > 0);
+                          if (attemptsWithTime.length === 0) return '--';
+                          const totalSec = attemptsWithTime.reduce((sum, a) => sum + (a.timeTaken || 0), 0);
+                          const avgSec = Math.round(totalSec / attemptsWithTime.length);
+                          return `${Math.floor(avgSec / 60)}m ${avgSec % 60}s`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-Quiz Analytics Breakdown */}
+                {quizStatsMap.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-sm text-gray-300 uppercase tracking-wider">
+                      {language === 'ar' ? 'تحليلات تفصيلية لكل اختبار' : 'Detailed Per-Quiz Analytics'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {quizStatsMap.map((stat) => (
+                        <div key={stat.quizId} className="bg-black border border-purple-900/25 p-5 rounded-2xl space-y-4">
+                          <div className="flex justify-between items-start gap-4">
+                            <div>
+                              <h4 className="font-bold text-sm text-white">{stat.quizTitle}</h4>
+                              <p className="text-[10px] text-zinc-500 font-mono mt-1">
+                                {stat.totalAttempts} {stat.totalAttempts === 1 ? 'attempt' : 'attempts'} total
+                              </p>
+                            </div>
+                            <span className="px-2.5 py-1 text-[10px] font-bold font-mono rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                              {stat.highestScore}% High Score
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-purple-900/10 text-xs font-mono">
+                            <div>
+                              <span className="text-zinc-500 block text-[10px] uppercase">{language === 'ar' ? 'معدل النجاح' : 'Success Rate'}</span>
+                              <span className={`font-bold text-sm ${stat.successRate >= 70 ? 'text-green-400' : 'text-yellow-400'}`}>
+                                {stat.successRate}%
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-zinc-500 block text-[10px] uppercase">{language === 'ar' ? 'متوسط سرعة الحل' : 'Avg Solving Speed'}</span>
+                              <span className="font-bold text-sm text-purple-300">
+                                {stat.avgSpeed ? `${Math.floor(stat.avgSpeed / 60)}m ${stat.avgSpeed % 60}s` : '--'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attempt History Logs */}
+                <div className="space-y-4 pt-6 border-t border-purple-900/10">
+                  <h3 className="font-bold text-sm text-gray-300 uppercase tracking-wider">
+                    {language === 'ar' ? 'سجل المحاولات التفصيلي' : 'Detailed Attempt Logs'}
+                  </h3>
                   {quizAttempts.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {quizAttempts.map((attempt) => {

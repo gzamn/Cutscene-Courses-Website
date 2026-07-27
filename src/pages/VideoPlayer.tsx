@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X, HelpCircle, Trophy, Check, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X, HelpCircle, Trophy, Check, ChevronRight, Flame } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -94,6 +94,7 @@ export default function VideoPlayer() {
   const [course, setCourse] = useState<any>(null);
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
   const [quizPassed, setQuizPassed] = useState<boolean>(false);
+  const [quizAttemptsCount, setQuizAttemptsCount] = useState<number>(0);
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
   const [prevQuizPassed, setPrevQuizPassed] = useState<boolean>(true);
   const [checkingQuiz, setCheckingQuiz] = useState<boolean>(true);
@@ -793,6 +794,7 @@ export default function VideoPlayer() {
           const attSnap = await getDocs(attQuery);
           const attList = attSnap.docs.map(d => d.data() as any);
           
+          if (active) setQuizAttemptsCount(attList.length);
           const passed = attList.some(a => a.passed);
           if (active) setQuizPassed(passed);
 
@@ -810,7 +812,10 @@ export default function VideoPlayer() {
             }
           }
         } else {
-          if (active) setQuizPassed(false);
+          if (active) {
+            setQuizPassed(false);
+            setQuizAttemptsCount(0);
+          }
         }
 
         // --- 2. Check previous chapter quiz (GATING) ---
@@ -1126,11 +1131,6 @@ export default function VideoPlayer() {
     if (!user || !id || !chapter || !type) return;
     if (!isEnrolled && !isFirstSession) return;
     
-    if (currentQuiz && !quizPassed) {
-      toast.error('You must pass the session quiz with 70% or higher before marking this session as complete!');
-      return;
-    }
-    
     setSubmitting(true);
     try {
       const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
@@ -1271,15 +1271,6 @@ export default function VideoPlayer() {
                     {t('course.unlock')}
                   </Link>
                 </div>
-              ) : (!prevQuizPassed && !isFirstSession) ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#09090b] p-6 text-center z-20">
-                  <Lock className="w-12 h-12 text-purple-400 animate-pulse mb-4" />
-                  <h3 className="text-lg font-mono font-bold uppercase tracking-wider text-white mb-2">Lesson Gated</h3>
-                  <p className="text-sm text-zinc-300 max-w-sm mb-6 leading-relaxed">To unlock Session {chapter}, pass the Session {parseInt(chapter || "2") - 1} Quiz first.</p>
-                  <Link to={`/courses/${id}/quiz/${parseInt(chapter || "2") - 1}`} className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-mono text-[11px] font-bold tracking-wider uppercase shadow-lg shadow-purple-600/30">
-                    Take Quiz {parseInt(chapter || "2") - 1}
-                  </Link>
-                </div>
               ) : (
                 <div className="absolute inset-0 w-full h-full bg-black">
                   <iframe
@@ -1314,19 +1305,57 @@ export default function VideoPlayer() {
               <div className="flex flex-col gap-3 shrink-0 items-stretch sm:items-end w-full md:w-auto">
                 {/* Row 1: Quiz & Complete Buttons */}
                 <div className="flex flex-wrap items-center gap-3 w-full justify-start md:justify-end">
-                  {currentQuiz && (
-                    <Link 
-                      to={`/courses/${id}/quiz/${chapter}`}
-                      className={`px-4.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
-                        quizPassed 
-                          ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400' 
-                          : 'bg-purple-900 border border-purple-500/30 text-purple-200 hover:bg-purple-850'
-                      }`}
-                    >
-                      <Trophy className="w-4 h-4" />
-                      {quizPassed ? 'Quiz Passed' : 'Take Quiz'}
-                    </Link>
-                  )}
+                  {currentQuiz && (() => {
+                    const isQuizFailed = quizAttemptsCount > 0 && !quizPassed;
+                    return (
+                      <Link 
+                        to={`/courses/${id}/quiz/${chapter}`}
+                        className={`px-4.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                          quizPassed 
+                            ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 font-black' 
+                            : isQuizFailed
+                              ? 'bg-rose-950 border border-rose-500/40 text-rose-400 font-bold hover:bg-rose-900/40 animate-pulse'
+                              : 'bg-purple-900 border border-purple-500/30 text-purple-200 hover:bg-purple-850'
+                        }`}
+                      >
+                        <Trophy className="w-4 h-4" />
+                        {quizPassed ? 'Quiz Completed' : isQuizFailed ? 'Retake Quiz' : 'Take Quiz'}
+                      </Link>
+                    );
+                  })()}
+
+                  {(() => {
+                    const hasSub = exerciseUploads.length > 0;
+                    const latestSub = hasSub ? exerciseUploads[0] : null;
+                    const isReviewed = latestSub && latestSub.status === 'reviewed';
+                    const isPassed = isReviewed && (latestSub.score >= 6);
+                    const isFailed = isReviewed && (latestSub.score < 6);
+                    const isPending = latestSub && latestSub.status === 'pending_review';
+
+                    return (
+                      <Link 
+                        to={`/courses/${id}/exercise/${chapter}`}
+                        className={`px-4.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                          isPassed
+                            ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 font-black'
+                            : isFailed
+                              ? 'bg-rose-950 border border-rose-500/40 text-rose-400 font-bold hover:bg-rose-900/40'
+                              : isPending
+                                ? 'bg-amber-950 border border-amber-500/40 text-amber-400 animate-pulse'
+                                : 'bg-zinc-900 border border-purple-900/40 text-purple-300 hover:bg-zinc-800'
+                        }`}
+                      >
+                        <Flame className={`w-4 h-4 ${isPending ? 'text-orange-500 animate-bounce' : 'text-orange-500'}`} />
+                        {isPassed 
+                          ? 'Exercise Completed' 
+                          : isFailed 
+                            ? 'Remake Exercise' 
+                            : isPending 
+                              ? 'Exercise Submitted' 
+                              : 'Exercise'}
+                      </Link>
+                    );
+                  })()}
 
                   {isCompleted ? (
                     <span className="px-4.5 py-2.5 bg-emerald-950 border border-emerald-500/40 text-emerald-400 rounded-xl text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 select-none shadow-md">
@@ -1489,7 +1518,7 @@ export default function VideoPlayer() {
 
             {/* Youtube Comments */}
             <div className="bg-[#0c0c0f] border border-purple-900/30 rounded-2xl p-6 text-left shadow-xl">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-300 font-mono mb-5">Comments ({comments.length})</h3>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-300 font-mono mb-5">{t('comments.discussion')} ({comments.length})</h3>
               {user ? (
                 <form onSubmit={handleAddComment} className="flex gap-4 mb-6 items-start">
                   <div className="w-9 h-9 rounded-full bg-purple-900 border border-purple-500/20 flex items-center justify-center text-purple-200 font-bold shrink-0 text-sm">
@@ -1497,7 +1526,7 @@ export default function VideoPlayer() {
                   </div>
                   <div className="flex-grow">
                     <textarea 
-                      placeholder="Add a public comment..." 
+                      placeholder={t('comments.placeholder') || "Add a public comment..."} 
                       value={commentInput} 
                       onChange={(e) => setCommentInput(e.target.value)} 
                       disabled={submittingComment} 
@@ -1514,7 +1543,7 @@ export default function VideoPlayer() {
                 <div className="p-4 bg-purple-950 border border-purple-900/30 rounded-xl text-center text-xs font-bold text-purple-300 mb-5">Please log in to leave a comment.</div>
               )}
               {comments.length === 0 ? (
-                <div className="text-xs text-zinc-500 font-mono py-3">No comments yet.</div>
+                <div className="text-xs text-zinc-500 font-mono py-3">{t('comments.empty')}</div>
               ) : (
                 <div className="space-y-5 max-h-[350px] overflow-y-auto pr-1">
                   {comments.map((comment) => {

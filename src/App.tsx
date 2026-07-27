@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import AdminPanel from './pages/Admin';
 import QuizPlayer from './pages/QuizPlayer';
+import ExercisePlayer from './pages/ExercisePlayer';
 import StudentWork from './pages/StudentWork';
 import Store from './pages/Store';
 import Resources from './pages/Resources';
@@ -67,6 +68,7 @@ function AnimatedRoutes() {
           <Route path="/payment" element={<Payment />} />
           <Route path="/courses/:id/video/:chapter/:type" element={<VideoPlayer />} />
           <Route path="/courses/:id/quiz/:sessionId" element={<ProtectedRoute><QuizPlayer /></ProtectedRoute>} />
+          <Route path="/courses/:id/exercise/:chapterId" element={<ProtectedRoute><ExercisePlayer /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
