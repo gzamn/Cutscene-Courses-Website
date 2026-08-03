@@ -179,6 +179,11 @@ async function startServer() {
     }
   });
 
+  // Google Search Console verification
+  app.get("/google6a12a3d2ac0ead47.html", (_req, res) => {
+    res.type("html").send("google-site-verification: google6a12a3d2ac0ead47.html");
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
