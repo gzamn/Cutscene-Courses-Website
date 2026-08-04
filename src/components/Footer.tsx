@@ -37,7 +37,7 @@ export default function Footer() {
                 <a href="mailto:cutscenedz@gmail.com" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Email">
                   <Mail className="w-5 h-5" />
                 </a>
-                <a href="https://wa.me/213776762266" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
+                <a href="https://wa.me/213793193921" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
                   <MessageCircle className="w-5 h-5" />
                 </a>
                 <a href="https://www.instagram.com/cutscene.dz/" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Instagram">
@@ -48,9 +48,9 @@ export default function Footer() {
                 </a>
               </div>
               <div className="space-y-2 text-gray-400 text-sm">
-                <a href="tel:+213776762266" className="flex items-center gap-3 hover:text-purple-400 transition-colors">
+                <a href="tel:0793193921" className="flex items-center gap-3 hover:text-purple-400 transition-colors">
                   <Phone className="w-4 h-4 text-purple-500" />
-                  <span className="font-mono">+213 776 76 22 66</span>
+                  <span className="font-mono">07 93 19 39 21</span>
                 </a>
               </div>
             </div>

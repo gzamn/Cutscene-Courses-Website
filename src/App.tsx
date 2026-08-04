@@ -20,6 +20,7 @@ import TermsAndConditions from './pages/TermsAndConditions';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CompleteOrder from './pages/CompleteOrder';
 import ScrollToTop from './components/ScrollToTop';
+import SEOHead from './components/SEOHead';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { RegionProvider } from './context/RegionContext';
@@ -95,6 +96,7 @@ function App() {
           <AuthProvider>
             <Router>
             <ScrollToTop />
+            <SEOHead />
             <div className="min-h-screen text-white selection:bg-purple-500/30 selection:text-purple-200 relative">
               {/* Global Background Gradients */}
               <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">

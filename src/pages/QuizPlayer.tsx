@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db, auth, getDocs, collection, query, where, addDoc, ensureDefaultQuizzesSeeded } from '../firebase';
-import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, ArrowRight, RotateCcw, Award, Clock, Loader2, Lock } from 'lucide-react';
+import { Play, HelpCircle, Check, X, ShieldAlert, ArrowLeft, ArrowRight, RotateCcw, Award, Clock, Loader2, Lock, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 /* ================= 10-QUESTION GROUND TRUTH DEFAULT QUIZ FOR SESSION 1 ================= */
 export const DEFAULT_SESSION_1_QUIZ = {
@@ -287,6 +288,7 @@ function playSuccessSound() {
 
 export default function QuizPlayer() {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const { id: courseId, sessionId } = useParams<{ id: string; sessionId: string }>();
   const navigate = useNavigate();
   const [quiz, setQuiz] = useState<any>(null);
@@ -482,20 +484,30 @@ export default function QuizPlayer() {
   const fetchQuizAndAttempts = async () => {
     try {
       setLoading(true);
-      await ensureDefaultQuizzesSeeded();
+      try {
+        await ensureDefaultQuizzesSeeded();
+      } catch (e) {
+        console.warn("Skipped seeding default quizzes (read-only or guest):", e);
+      }
+
       const user = auth.currentUser;
       const sId = parseInt(sessionId || "1", 10);
 
-      // 1. Fetch published quizzes for this session index
-      const qCol = collection(db, "quizzes");
-      const qQuery = query(qCol, where("sessionId", "==", sId), where("status", "==", "published"));
-      const qSnap = await getDocs(qQuery);
-      
+      // 1. Fetch published quizzes for this session index safely
       let loadedQuiz = null;
-      if (!qSnap.empty) {
-        loadedQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() as any };
-      } else {
-        // Fallback for any session if no custom quiz created yet
+      try {
+        const qCol = collection(db, "quizzes");
+        const qQuery = query(qCol, where("sessionId", "==", sId), where("status", "==", "published"));
+        const qSnap = await getDocs(qQuery);
+        if (!qSnap.empty) {
+          loadedQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() as any };
+        }
+      } catch (e) {
+        console.warn("Could not fetch quiz from Firestore (using fallback for session):", e);
+      }
+
+      if (!loadedQuiz) {
+        // Fallback for any session if no custom quiz created yet or guest without query access
         loadedQuiz = {
           ...DEFAULT_SESSION_1_QUIZ,
           id: `quiz_session_${sId}`,
@@ -508,35 +520,68 @@ export default function QuizPlayer() {
       setQuiz(normalized);
 
       if (user && normalized) {
-        // 2. Fetch past quiz attempts
-        const attemptsCol = collection(db, "quiz_attempts");
-        const attQuery = query(
-          attemptsCol, 
-          where("studentId", "==", user.uid), 
-          where("quizId", "==", normalized.id)
-        );
-        const attSnap = await getDocs(attQuery);
-        const attList = attSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
-          .sort((a, b) => b.attemptNumber - a.attemptNumber); // latest first
-        
-        setAttempts(attList);
+        // 2. Fetch past quiz attempts from Firestore
+        try {
+          const attemptsCol = collection(db, "quiz_attempts");
+          const attQuery = query(
+            attemptsCol, 
+            where("studentId", "==", user.uid), 
+            where("quizId", "==", normalized.id)
+          );
+          const attSnap = await getDocs(attQuery);
+          const attList = attSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
+            .sort((a, b) => b.attemptNumber - a.attemptNumber); // latest first
+          
+          setAttempts(attList);
 
-        // Check lockouts and passed status
-        const passedAttempt = attList.find(a => a.passed);
-        if (passedAttempt) {
-          setIsPassed(true);
-        }
+          // Check lockouts and passed status
+          const passedAttempt = attList.find(a => a.passed);
+          if (passedAttempt) {
+            setIsPassed(true);
+          }
 
-        if (attList.length >= 3 && !passedAttempt) {
-          // Check 1 hour cooldown from the latest attempt
-          const latestAttempt = attList[0];
-          if (latestAttempt.lockoutUntil) {
-            const lockoutDate = new Date(latestAttempt.lockoutUntil).getTime();
-            const now = Date.now();
-            if (lockoutDate > now) {
-              setLockoutTimeLeft(Math.ceil((lockoutDate - now) / 1000));
+          if (attList.length >= 3 && !passedAttempt) {
+            // Check 1 hour cooldown from the latest attempt
+            const latestAttempt = attList[0];
+            if (latestAttempt.lockoutUntil) {
+              const lockoutDate = new Date(latestAttempt.lockoutUntil).getTime();
+              const now = Date.now();
+              if (lockoutDate > now) {
+                setLockoutTimeLeft(Math.ceil((lockoutDate - now) / 1000));
+              }
             }
           }
+        } catch (e) {
+          console.warn("Failed fetching user quiz attempts:", e);
+        }
+      } else if (!user && normalized) {
+        // Fetch past guest attempts from localStorage for free trial
+        const guestKey = `guest_quiz_attempts_session_${sId}`;
+        try {
+          const saved = localStorage.getItem(guestKey);
+          if (saved) {
+            const attList = JSON.parse(saved);
+            setAttempts(attList);
+            const passedAttempt = attList.find((a: any) => a.passed);
+            if (passedAttempt) {
+              setIsPassed(true);
+            }
+            if (attList.length >= 3 && !passedAttempt) {
+              const latestAttempt = attList[0];
+              if (latestAttempt?.lockoutUntil) {
+                const lockoutDate = new Date(latestAttempt.lockoutUntil).getTime();
+                const now = Date.now();
+                if (lockoutDate > now) {
+                  setLockoutTimeLeft(Math.ceil((lockoutDate - now) / 1000));
+                }
+              }
+            }
+          } else {
+            setAttempts([]);
+            setIsPassed(false);
+          }
+        } catch (e) {
+          console.warn("Failed reading guest quiz attempts from local storage:", e);
         }
       }
     } catch (err) {
@@ -724,6 +769,18 @@ export default function QuizPlayer() {
     try {
       if (user) {
         await addDoc(collection(db, "quiz_attempts"), attemptData);
+      } else {
+        const sId = parseInt(sessionId || "1", 10);
+        const guestKey = `guest_quiz_attempts_session_${sId}`;
+        try {
+          const saved = localStorage.getItem(guestKey);
+          const existing = saved ? JSON.parse(saved) : [];
+          existing.unshift(attemptData);
+          localStorage.setItem(guestKey, JSON.stringify(existing));
+          setAttempts(existing);
+        } catch (e) {
+          console.warn("Failed saving guest attempt to local storage:", e);
+        }
       }
       
       setLastAttemptResult({
@@ -818,6 +875,59 @@ export default function QuizPlayer() {
     );
   }
 
+  const sId = parseInt(sessionId || "1", 10);
+  const isFreeTrialSession = sId === 1 || quiz?.isFreeTrial || quiz?.isFree;
+
+  if (!user && !isFreeTrialSession) {
+    return (
+      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-white p-6">
+        <div className="max-w-md w-full bg-zinc-950/80 border border-purple-900/30 p-8 rounded-3xl text-center backdrop-blur-md space-y-6 shadow-2xl">
+          <div className="w-16 h-16 bg-purple-900/30 rounded-full flex items-center justify-center mx-auto border border-purple-500/30">
+            <Lock className="w-8 h-8 text-purple-400" />
+          </div>
+          <div>
+            <span className="px-3 py-1 rounded-full bg-purple-950 text-purple-300 text-[10px] font-bold uppercase tracking-widest border border-purple-500/20">
+              {language === 'ar' ? 'اختبار مدفوع' : language === 'fr' ? 'Quiz Réservez aux Inscrits' : 'Enrolled Students Only'}
+            </span>
+            <h2 className="text-xl font-mono font-bold text-white mt-3">
+              {language === 'ar' ? `اختبار الحصة ${sId} يتطلب حساباً` : language === 'fr' ? `Le quiz de la session ${sId} requiert un compte` : `Session ${sId} Quiz Requires an Account`}
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mt-2">
+              {language === 'ar' 
+                ? `اختبارات الحصص المجانية متاحة للحصة الأولى فقط. للوصول إلى كافة اختبارات وتمارين المنهاج، يرجى تسجيل الدخول أو إنشاء حساب جديد.`
+                : language === 'fr'
+                ? `Les quiz d'essai gratuit sont disponibles pour la session 1. Pour accéder à tous les quiz et exercices du programme, veuillez vous connecter ou créer un compte.`
+                : `Free trial quizzes are available for Session 1. To unlock quizzes for Session ${sId} and beyond, please log in or create an account.`}
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <Link
+              to="/login"
+              className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider block transition-all shadow-lg shadow-purple-600/30"
+            >
+              {language === 'ar' ? 'تسجيل الدخول / إنشاء حساب' : language === 'fr' ? 'Se Connecter / S\'inscrire' : 'Log In / Create Account'}
+            </Link>
+            
+            <Link
+              to={`/courses/${courseId}/quiz/1`}
+              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-purple-900/30 text-purple-300 hover:text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider block transition-all"
+            >
+              {language === 'ar' ? 'جرب اختبار التجربة المجانية (الحصة 1)' : language === 'fr' ? 'Essayer le quiz gratuit (Session 1)' : 'Try Free Trial Quiz (Session 1)'}
+            </Link>
+
+            <Link
+              to={`/courses/${courseId}`}
+              className="text-xs text-zinc-500 hover:text-zinc-300 block transition-colors pt-1"
+            >
+              ← {language === 'ar' ? 'العودة للدورة' : language === 'fr' ? 'Retour au cours' : 'Back to Course'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const totalQuestions = quiz.questions.length;
   const answeredCount = Object.keys(responses).length;
   const progressPct = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
@@ -904,7 +1014,7 @@ export default function QuizPlayer() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-10">
         
         {/* ================= BIG NON-FLOATING TITLE AND DESCRIPTION ================= */}
-        <div className="mb-12 border-b border-purple-900/20 pb-8 relative">
+        <div className="mb-8 border-b border-purple-900/20 pb-8 relative">
           <span className="text-xs font-mono font-bold tracking-widest text-purple-400 uppercase bg-purple-500/10 px-3 py-1.5 rounded-md mb-4 inline-block border border-purple-500/10">
             SESSION {sessionId} COMPILATION TEST
           </span>
@@ -915,6 +1025,41 @@ export default function QuizPlayer() {
             {quiz.description}
           </p>
         </div>
+
+        {/* ================= GUEST FREE TRIAL BANNER ================= */}
+        {!user && isFreeTrialSession && (
+          <div className="mb-8 bg-gradient-to-r from-purple-950/80 via-purple-900/40 to-zinc-950 border border-purple-500/30 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Award className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>{language === 'ar' ? 'وضع التجربة المجانية (بدون حساب)' : language === 'fr' ? 'Mode Essai Gratuit (Sans Compte)' : 'Free Trial Mode (No Account Required)'}</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[9px] font-sans">
+                    {language === 'ar' ? 'نشط' : language === 'fr' ? 'Actif' : 'Active'}
+                  </span>
+                </h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
+                  {language === 'ar'
+                    ? 'يمكنك إجراء هذا الاختبار مجاناً! أنشئ حساباً مجانياً لحفظ نتائجك، الحصول على الشهادات، ومتابعة تقدمك.'
+                    : language === 'fr'
+                    ? 'Vous passez ce quiz gratuitement ! Créez un compte gratuit pour sauvegarder vos scores, obtenir des certificats et suivre votre progression.'
+                    : 'You are taking this Session 1 quiz for free! Sign up or log in to save your score, track your course progress, and earn certificates.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+              <Link
+                to="/login"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-mono font-bold transition-all shadow-md cursor-pointer whitespace-nowrap"
+              >
+                {language === 'ar' ? 'إنشاء حساب / دخول' : language === 'fr' ? 'S\'inscrire / Connexion' : 'Sign Up / Log In'}
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* ================= 1. CURRENTLY LOCKED OUT STATE ================= */}
         {lockoutTimeLeft > 0 ? (
@@ -1064,6 +1209,37 @@ export default function QuizPlayer() {
                   >
                     Load Session {parseInt(sessionId || "1", 10) + 1} Masterclass
                   </Link>
+                </div>
+              )}
+
+              {!user && (
+                <div className="mt-6 p-6 bg-gradient-to-r from-purple-950 via-purple-900/60 to-zinc-950 border-2 border-purple-500/50 rounded-2xl text-left space-y-4 shadow-2xl">
+                  <div className="flex items-center gap-2.5 text-sm font-mono font-bold text-purple-200">
+                    <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+                    <span>{language === 'ar' ? 'سجّل حساباً لمواصلة التعلم وحفظ نتائجك!' : language === 'fr' ? 'Inscrivez-vous pour continuer à apprendre !' : 'Sign Up to Keep Learning & Save Results!'}</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
+                    {language === 'ar'
+                      ? `لقد أكملت اختبار الحصة التجريبية بنتيجة ${lastAttemptResult.score}%! أنشئ حسابك الآن لفتح باقي حصص الدورة، وحفظ شارات الإنجاز والشهادات في ملفك الشخصي.`
+                      : language === 'fr'
+                      ? `Vous avez terminé ce quiz d'essai avec un score de ${lastAttemptResult.score}% ! Créez votre compte pour débloquer toutes les sessions et obtenir votre certificat.`
+                      : `You completed this trial quiz with a ${lastAttemptResult.score}% score! Create an account now to unlock all remaining sessions, track your progress, and earn certificates.`}
+                  </p>
+                  <div className="flex items-center gap-3 pt-2 flex-wrap">
+                    <Link
+                      to="/login?signup=true"
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-mono text-xs font-bold rounded-xl uppercase tracking-wider shadow-xl shadow-purple-600/40 hover:scale-[1.02] transition-all flex items-center gap-2"
+                    >
+                      <Trophy className="w-4 h-4 text-amber-300" />
+                      <span>{language === 'ar' ? 'إنشاء حساب لمواصلة التعلم' : language === 'fr' ? 'S\'inscrire pour Continuer' : 'Sign Up to Keep Learning'}</span>
+                    </Link>
+                    <Link
+                      to="/login"
+                      className="px-5 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-purple-800/40 font-mono text-xs font-bold rounded-xl transition-all"
+                    >
+                      {language === 'ar' ? 'تسجيل الدخول' : language === 'fr' ? 'Se Connecter' : 'Log In'}
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>

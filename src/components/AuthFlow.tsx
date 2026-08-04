@@ -506,7 +506,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
                       required
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="Phone Number (e.g. 0550 00 00 00)"
+                      placeholder="Phone Number (e.g. 07 93 19 39 21)"
                       className="w-full bg-black border border-purple-900/30 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                     />
                   </div>
@@ -654,7 +654,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
                   required
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Phone Number (e.g. +21355000000)"
+                  placeholder="Phone Number (e.g. 07 93 19 39 21)"
                   className="w-full bg-black border border-purple-900/30 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
               </div>

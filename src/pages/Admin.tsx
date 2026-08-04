@@ -33,7 +33,7 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 
-type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises';
+type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises' | 'seo';
 
 interface Toast {
   id: string;
@@ -394,6 +394,220 @@ export default function AdminPanel() {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [loadingHeroVideos, setLoadingHeroVideos] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
+
+  // SEO / Social Media Cards Console States
+  const [loadingSeo, setLoadingSeo] = useState(false);
+  const [savingSeo, setSavingSeo] = useState(false);
+  const [seoImageUploading, setSeoImageUploading] = useState(false);
+  const [seoPreviewPlatform, setSeoPreviewPlatform] = useState<'whatsapp' | 'facebook' | 'twitter' | 'telegram'>('whatsapp');
+  const [selectedSeoRouteIndex, setSelectedSeoRouteIndex] = useState<number>(-1); // -1 = Global Fallback, >=0 = routes array index
+  const [showAddRouteModal, setShowAddRouteModal] = useState(false);
+  const [newRouteForm, setNewRouteForm] = useState({ path: '', title: '', description: '', image: '' });
+  const [seoSearchQuery, setSeoSearchQuery] = useState('');
+
+  const [seoConfig, setSeoConfig] = useState<{
+    globalTitle: string;
+    globalDescription: string;
+    globalImage: string;
+    routes: Array<{
+      id: string;
+      path: string;
+      title: string;
+      description: string;
+      image: string;
+    }>;
+  }>({
+    globalTitle: "Cutscene - Video Editing Course",
+    globalDescription: "Learn video editing from scratch with our complete course.",
+    globalImage: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop",
+    routes: [
+      {
+        id: "home",
+        path: "/",
+        title: "Cutscene - Video Editing Masterclasses",
+        description: "Learn professional video editing, VFX, and web development with hands-on projects.",
+        image: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        id: "courses",
+        path: "/courses",
+        title: "Cutscene - Video Editing & Tech Courses",
+        description: "Explore our complete masterclass curricula in video editing, motion graphics, and web development.",
+        image: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        id: "course-1",
+        path: "/courses/1",
+        title: "Cutscene - Video Editing 101",
+        description: "Master professional video editing from scratch with Premiere Pro, DaVinci Resolve and After Effects.",
+        image: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        id: "store",
+        path: "/store",
+        title: "Cutscene Store - Video Assets, Plugins & LUTs",
+        description: "Download high-quality video editing templates, LUTs, light leaks, sound effects, and motion graphic presets.",
+        image: "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        id: "resources",
+        path: "/resources",
+        title: "Cutscene Resources - Free Editing Packs",
+        description: "Access free editing assets, project files, keyboard shortcut cheat sheets, and creative tools.",
+        image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        id: "student-work",
+        path: "/student-work",
+        title: "Cutscene Showcase - Student Edits & Projects",
+        description: "Discover amazing video edits, visual effects, and web apps created by Cutscene Academy students.",
+        image: "https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        id: "support",
+        path: "/support",
+        title: "Cutscene Support & Help Desk",
+        description: "Get instant assistance, reach technical support via WhatsApp or Email, and find FAQs.",
+        image: "https://images.unsplash.com/photo-1534536281715-e28d76689b4d?q=80&w=1200&auto=format&fit=crop"
+      }
+    ]
+  });
+
+  const fetchSeoConfig = async () => {
+    setLoadingSeo(true);
+    try {
+      const docRef = doc(db, 'config', 'seo');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        setSeoConfig({
+          globalTitle: data.globalTitle || seoConfig.globalTitle,
+          globalDescription: data.globalDescription || seoConfig.globalDescription,
+          globalImage: data.globalImage || seoConfig.globalImage,
+          routes: Array.isArray(data.routes) && data.routes.length > 0 ? data.routes : seoConfig.routes
+        });
+      } else {
+        await setDoc(docRef, seoConfig);
+      }
+    } catch (err: any) {
+      console.error('Fetch SEO config error:', err);
+      showToast('error', 'Failed loading SEO configuration.');
+    } finally {
+      setLoadingSeo(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'seo') {
+      fetchSeoConfig();
+    }
+  }, [activeTab]);
+
+  const handleSaveSeoConfig = async () => {
+    setSavingSeo(true);
+    try {
+      const docRef = doc(db, 'config', 'seo');
+      await setDoc(docRef, {
+        ...seoConfig,
+        updatedAt: new Date().toISOString()
+      });
+      showToast('success', 'Social Media Cards & SEO metadata saved successfully!');
+    } catch (err: any) {
+      console.error('Save SEO config error:', err);
+      showToast('error', 'Failed saving SEO configuration.');
+    } finally {
+      setSavingSeo(false);
+    }
+  };
+
+  const uploadSeoImageForRoute = async (e: React.ChangeEvent<HTMLInputElement>, routeIndex: number) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    
+    setSeoImageUploading(true);
+    try {
+      const signRes = await fetch('/api/bunny-upload-signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name })
+      });
+      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      const signData = await signRes.json();
+
+      const uploadRes = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
+      });
+      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      const uploadResult = await uploadRes.json();
+
+      if (routeIndex === -1) {
+        setSeoConfig(prev => ({ ...prev, globalImage: uploadResult.publicUrl }));
+      } else {
+        setSeoConfig(prev => {
+          const newRoutes = [...prev.routes];
+          newRoutes[routeIndex] = { ...newRoutes[routeIndex], image: uploadResult.publicUrl };
+          return { ...prev, routes: newRoutes };
+        });
+      }
+      showToast('success', 'Card thumbnail image uploaded successfully!');
+    } catch (err: any) {
+      console.error('SEO Image upload failed:', err);
+      showToast('error', `Failed to upload card image: ${err.message || err}`);
+    } finally {
+      setSeoImageUploading(false);
+    }
+  };
+
+  const handleAddCustomRouteSeo = (e: React.FormEvent) => {
+    e.preventDefault();
+    let formattedPath = newRouteForm.path.trim();
+    if (!formattedPath.startsWith('/')) formattedPath = '/' + formattedPath;
+
+    if (seoConfig.routes.some(r => r.path.toLowerCase() === formattedPath.toLowerCase())) {
+      showToast('error', `A rule for path "${formattedPath}" already exists.`);
+      return;
+    }
+
+    const newRule = {
+      id: 'route-' + Date.now(),
+      path: formattedPath,
+      title: newRouteForm.title.trim() || seoConfig.globalTitle,
+      description: newRouteForm.description.trim() || seoConfig.globalDescription,
+      image: newRouteForm.image.trim() || seoConfig.globalImage
+    };
+
+    setSeoConfig(prev => ({
+      ...prev,
+      routes: [...prev.routes, newRule]
+    }));
+
+    setSelectedSeoRouteIndex(seoConfig.routes.length);
+    setShowAddRouteModal(false);
+    setNewRouteForm({ path: '', title: '', description: '', image: '' });
+    showToast('success', `Added SEO card rule for route "${formattedPath}"! Click "Save Social Cards" to apply.`);
+  };
+
+  const handleDeleteRouteSeo = (index: number, pathName: string) => {
+    askConfirmation(
+      'Remove Route Card Rule',
+      `Are you sure you want to remove the custom social media card rule for "${pathName}"? It will fall back to the Global Default Card.`,
+      () => {
+        setSeoConfig(prev => ({
+          ...prev,
+          routes: prev.routes.filter((_, i) => i !== index)
+        }));
+        if (selectedSeoRouteIndex === index) {
+          setSelectedSeoRouteIndex(-1);
+        } else if (selectedSeoRouteIndex > index) {
+          setSelectedSeoRouteIndex(selectedSeoRouteIndex - 1);
+        }
+        showToast('success', `Removed rule for "${pathName}". Click "Save Social Cards" to apply.`);
+      }
+    );
+  };
 
   // Modal forms states
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -2903,6 +3117,7 @@ export default function AdminPanel() {
       id: 'system',
       icon: Settings,
       tabs: [
+        { id: 'seo', name: 'Social Cards & SEO', icon: Globe },
         { id: 'useful-resources', name: 'Useful Resources', icon: Globe },
         { id: 'hero-video', name: 'Homepage Hero Video', icon: Video },
         { id: 'statistics', name: 'Homepage Statistics', icon: Activity },
@@ -6555,7 +6770,591 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* SOCIAL MEDIA CARDS & OPEN GRAPH SEO MANAGEMENT CONSOLE */}
+        {activeTab === 'seo' && (
+          <div className="space-y-8 animate-fade-in">
+            {/* Header section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-900/60 border border-purple-900/30 p-6 rounded-2xl shadow-xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-purple-950/80 border border-purple-500/30 text-purple-400 text-[10px] font-black uppercase tracking-widest">
+                    Open Graph & Social Sharing
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Live Sync Active
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-2 flex items-center gap-3">
+                  <Globe className="w-7 h-7 text-purple-400" />
+                  Social Media Cards & Link Previews
+                </h1>
+                <p className="text-gray-400 text-xs mt-1 max-w-3xl leading-relaxed">
+                  Control the visual preview card (Title, Description, and Thumbnail Image) displayed when sharing links or sub-links from your website on WhatsApp, Facebook, Twitter, iMessage, and LinkedIn.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setShowAddRouteModal(true)}
+                  className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-zinc-700 cursor-pointer shadow-md"
+                >
+                  <PlusCircle className="w-4 h-4 text-purple-400" />
+                  Add Custom Link Rule
+                </button>
+                <button
+                  onClick={handleSaveSeoConfig}
+                  disabled={savingSeo}
+                  className="px-6 py-2.5 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/20 disabled:opacity-50"
+                >
+                  {savingSeo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Social Cards
+                </button>
+              </div>
+            </div>
+
+            {loadingSeo ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
+                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                <span className="text-xs">Loading Open Graph Social Card Rules...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* LEFT COLUMN: LINKS & CARD EDITING FORM (7 Cols) */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* SEARCH & ROUTE TABS */}
+                  <div className="bg-zinc-900/60 border border-purple-950/30 p-5 rounded-2xl space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <Icons.Link2 className="w-4 h-4 text-purple-400" />
+                        Select Website Link or Sub-link
+                      </h2>
+                      <span className="text-[10px] text-gray-500 font-medium">
+                        {seoConfig.routes.length + 1} Total Rules
+                      </span>
+                    </div>
+
+                    {/* Search bar for routes */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                      <input
+                        type="text"
+                        value={seoSearchQuery}
+                        onChange={(e) => setSeoSearchQuery(e.target.value)}
+                        placeholder="Filter links (e.g. /courses, /store, /support)..."
+                        className="w-full pl-9 pr-8 py-2 bg-zinc-950 border border-purple-950/40 rounded-xl text-xs text-white placeholder-gray-500 outline-none focus:border-purple-500/50"
+                      />
+                      {seoSearchQuery && (
+                        <button
+                          onClick={() => setSeoSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Link Tabs Horizontal Scroll */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                      {/* Global Fallback tab */}
+                      <button
+                        onClick={() => setSelectedSeoRouteIndex(-1)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 border ${
+                          selectedSeoRouteIndex === -1
+                            ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                            : 'bg-zinc-950/80 text-gray-400 hover:text-white border-purple-950/30 hover:border-purple-800'
+                        }`}
+                      >
+                        <Globe className="w-3.5 h-3.5" />
+                        Global Default Fallback
+                      </button>
+
+                      {/* Routes tabs */}
+                      {seoConfig.routes
+                        .map((route, idx) => ({ route, idx }))
+                        .filter(({ route }) => !seoSearchQuery || route.path.toLowerCase().includes(seoSearchQuery.toLowerCase()) || route.title.toLowerCase().includes(seoSearchQuery.toLowerCase()))
+                        .map(({ route, idx }) => (
+                          <button
+                            key={route.id || idx}
+                            onClick={() => setSelectedSeoRouteIndex(idx)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 border ${
+                              selectedSeoRouteIndex === idx
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                                : 'bg-zinc-950/80 text-gray-400 hover:text-white border-purple-950/30 hover:border-purple-800'
+                            }`}
+                          >
+                            <span className="font-mono text-[11px] opacity-80">{route.path}</span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* EDIT FORM FOR CURRENTLY SELECTED ROUTE OR GLOBAL */}
+                  {(() => {
+                    const isGlobal = selectedSeoRouteIndex === -1;
+                    const currentRoute = isGlobal ? null : seoConfig.routes[selectedSeoRouteIndex];
+                    if (!isGlobal && !currentRoute) return null;
+
+                    const title = isGlobal ? seoConfig.globalTitle : currentRoute!.title;
+                    const description = isGlobal ? seoConfig.globalDescription : currentRoute!.description;
+                    const image = isGlobal ? seoConfig.globalImage : currentRoute!.image;
+                    const pathName = isGlobal ? 'All Unmatched Links (Global Default)' : currentRoute!.path;
+
+                    const handleTitleChange = (val: string) => {
+                      if (isGlobal) {
+                        setSeoConfig(prev => ({ ...prev, globalTitle: val }));
+                      } else {
+                        setSeoConfig(prev => {
+                          const updated = [...prev.routes];
+                          updated[selectedSeoRouteIndex] = { ...updated[selectedSeoRouteIndex], title: val };
+                          return { ...prev, routes: updated };
+                        });
+                      }
+                    };
+
+                    const handleDescriptionChange = (val: string) => {
+                      if (isGlobal) {
+                        setSeoConfig(prev => ({ ...prev, globalDescription: val }));
+                      } else {
+                        setSeoConfig(prev => {
+                          const updated = [...prev.routes];
+                          updated[selectedSeoRouteIndex] = { ...updated[selectedSeoRouteIndex], description: val };
+                          return { ...prev, routes: updated };
+                        });
+                      }
+                    };
+
+                    const handleImageChange = (val: string) => {
+                      if (isGlobal) {
+                        setSeoConfig(prev => ({ ...prev, globalImage: val }));
+                      } else {
+                        setSeoConfig(prev => {
+                          const updated = [...prev.routes];
+                          updated[selectedSeoRouteIndex] = { ...updated[selectedSeoRouteIndex], image: val };
+                          return { ...prev, routes: updated };
+                        });
+                      }
+                    };
+
+                    return (
+                      <div className="bg-zinc-900/60 border border-purple-950/30 p-6 rounded-2xl space-y-5 shadow-lg">
+                        <div className="flex items-center justify-between pb-4 border-b border-purple-950/20">
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 block">Editing Social Card Rule For</span>
+                            <h3 className="text-base font-bold text-white font-mono mt-0.5 flex items-center gap-2">
+                              {pathName}
+                              {isGlobal && (
+                                <span className="px-2 py-0.5 rounded bg-purple-950 text-purple-300 text-[9px] font-sans font-bold uppercase">
+                                  Default
+                                </span>
+                              )}
+                            </h3>
+                          </div>
+
+                          {!isGlobal && (
+                            <button
+                              onClick={() => handleDeleteRouteSeo(selectedSeoRouteIndex, currentRoute!.path)}
+                              className="p-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl transition-all border border-rose-900/30 cursor-pointer"
+                              title="Delete this custom route rule"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Title field */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-wider">
+                              Social Card Title
+                            </label>
+                            <span className={`text-[10px] font-mono ${title.length > 60 ? 'text-amber-400 font-bold' : 'text-gray-500'}`}>
+                              {title.length}/60 Chars (Ideal: 40-60)
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => handleTitleChange(e.target.value)}
+                            placeholder="e.g. Cutscene - Video Editing Course"
+                            className="w-full bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                          />
+                        </div>
+
+                        {/* Description field */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-wider">
+                              Social Card Description
+                            </label>
+                            <span className={`text-[10px] font-mono ${description.length > 160 ? 'text-amber-400 font-bold' : 'text-gray-500'}`}>
+                              {description.length}/160 Chars (Ideal: 110-155)
+                            </span>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={description}
+                            onChange={(e) => handleDescriptionChange(e.target.value)}
+                            placeholder="Summarize the page content for social media feeds..."
+                            className="w-full bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium resize-none leading-relaxed"
+                          />
+                        </div>
+
+                        {/* Thumbnail Image section */}
+                        <div>
+                          <label className="text-[10px] font-black text-gray-300 uppercase tracking-wider block mb-1.5">
+                            Social Card Thumbnail Image
+                          </label>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="url"
+                                value={image}
+                                onChange={(e) => handleImageChange(e.target.value)}
+                                placeholder="https://..."
+                                className="flex-1 bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                              />
+
+                              {/* BunnyCDN image upload button */}
+                              <label className={`px-4 py-2.5 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 text-purple-200 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-2 shrink-0 ${seoImageUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {seoImageUploading ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                                ) : (
+                                  <Upload className="w-4 h-4 text-purple-400" />
+                                )}
+                                <span>Upload</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => uploadSeoImageForRoute(e, selectedSeoRouteIndex)}
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+
+                            {/* Unsplash Preset suggestions */}
+                            <div className="space-y-1.5">
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 block">
+                                Quick Preset HD Cover Images:
+                              </span>
+                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                {[
+                                  { label: 'Video Studio', url: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop' },
+                                  { label: 'Web Coding', url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop' },
+                                  { label: 'Store Assets', url: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1200&auto=format&fit=crop' },
+                                  { label: 'VFX Motion', url: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=1200&auto=format&fit=crop' },
+                                  { label: 'Resources', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop' },
+                                  { label: 'Support Desk', url: 'https://images.unsplash.com/photo-1534536281715-e28d76689b4d?q=80&w=1200&auto=format&fit=crop' }
+                                ].map((preset, pIdx) => (
+                                  <button
+                                    key={pIdx}
+                                    type="button"
+                                    onClick={() => handleImageChange(preset.url)}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all border cursor-pointer ${
+                                      image === preset.url
+                                        ? 'bg-purple-950 text-purple-300 border-purple-500/50 ring-1 ring-purple-500/30'
+                                        : 'bg-zinc-950 text-gray-400 hover:text-white border-zinc-800'
+                                    }`}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* RIGHT COLUMN: LIVE INTERACTIVE SOCIAL MEDIA MOCKUP PREVIEW (5 Cols) */}
+                <div className="lg:col-span-5 space-y-4 sticky top-6">
+                  <div className="bg-zinc-900/60 border border-purple-950/30 p-6 rounded-2xl space-y-5 shadow-2xl">
+                    <div className="flex items-center justify-between pb-3 border-b border-purple-950/20">
+                      <div>
+                        <h2 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                          <Icons.Eye className="w-4 h-4 text-purple-400" />
+                          Live Card Preview
+                        </h2>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          How this link card appears when sent on messaging apps & feeds
+                        </p>
+                      </div>
+
+                      {/* Platform selector */}
+                      <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-purple-950/30">
+                        <button
+                          onClick={() => setSeoPreviewPlatform('whatsapp')}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                            seoPreviewPlatform === 'whatsapp' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                          }`}
+                          title="WhatsApp Preview"
+                        >
+                          WhatsApp
+                        </button>
+                        <button
+                          onClick={() => setSeoPreviewPlatform('facebook')}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                            seoPreviewPlatform === 'facebook' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                          }`}
+                          title="Facebook Meta Preview"
+                        >
+                          Facebook
+                        </button>
+                        <button
+                          onClick={() => setSeoPreviewPlatform('twitter')}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                            seoPreviewPlatform === 'twitter' ? 'bg-zinc-800 text-white shadow border border-zinc-700' : 'text-gray-400 hover:text-white'
+                          }`}
+                          title="Twitter X Preview"
+                        >
+                          Twitter
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* MOCKUP CONTAINER BASED ON CURRENT SELECTION */}
+                    {(() => {
+                      const isGlobal = selectedSeoRouteIndex === -1;
+                      const currentRoute = isGlobal ? null : seoConfig.routes[selectedSeoRouteIndex];
+                      const title = isGlobal ? seoConfig.globalTitle : (currentRoute?.title || seoConfig.globalTitle);
+                      const description = isGlobal ? seoConfig.globalDescription : (currentRoute?.description || seoConfig.globalDescription);
+                      const image = isGlobal ? seoConfig.globalImage : (currentRoute?.image || seoConfig.globalImage);
+                      const displayPath = isGlobal ? '/' : (currentRoute?.path || '/');
+
+                      if (seoPreviewPlatform === 'whatsapp') {
+                        return (
+                          <div className="bg-[#0b141a] p-4 rounded-2xl border border-emerald-950/30 font-sans">
+                            <div className="bg-[#1f2c34] text-[#e9edef] p-2.5 rounded-2xl rounded-tr-none max-w-sm ml-auto space-y-2 shadow-lg border border-[#222d34]">
+                              <div className="bg-[#111b21] rounded-xl overflow-hidden border border-[#202c33]">
+                                <div className="aspect-[16/9] w-full bg-zinc-900 overflow-hidden relative">
+                                  <img
+                                    src={image}
+                                    alt="Card Preview"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop';
+                                    }}
+                                  />
+                                </div>
+                                <div className="p-3 space-y-1">
+                                  <div className="text-[10px] uppercase font-bold text-[#8696a0] tracking-wider font-mono">
+                                    CUTSCENE-ACADEMY.COM
+                                  </div>
+                                  <div className="text-xs font-bold text-[#e9edef] line-clamp-2 leading-snug">
+                                    {title}
+                                  </div>
+                                  <div className="text-[11px] text-[#8696a0] line-clamp-2 leading-relaxed">
+                                    {description}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-[#8696a0] px-1 font-mono break-all text-emerald-400/90 underline">
+                                https://cutscene-academy.com{displayPath}
+                              </div>
+                              <div className="text-[9px] text-[#8696a0] text-right pr-1 font-mono">
+                                12:45 PM ✓✓
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (seoPreviewPlatform === 'facebook') {
+                        return (
+                          <div className="bg-[#242526] p-4 rounded-2xl border border-blue-950/30 text-[#e4e6eb] font-sans space-y-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-black text-white text-xs">
+                                CA
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-white">Cutscene Academy</div>
+                                <div className="text-[10px] text-gray-400 font-mono">Just now · 🌎</div>
+                              </div>
+                            </div>
+
+                            <div className="text-xs text-gray-200">
+                              Check out this course session and resources on Cutscene Academy! 🚀
+                            </div>
+
+                            <div className="bg-[#18191a] rounded-xl overflow-hidden border border-[#3a3b3c]">
+                              <div className="aspect-[1.91/1] w-full bg-zinc-900 overflow-hidden">
+                                <img
+                                  src={image}
+                                  alt="Facebook Card Preview"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop';
+                                  }}
+                                />
+                              </div>
+                              <div className="p-3 bg-[#242526] space-y-1">
+                                <div className="text-[10px] uppercase font-semibold text-gray-400 font-mono">
+                                  CUTSCENE-ACADEMY.COM
+                                </div>
+                                <div className="text-sm font-bold text-white line-clamp-1">
+                                  {title}
+                                </div>
+                                <div className="text-xs text-gray-400 line-clamp-2">
+                                  {description}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="bg-black p-4 rounded-2xl border border-zinc-800 text-white font-sans space-y-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-black text-white text-xs">
+                              CA
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-white flex items-center gap-1">
+                                Cutscene Academy <span className="text-blue-400">✓</span>
+                              </div>
+                              <div className="text-[10px] text-gray-500 font-mono">@cutscene_academy</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-black rounded-2xl overflow-hidden border border-zinc-800">
+                            <div className="aspect-[1.91/1] w-full bg-zinc-900 overflow-hidden relative">
+                              <img
+                                src={image}
+                                alt="Twitter Card Preview"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop';
+                                }}
+                              />
+                              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur text-[10px] text-white font-mono">
+                                cutscene-academy.com
+                              </div>
+                            </div>
+                            <div className="p-3 space-y-1 bg-zinc-950">
+                              <div className="text-xs font-bold text-white line-clamp-1">
+                                {title}
+                              </div>
+                              <div className="text-[11px] text-gray-400 line-clamp-2">
+                                {description}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="p-3 bg-purple-950/30 border border-purple-500/20 rounded-xl text-[10px] text-purple-300 leading-relaxed">
+                      💡 <strong>Tip for Social Media Crawlers:</strong> Facebook, WhatsApp, and Twitter fetch social card images directly from the page HTML meta tags. Saving your changes instantly updates both client visits and server crawler responses!
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
+
+      {/* ADD CUSTOM ROUTE SEO CARD RULE MODAL */}
+      <AnimatePresence>
+        {showAddRouteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-zinc-900 border border-purple-900/40 rounded-2xl p-6 max-w-lg w-full space-y-5 shadow-2xl"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-purple-950/30">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-purple-400" />
+                  <h3 className="text-lg font-bold text-white">Add Custom Link Rule</h3>
+                </div>
+                <button
+                  onClick={() => setShowAddRouteModal(false)}
+                  className="p-1 text-gray-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddCustomRouteSeo} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-300 mb-1">
+                    Route Path / URL (e.g. /courses/special-offer)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newRouteForm.path}
+                    onChange={(e) => setNewRouteForm({ ...newRouteForm, path: e.target.value })}
+                    placeholder="/courses/2 or /store/my-pack"
+                    className="w-full bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-300 mb-1">
+                    Custom Card Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newRouteForm.title}
+                    onChange={(e) => setNewRouteForm({ ...newRouteForm, title: e.target.value })}
+                    placeholder="e.g. Cutscene - Master Web Development"
+                    className="w-full bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-300 mb-1">
+                    Custom Card Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newRouteForm.description}
+                    onChange={(e) => setNewRouteForm({ ...newRouteForm, description: e.target.value })}
+                    placeholder="e.g. Learn React, TypeScript, and full-stack development..."
+                    className="w-full bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-300 mb-1">
+                    Custom Thumbnail Image URL
+                  </label>
+                  <input
+                    type="url"
+                    value={newRouteForm.image}
+                    onChange={(e) => setNewRouteForm({ ...newRouteForm, image: e.target.value })}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full bg-zinc-950 border border-purple-950/40 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-purple-950/30 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRouteModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-purple-600/20"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Create Card Rule
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL: ADD / EDIT SPECIAL OFFER */}
       <AnimatePresence>

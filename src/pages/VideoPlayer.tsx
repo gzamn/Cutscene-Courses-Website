@@ -92,7 +92,7 @@ export default function VideoPlayer() {
   const navigate = useNavigate();
   
   const [course, setCourse] = useState<any>(null);
-  const [currentQuiz, setCurrentQuiz] = useState<any>(null);
+  const [currentQuiz, setCurrentQuiz] = useState<any>({ id: `quiz_session_${chapter || '1'}`, title: `Session ${chapter || '1'} Quiz` });
   const [quizPassed, setQuizPassed] = useState<boolean>(false);
   const [quizAttemptsCount, setQuizAttemptsCount] = useState<number>(0);
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
@@ -245,6 +245,23 @@ export default function VideoPlayer() {
     });
     return list;
   }, [isVideoEditingCourse, course]);
+
+  const allSessionsList = useMemo(() => {
+    if (orderedLessons.length > 0) return orderedLessons;
+
+    const list: Array<{ chapter: string; type: string; title: string }> = [];
+    const total = course?.chapters?.length || course?.lessons?.length || (id === '1' ? 12 : id === '2' ? 18 : 12);
+    for (let i = 1; i <= total; i++) {
+      const chObj = course?.chapters?.[i - 1];
+      const name = chObj?.session_name_1 || chObj?.session_name || chObj?.title || '';
+      list.push({
+        chapter: String(i),
+        type: 'session',
+        title: name ? `Session ${i}: ${name}` : `Session ${i}`
+      });
+    }
+    return list;
+  }, [orderedLessons, course, id]);
 
   const homework = course?.homeworks?.find((h: any) => h.chapter === parseInt(chapter || '0'));
   const isFirstSession = isVideoEditingCourse 
@@ -811,6 +828,27 @@ export default function VideoPlayer() {
               }
             }
           }
+        } else if (foundQuiz && !user) {
+          const guestKey = `guest_quiz_attempts_session_${sId}`;
+          try {
+            const saved = localStorage.getItem(guestKey);
+            if (saved) {
+              const attList = JSON.parse(saved);
+              if (active) setQuizAttemptsCount(attList.length);
+              const passed = attList.some((a: any) => a.passed);
+              if (active) setQuizPassed(passed);
+            } else {
+              if (active) {
+                setQuizPassed(false);
+                setQuizAttemptsCount(0);
+              }
+            }
+          } catch (e) {
+            if (active) {
+              setQuizPassed(false);
+              setQuizAttemptsCount(0);
+            }
+          }
         } else {
           if (active) {
             setQuizPassed(false);
@@ -850,6 +888,9 @@ export default function VideoPlayer() {
 
       } catch (err) {
         console.error("Error evaluating session quiz metrics:", err);
+        if (active) {
+          setCurrentQuiz({ id: `quiz_session_${sId}`, title: `Session ${sId} Quiz` });
+        }
       } finally {
         if (active) setCheckingQuiz(false);
       }
@@ -1296,30 +1337,42 @@ export default function VideoPlayer() {
 
             {/* Action panel under video */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 bg-[#0c0c0f] border border-purple-900/30 p-5 rounded-2xl text-left shadow-xl">
-              <div className="flex-grow">
-                <h2 className="text-lg sm:text-xl font-extrabold text-white leading-tight">
-                  {course.title} — Session {chapter}{sessionName ? `: ${sessionName}` : ''}
-                </h2>
+              <div className="flex-grow space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg sm:text-xl font-extrabold text-white leading-tight">
+                    {course.title} — Session {chapter}{sessionName ? `: ${sessionName}` : ''}
+                  </h2>
+                </div>
+                <div className="pt-1 flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold text-purple-300 bg-purple-950/80 px-2.5 py-0.5 rounded border border-purple-800/40 uppercase">
+                    Session {chapter}
+                  </span>
+                  {parseInt(chapter || '1', 10) === 1 && !isEnrolled && (
+                    <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded border border-emerald-500/30 uppercase">
+                      Free Trial Session
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col gap-3 shrink-0 items-stretch sm:items-end w-full md:w-auto">
                 {/* Row 1: Quiz & Complete Buttons */}
                 <div className="flex flex-wrap items-center gap-3 w-full justify-start md:justify-end">
-                  {currentQuiz && (() => {
+                  {(() => {
                     const isQuizFailed = quizAttemptsCount > 0 && !quizPassed;
                     return (
                       <Link 
                         to={`/courses/${id}/quiz/${chapter}`}
-                        className={`px-4.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                        className={`px-5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg ${
                           quizPassed 
-                            ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 font-black' 
+                            ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 font-black hover:bg-emerald-900/60' 
                             : isQuizFailed
                               ? 'bg-rose-950 border border-rose-500/40 text-rose-400 font-bold hover:bg-rose-900/40 animate-pulse'
-                              : 'bg-purple-900 border border-purple-500/30 text-purple-200 hover:bg-purple-850'
+                              : 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 border border-purple-400/40 text-white shadow-purple-900/40 hover:scale-[1.02]'
                         }`}
                       >
-                        <Trophy className="w-4 h-4" />
-                        {quizPassed ? 'Quiz Completed' : isQuizFailed ? 'Retake Quiz' : 'Take Quiz'}
+                        <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>{quizPassed ? 'Quiz Completed' : isQuizFailed ? 'Retake Quiz' : 'Take Quiz'}</span>
                       </Link>
                     );
                   })()}
@@ -1590,50 +1643,117 @@ export default function VideoPlayer() {
             </div>
           </div>
 
-          {/* Right Column: Private Notes */}
+          {/* Right Column: Sessions Curriculum Navigation */}
           <div className="lg:col-span-4 h-full">
-            <div className="notes-panel bg-[#0c0c0f] border border-purple-900/30 rounded-2xl flex flex-col h-[520px] sticky top-24 text-left shadow-2xl">
-              <div className="flex items-center gap-2.5 p-4 border-b border-purple-900/20">
-                <Clock className="w-4 h-4 text-purple-400 animate-pulse" />
-                <span className="font-extrabold text-xs uppercase tracking-widest text-white font-mono">My Notes</span>
-                <span className="text-xs text-zinc-400 font-mono italic ml-auto font-bold">private to you</span>
+            <div className="sessions-panel bg-[#0c0c0f] border border-purple-900/30 rounded-2xl flex flex-col max-h-[620px] sticky top-24 text-left shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-purple-900/20 bg-zinc-950/80">
+                <div className="flex items-center gap-2.5">
+                  <Play className="w-4 h-4 text-purple-400 fill-purple-400/20" />
+                  <span className="font-extrabold text-xs uppercase tracking-widest text-white font-mono">
+                    {language === 'ar' ? 'حصص الدورة' : language === 'fr' ? 'Sessions du Cours' : 'Course Sessions'}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-purple-300 bg-purple-900/40 border border-purple-500/30 rounded-md px-2 py-0.5">
+                  {chapter} / {allSessionsList.length}
+                </span>
               </div>
 
-              {/* Notes list */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4" id="notesList">
-                {personalNotesList.length === 0 ? (
-                  <div className="text-center py-24 text-zinc-600 text-xs font-mono font-bold">No notes. Add thoughts below!</div>
-                ) : (
-                  personalNotesList.map((note) => (
-                    <div key={note.id} className="flex gap-2.5 group relative text-left">
-                      <button onClick={() => seekTo(note.timestamp)} className="shrink-0 font-mono text-xs text-purple-300 bg-purple-900/40 hover:bg-purple-900 border border-purple-500/20 rounded-lg px-2.5 py-1.5 font-bold transition-all h-fit">
-                        {formatTime(note.timestamp)}
-                      </button>
-                      <div className="text-sm text-zinc-200 break-words flex-1 pr-8 leading-relaxed font-medium">{note.content}</div>
-                      <button onClick={() => handleDeleteNote(note.id)} className="absolute right-0 top-1 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"><Trash2 className="w-4 h-4" /></button>
+              {/* Sessions list */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {allSessionsList.map((item) => {
+                  const sNum = parseInt(item.chapter, 10);
+                  const isActive = String(item.chapter) === String(chapter) && (type || 'session') === item.type;
+                  const isUnlocked = isEnrolled || sNum === 1;
+
+                  return (
+                    <div
+                      key={`${item.chapter}-${item.type}`}
+                      onClick={() => {
+                        if (isUnlocked) {
+                          navigate(`/courses/${id}/video/${item.chapter}/${item.type}`);
+                        } else {
+                          toast.info(
+                            language === 'ar'
+                              ? `الحصة ${sNum} غير متاحة في التجربة المجانية. اشترك في الدورة لفتح كافة الحصص!`
+                              : language === 'fr'
+                              ? `La session ${sNum} requiert une inscription. Rejoignez le cours pour débloquer toutes les sessions !`
+                              : `Session ${sNum} is locked for free trial. Enroll in the course to unlock all sessions!`
+                          );
+                        }
+                      }}
+                      className={`group p-3 rounded-xl border transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                        isActive
+                          ? 'bg-gradient-to-r from-purple-950/90 to-purple-900/50 border-purple-500 shadow-lg shadow-purple-900/30'
+                          : isUnlocked
+                            ? 'bg-zinc-950/60 hover:bg-zinc-900/80 border-purple-900/20 hover:border-purple-500/40 text-zinc-300 hover:text-white'
+                            : 'bg-zinc-950/40 border-zinc-900/80 text-zinc-600 hover:border-zinc-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-mono font-bold ${
+                          isActive
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : isUnlocked
+                              ? 'bg-purple-950/80 text-purple-300 border border-purple-800/40'
+                              : 'bg-zinc-900 text-zinc-600 border border-zinc-800'
+                        }`}>
+                          {sNum}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <h4 className={`text-xs font-bold truncate leading-tight ${
+                            isActive ? 'text-white font-extrabold' : isUnlocked ? 'text-zinc-200 group-hover:text-purple-200' : 'text-zinc-500'
+                          }`}>
+                            {item.title}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            {sNum === 1 && !isEnrolled && (
+                              <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-1.5 py-0.2 rounded uppercase">
+                                {language === 'ar' ? 'تجربة مجانية' : language === 'fr' ? 'Essai Gratuit' : 'Free Trial'}
+                              </span>
+                            )}
+                            {!isUnlocked && (
+                              <span className="text-[9px] font-mono font-bold text-zinc-500 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded uppercase flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5 text-purple-500/60" />
+                                {language === 'ar' ? 'مغلق' : language === 'fr' ? 'Verrouillé' : 'Locked'}
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="text-[9px] font-mono font-bold text-purple-300 bg-purple-900/80 px-1.5 py-0.2 rounded uppercase">
+                                {language === 'ar' ? 'يعرض الآن' : language === 'fr' ? 'En Cours' : 'Now Playing'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center">
+                        {isActive ? (
+                          <div className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                        ) : !isUnlocked ? (
+                          <Lock className="w-4 h-4 text-purple-500/50" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 text-zinc-500 group-hover:text-purple-300 transition-colors" />
+                        )}
+                      </div>
                     </div>
-                  ))
-                )}
+                  );
+                })}
               </div>
 
-              {/* Composer */}
-              <div className="border-t border-purple-900/20 p-4 bg-zinc-950">
-                <div className="flex gap-2 mb-2">
-                  <input 
-                    type="text" 
-                    placeholder="Take a note at this timestamp..." 
-                    value={noteInputText} 
-                    onChange={(e) => setNoteInputText(e.target.value)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') { handleAddNote(noteInputText); setNoteInputText(''); } }} 
-                    className="flex-1 bg-zinc-900 border border-purple-900/35 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 placeholder-zinc-500 font-sans focus:ring-1 focus:ring-purple-500 shadow-inner" 
-                  />
-                  <button onClick={() => { handleAddNote(noteInputText); setNoteInputText(''); }} className="w-10 h-10 rounded-xl bg-purple-600 hover:bg-purple-500 flex items-center justify-center shrink-0 transition-transform hover:scale-105 shadow-md"><Send className="w-4 h-4 text-white" /></button>
+              {!isEnrolled && (
+                <div className="p-3.5 bg-gradient-to-r from-purple-950 to-zinc-950 border-t border-purple-900/30 text-center">
+                  <p className="text-[11px] text-zinc-400 mb-2 font-mono">
+                    {language === 'ar' ? 'افتتاح جميع الحصص باشتراك واحد' : language === 'fr' ? 'Débloquez toutes les sessions' : 'Unlock all sessions with full enrollment'}
+                  </p>
+                  <Link
+                    to={`/courses/${id}`}
+                    className="block w-full py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-mono text-xs font-bold rounded-lg uppercase tracking-wider transition-all shadow-md"
+                  >
+                    {language === 'ar' ? 'اشترك الآن في الدورة' : language === 'fr' ? 'S\'inscrire au Cours' : 'Enroll in Course'}
+                  </Link>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                  <span>Will attach current timestamp — {formatTime(videoCurrentTime)}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

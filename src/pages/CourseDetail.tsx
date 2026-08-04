@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck, Trash2 } from 'lucide-react';
+import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck, Trash2, Trophy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc, deleteDoc } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
@@ -574,9 +574,22 @@ export default function CourseDetail() {
                                 {item.mainTitle || item.label}
                               </span>
                               {item.isFirstSession && !isEnrolled && (
-                                <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 inline-block">
-                                  {language === 'ar' ? 'تجربة مجانية' : language === 'fr' ? 'Essai Gratuit' : 'Free Trial'}
-                                </span>
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                  <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-purple-950/80 border border-purple-500/30 inline-block">
+                                    {language === 'ar' ? 'تجربة مجانية' : language === 'fr' ? 'Essai Gratuit' : 'Free Trial'}
+                                  </span>
+                                  <span
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      navigate(`/courses/${course.id}/quiz/${item.chapter}`);
+                                    }}
+                                    className="text-[10px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 px-2 py-0.5 rounded flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                                  >
+                                    <Trophy className="w-3 h-3 text-amber-400" />
+                                    {language === 'ar' ? 'اختبار مجاني' : language === 'fr' ? 'Quiz Essai Gratuit' : 'Free Trial Quiz'}
+                                  </span>
+                                </div>
                               )}
                             </span>
                             {isCompleted && (

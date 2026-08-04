@@ -1,8 +1,178 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import axios from "axios";
 import crypto from "crypto";
 import "dotenv/config";
+
+let cachedSeoConfig: any = null;
+let lastSeoCacheTime = 0;
+
+async function getFirestoreSeoConfig() {
+  const now = Date.now();
+  if (cachedSeoConfig && (now - lastSeoCacheTime < 30000)) {
+    return cachedSeoConfig;
+  }
+  try {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (!fs.existsSync(configPath)) return null;
+    const raw = fs.readFileSync(configPath, "utf-8");
+    const parsedConfig = JSON.parse(raw);
+    const projectId = parsedConfig.projectId;
+    const databaseId = parsedConfig.firestoreDatabaseId || "(default)";
+
+    if (!projectId) return null;
+
+    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/config/seo`;
+    const res = await axios.get(firestoreUrl, { timeout: 2500 });
+
+    if (res.data && res.data.fields) {
+      const fields = res.data.fields;
+      const parsed: any = {};
+      if (fields.globalTitle?.stringValue) parsed.globalTitle = fields.globalTitle.stringValue;
+      if (fields.globalDescription?.stringValue) parsed.globalDescription = fields.globalDescription.stringValue;
+      if (fields.globalImage?.stringValue) parsed.globalImage = fields.globalImage.stringValue;
+
+      if (fields.routes?.arrayValue?.values) {
+        parsed.routes = fields.routes.arrayValue.values.map((item: any) => {
+          const map = item.mapValue?.fields || {};
+          return {
+            path: map.path?.stringValue || '',
+            title: map.title?.stringValue || '',
+            description: map.description?.stringValue || '',
+            image: map.image?.stringValue || ''
+          };
+        });
+      }
+
+      cachedSeoConfig = parsed;
+      lastSeoCacheTime = now;
+      return parsed;
+    }
+  } catch (err) {
+    // Non-blocking fallback
+  }
+  return cachedSeoConfig;
+}
+
+function getOgMetadataForPath(urlPath: string, host: string, protocol: string, config?: any) {
+  const cleanHost = host.split(":")[0];
+  const baseUrl = `${protocol}://${cleanHost}`;
+  const fullUrl = `${baseUrl}${urlPath}`;
+
+  let title = config?.globalTitle || "Cutscene - Video Editing Course";
+  let description = config?.globalDescription || "Learn video editing from scratch with our complete course.";
+  let image = config?.globalImage || "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop";
+
+  const p = urlPath.toLowerCase();
+
+  // If Firestore dynamic config exists, match routes
+  if (config?.routes && Array.isArray(config.routes) && config.routes.length > 0) {
+    const exactMatch = config.routes.find((r: any) => r.path && r.path.toLowerCase() === p);
+    if (exactMatch) {
+      return {
+        title: exactMatch.title || title,
+        description: exactMatch.description || description,
+        image: exactMatch.image || image,
+        url: fullUrl
+      };
+    }
+
+    const sortedRoutes = [...config.routes].sort((a: any, b: any) => (b.path?.length || 0) - (a.path?.length || 0));
+    const prefixMatch = sortedRoutes.find((r: any) => r.path && r.path !== '/' && p.startsWith(r.path.toLowerCase()));
+    if (prefixMatch) {
+      return {
+        title: prefixMatch.title || title,
+        description: prefixMatch.description || description,
+        image: prefixMatch.image || image,
+        url: fullUrl
+      };
+    }
+  }
+
+  // Fallbacks
+  if (p.includes('/courses/') && (p.includes('/video/') || p.includes('/quiz/') || p.includes('/exercise/'))) {
+    title = "Cutscene - Video Editing Course Session";
+    description = "Learn video editing from scratch with our complete course.";
+    image = "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.includes('/courses/1')) {
+    title = "Cutscene - Video Editing 101";
+    description = "Master professional video editing from scratch with Premiere Pro, DaVinci Resolve and After Effects.";
+    image = "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.includes('/courses/2')) {
+    title = "Cutscene - Web Development Bootcamp";
+    description = "Build modern web applications from scratch with React, TypeScript, and Tailwind CSS.";
+    image = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.includes('/courses/3')) {
+    title = "Cutscene - Advanced Frontend Engineering";
+    description = "Master full-stack web architecture, interactive UIs, and state management.";
+    image = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.includes('/courses/4')) {
+    title = "Cutscene - VFX & Motion Graphics Masterclass";
+    description = "Create stunning visual effects, 3D motion graphics, and compositing like a pro.";
+    image = "https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.startsWith('/courses')) {
+    title = "Cutscene - Video Editing & Tech Courses";
+    description = "Explore our complete masterclass curricula in video editing, motion graphics, and web development.";
+    image = "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.startsWith('/store')) {
+    title = "Cutscene Store - Video Assets, Plugins & LUTs";
+    description = "Download high-quality video editing templates, LUTs, light leaks, sound effects, and motion graphic presets.";
+    image = "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.startsWith('/resources')) {
+    title = "Cutscene Resources - Free Editing Packs";
+    description = "Access free editing assets, project files, keyboard shortcut cheat sheets, and creative tools.";
+    image = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.startsWith('/student-work')) {
+    title = "Cutscene Showcase - Student Edits & Projects";
+    description = "Discover amazing video edits, visual effects, and web apps created by Cutscene Academy students.";
+    image = "https://images.unsplash.com/photo-1536240478700-b869070f9279?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.startsWith('/support')) {
+    title = "Cutscene Support & Help Desk";
+    description = "Get instant assistance, reach technical support via WhatsApp or Email, and find FAQs.";
+    image = "https://images.unsplash.com/photo-1534536281715-e28d76689b4d?q=80&w=1200&auto=format&fit=crop";
+  } else if (p.startsWith('/complete-order') || p.startsWith('/payment')) {
+    title = "Cutscene Checkout - Course Enrollment";
+    description = "Securely complete your enrollment in Cutscene Academy masterclasses.";
+    image = "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop";
+  }
+
+  return { title, description, image, url: fullUrl };
+}
+
+function renderHtmlWithMeta(htmlTemplate: string, meta: { title: string; description: string; image: string; url: string }) {
+  const ogTags = `
+    <title>${meta.title}</title>
+    <meta name="title" content="${meta.title}" />
+    <meta name="description" content="${meta.description}" />
+
+    <!-- Open Graph / Facebook / WhatsApp / Instagram -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${meta.url}" />
+    <meta property="og:title" content="${meta.title}" />
+    <meta property="og:description" content="${meta.description}" />
+    <meta property="og:image" content="${meta.image}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="${meta.url}" />
+    <meta name="twitter:title" content="${meta.title}" />
+    <meta name="twitter:description" content="${meta.description}" />
+    <meta name="twitter:image" content="${meta.image}" />
+  `;
+
+  let cleaned = htmlTemplate
+    .replace(/<title>.*?<\/title>/gi, '')
+    .replace(/<meta\s+property=["']og:[^"']+["']\s+content=["'][^"']*["']\s*\/?>/gi, '')
+    .replace(/<meta\s+content=["'][^"']*["']\s+property=["']og:[^"']+["']\s*\/?>/gi, '')
+    .replace(/<meta\s+name=["']twitter:[^"']+["']\s+content=["'][^"']*["']\s*\/?>/gi, '')
+    .replace(/<meta\s+content=["'][^"']*["']\s+name=["']twitter:[^"']+["']\s*\/?>/gi, '')
+    .replace(/<meta\s+name=["'](title|description)["']\s+content=["'][^"']*["']\s*\/?>/gi, '');
+
+  return cleaned.replace('</head>', `${ogTags}\n  </head>`);
+}
 
 async function startServer() {
   const app = express();
@@ -285,8 +455,24 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*all", (req, res) => {
+    app.use(express.static(distPath, { index: false }));
+
+    app.get("*all", async (req, res) => {
+      try {
+        const indexPath = path.join(distPath, "index.html");
+        if (fs.existsSync(indexPath)) {
+          const template = fs.readFileSync(indexPath, "utf-8");
+          const protocol = req.headers["x-forwarded-proto"] ? String(req.headers["x-forwarded-proto"]) : req.protocol;
+          const host = req.headers["x-forwarded-host"] ? String(req.headers["x-forwarded-host"]) : req.get("host") || "cutscene-academy.com";
+
+          const seoConfig = await getFirestoreSeoConfig();
+          const meta = getOgMetadataForPath(req.path, host, protocol, seoConfig);
+          const html = renderHtmlWithMeta(template, meta);
+          return res.status(200).set({ "Content-Type": "text/html" }).end(html);
+        }
+      } catch (err) {
+        console.error("Error rendering index.html with OG meta tags:", err);
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

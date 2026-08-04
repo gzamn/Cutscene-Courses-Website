@@ -194,7 +194,7 @@ export default function Payment() {
     } else {
       const cleanPhone = trimmedPhone.replace(/[+\s-()]/g, '');
       if (cleanPhone.length < 9 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
-        errors.phone = 'Please enter a correct phone number containing 9 to 15 digits (e.g., 0550123456).';
+        errors.phone = 'Please enter a correct phone number containing 9 to 15 digits (e.g., 07 93 19 39 21).';
       }
     }
 
@@ -503,7 +503,7 @@ export default function Payment() {
                             setValidationErrors(prev => ({ ...prev, phone: '' }));
                           }
                         }}
-                        placeholder="e.g. 0550 00 00 00"
+                        placeholder="e.g. 07 93 19 39 21"
                         className="w-full bg-black border border-purple-900/30 rounded-2xl py-4 px-6 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all font-sans"
                       />
                       <ValidationTooltip isVisible={!!validationErrors.phone} message={validationErrors.phone === 'must be filled before continuing' ? 'Please fill out this field.' : validationErrors.phone} />

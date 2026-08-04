@@ -495,7 +495,7 @@ export default function CompleteOrder() {
                           <input
                             type="tel"
                             required
-                            placeholder="e.g. 0550123456"
+                            placeholder="e.g. 07 93 19 39 21"
                             value={formData.phone}
                             onChange={(e) => {
                               setFormData({ ...formData, phone: e.target.value });

@@ -164,9 +164,9 @@ export default function Store() {
       ar: "رقم الهاتف"
     },
     phonePlaceholder: {
-      en: "e.g., +213 555 12 34 56",
-      fr: "ex: +213 555 12 34 56",
-      ar: "مثال: +213 555 12 34 56"
+      en: "e.g., 07 93 19 39 21",
+      fr: "ex: 07 93 19 39 21",
+      ar: "مثال: 07 93 19 39 21"
     },
     emailLabel: {
       en: "Email Address",

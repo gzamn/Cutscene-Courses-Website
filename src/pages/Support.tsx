@@ -128,18 +128,18 @@ export default function Support() {
     { 
       title: t('support.whatsappTitle'), 
       desc: t('support.whatsappDesc'), 
-      contact: '+213 776 76 22 66', 
+      contact: '07 93 19 39 21', 
       icon: MessageCircle,
       action: t('support.whatsappAction'),
-      url: 'https://wa.me/213776762266'
+      url: 'https://wa.me/213793193921'
     },
     { 
       title: t('support.phoneTitle'), 
       desc: t('support.phoneDesc'), 
-      contact: '+213 776 76 22 66', 
+      contact: '07 93 19 39 21', 
       icon: Phone,
       action: t('support.phoneAction'),
-      url: 'tel:+213776762266'
+      url: 'tel:0793193921'
     }
   ];
 
