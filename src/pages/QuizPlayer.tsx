@@ -493,14 +493,24 @@ export default function QuizPlayer() {
       const user = auth.currentUser;
       const sId = parseInt(sessionId || "1", 10);
 
-      // 1. Fetch published quizzes for this session index safely
+      // 1. Fetch published/admin quizzes for this session index safely
       let loadedQuiz = null;
       try {
         const qCol = collection(db, "quizzes");
-        const qQuery = query(qCol, where("sessionId", "==", sId), where("status", "==", "published"));
-        const qSnap = await getDocs(qQuery);
+        const qSnap = await getDocs(qCol);
         if (!qSnap.empty) {
-          loadedQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() as any };
+          const allDocs = qSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+          const matched = allDocs.filter(q => 
+            Number(q.sessionId) === sId || 
+            String(q.sessionId) === String(sId) || 
+            q.id === `quiz_session_${sId}` || 
+            q.id === `session_${sId}`
+          );
+
+          if (matched.length > 0) {
+            const published = matched.find(q => q.status === 'published');
+            loadedQuiz = published || matched[0];
+          }
         }
       } catch (e) {
         console.warn("Could not fetch quiz from Firestore (using fallback for session):", e);

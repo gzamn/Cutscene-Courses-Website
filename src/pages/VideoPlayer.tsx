@@ -788,13 +788,27 @@ export default function VideoPlayer() {
         
         // --- 1. Check current chapter quiz status ---
         const qCol = collection(db, "quizzes");
-        const qQuery = query(qCol, where("sessionId", "==", sId), where("status", "==", "published"));
-        const qSnap = await getDocs(qQuery);
-        
         let foundQuiz = null;
-        if (!qSnap.empty) {
-          foundQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
-        } else {
+        try {
+          const qSnap = await getDocs(qCol);
+          if (!qSnap.empty) {
+            const allDocs = qSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+            const matched = allDocs.filter(q => 
+              Number(q.sessionId) === sId || 
+              String(q.sessionId) === String(sId) || 
+              q.id === `quiz_session_${sId}` || 
+              q.id === `session_${sId}`
+            );
+            if (matched.length > 0) {
+              const published = matched.find(q => q.status === 'published');
+              foundQuiz = published || matched[0];
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch quiz in VideoPlayer:", e);
+        }
+
+        if (!foundQuiz) {
           // Default fallback for any session so quiz button always displays
           foundQuiz = { id: `quiz_session_${sId}`, title: `Session ${sId} Quiz` };
         }

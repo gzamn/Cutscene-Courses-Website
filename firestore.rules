@@ -211,7 +211,7 @@ service cloud.firestore {
 
     // Quizzes (Admin-configured curriculum validation quizzes)
     match /quizzes/{quizId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
