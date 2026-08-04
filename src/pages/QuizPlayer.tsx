@@ -494,9 +494,14 @@ export default function QuizPlayer() {
       let loadedQuiz = null;
       if (!qSnap.empty) {
         loadedQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() as any };
-      } else if (sId === 1) {
-        // Fallback/Seeding for Session 1 Quiz
-        loadedQuiz = DEFAULT_SESSION_1_QUIZ;
+      } else {
+        // Fallback for any session if no custom quiz created yet
+        loadedQuiz = {
+          ...DEFAULT_SESSION_1_QUIZ,
+          id: `quiz_session_${sId}`,
+          title: `Session ${sId} — Knowledge Check`,
+          sessionId: sId
+        };
       }
 
       const normalized = normalizeQuiz(loadedQuiz);
@@ -651,7 +656,7 @@ export default function QuizPlayer() {
 
   // Submit attempt evaluation
   const handleQuizSubmit = async () => {
-    if (!quiz || !auth.currentUser) return;
+    if (!quiz) return;
     
     setSubmittingAttempt(true);
     let correctCount = 0;
@@ -701,9 +706,10 @@ export default function QuizPlayer() {
       lockoutUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     }
 
+    const user = auth.currentUser;
     const attemptData = {
-      studentId: auth.currentUser.uid,
-      studentEmail: auth.currentUser.email,
+      studentId: user ? user.uid : "guest",
+      studentEmail: user ? user.email : "guest@cutscene-academy.com",
       quizId: quiz.id,
       sessionId: parseInt(sessionId || "1", 10),
       attemptNumber: attemptNum,
@@ -716,7 +722,9 @@ export default function QuizPlayer() {
     };
 
     try {
-      await addDoc(collection(db, "quiz_attempts"), attemptData);
+      if (user) {
+        await addDoc(collection(db, "quiz_attempts"), attemptData);
+      }
       
       setLastAttemptResult({
         score: scorePercentage,

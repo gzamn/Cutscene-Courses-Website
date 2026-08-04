@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Play, FileText, Dumbbell, CheckCircle2, Loader2, Upload, Send, Bot, User, Star, Trash2, Lock, ShieldAlert, MessageSquare, Bell, Clock, Edit2, Save, X, HelpCircle, Trophy, Check, ChevronRight, Flame } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL } from '../firebase';
+import { db, storage, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, updateDoc, doc, setDoc, deleteDoc, getDoc, ref, uploadBytes, getDownloadURL, DEFAULT_COURSES } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
@@ -681,9 +681,16 @@ export default function VideoPlayer() {
           }
 
           setCourse({ id: courseSnap.id, ...data, chapters: chaptersData });
+        } else if (isSubscribed) {
+          const defaultC = DEFAULT_COURSES.find(c => c.id === id) || DEFAULT_COURSES[0];
+          setCourse(defaultC);
         }
       } catch (error) {
         console.error('Error fetching course:', error);
+        if (isSubscribed) {
+          const defaultC = DEFAULT_COURSES.find(c => c.id === id) || DEFAULT_COURSES[0];
+          setCourse(defaultC);
+        }
       }
     };
     fetchCourse();
@@ -757,7 +764,7 @@ export default function VideoPlayer() {
 
   // Quiz and lockout logic
   useEffect(() => {
-    if (!id || !chapter || !user) {
+    if (!id || !chapter) {
       setCheckingQuiz(false);
       return;
     }
@@ -777,9 +784,9 @@ export default function VideoPlayer() {
         let foundQuiz = null;
         if (!qSnap.empty) {
           foundQuiz = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
-        } else if (sId === 1) {
-          // Default fallback for Session 1
-          foundQuiz = { id: "quiz_session_1", title: "Session 1 Quiz" };
+        } else {
+          // Default fallback for any session so quiz button always displays
+          foundQuiz = { id: `quiz_session_${sId}`, title: `Session ${sId} Quiz` };
         }
 
         if (active) setCurrentQuiz(foundQuiz);

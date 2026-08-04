@@ -1,7 +1,33 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Instagram, Linkedin, Music, Phone, MessageCircle } from 'lucide-react';
+import { db, doc, getDoc } from '../firebase';
 
 export default function Footer() {
+  const [phone, setPhone] = useState('0793193921');
+  const [email, setEmail] = useState('cutscenedz@gmail.com');
+  const [instagram, setInstagram] = useState('https://www.instagram.com/cutscene.dz/');
+
+  useEffect(() => {
+    async function loadFooterSettings() {
+      try {
+        const snap = await getDoc(doc(db, 'config', 'settings'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.contactPhone) setPhone(data.contactPhone);
+          if (data.contactEmail) setEmail(data.contactEmail);
+          if (data.instagram) setInstagram(data.instagram);
+        }
+      } catch (e) {
+        console.warn('Error loading footer settings:', e);
+      }
+    }
+    loadFooterSettings();
+  }, []);
+
+  const cleanPhoneForWa = phone.replace(/\D/g, '');
+  const waNumber = cleanPhoneForWa.startsWith('0') ? '213' + cleanPhoneForWa.slice(1) : cleanPhoneForWa;
+
   return (
     <footer className="bg-transparent border-t border-purple-900/30 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -34,13 +60,13 @@ export default function Footer() {
             <h3 className="text-white font-semibold mb-4">Connect</h3>
             <div className="flex flex-col gap-6">
               <div className="flex gap-4">
-                <a href="mailto:cutscenedz@gmail.com" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Email">
+                <a href={`mailto:${email}`} className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Email">
                   <Mail className="w-5 h-5" />
                 </a>
-                <a href="https://wa.me/213776762266" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
+                <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="WhatsApp">
                   <MessageCircle className="w-5 h-5" />
                 </a>
-                <a href="https://www.instagram.com/cutscene.dz/" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Instagram">
+                <a href={instagram} target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="Instagram">
                   <Instagram className="w-5 h-5" />
                 </a>
                 <a href="https://www.tiktok.com/@cutscenedz" target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-900 rounded-full text-gray-400 hover:text-purple-400 transition-colors" title="TikTok">
@@ -48,9 +74,9 @@ export default function Footer() {
                 </a>
               </div>
               <div className="space-y-2 text-gray-400 text-sm">
-                <a href="tel:+213776762266" className="flex items-center gap-3 hover:text-purple-400 transition-colors">
+                <a href={`tel:${phone}`} className="flex items-center gap-3 hover:text-purple-400 transition-colors">
                   <Phone className="w-4 h-4 text-purple-500" />
-                  <span className="font-mono">+213 776 76 22 66</span>
+                  <span className="font-mono">{phone}</span>
                 </a>
               </div>
             </div>
