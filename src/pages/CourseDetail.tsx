@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck, Trash2, Trophy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc, deleteDoc } from '../firebase';
+import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc, deleteDoc, ensureDefaultStatisticsSeeded } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { RainbowButton, SparkleButton } from '../components/AnimatedButtons';
 import { useRegion } from '../context/RegionContext';
@@ -21,7 +21,36 @@ export default function CourseDetail() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
-  const [enrollmentCount, setEnrollmentCount] = useState<number>(0);
+  const [validatedCount, setValidatedCount] = useState<number>(0);
+
+  const displayLastUpdated = useMemo(() => {
+    if (!course) return 'July 2026';
+    const raw = course.lastUpdated || course.updatedAt;
+    if (!raw) return 'July 2026';
+    if (typeof raw === 'string') {
+      if (raw.match(/^[A-Za-z\u0600-\u06FF]+\s+\d{4}$/)) return raw;
+      const parsed = new Date(raw);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      }
+      return raw;
+    }
+    if (raw?.toDate && typeof raw.toDate === 'function') {
+      const parsed = raw.toDate();
+      return parsed.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    if (raw?.seconds) {
+      const parsed = new Date(raw.seconds * 1000);
+      return parsed.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    return 'July 2026';
+  }, [course]);
+
+  const displayStudentsCount = useMemo(() => {
+    if (course?.studentsCount) return String(course.studentsCount);
+    if (course?.students) return String(course.students);
+    return String(validatedCount);
+  }, [course, validatedCount]);
 
   const isVideoEditingCourse = course && (
     course.id === '1' ||
@@ -215,10 +244,30 @@ export default function CourseDetail() {
 
     fetchCourse();
 
+    // Fetch all validated enrollments to compute student statistics based on validated receipts
+    const unsubEnrollments = onSnapshot(collection(db, 'enrollments'), (snap) => {
+      const allDocs = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() as any }));
+      const validatedDocs = allDocs.filter(e => e.paid === true || e.status === 'approved');
+      
+      const courseValidated = validatedDocs.filter(e => 
+        String(e.courseId) === String(id) || e.courseId === id
+      );
+
+      if (courseValidated.length > 0) {
+        setValidatedCount(courseValidated.length);
+      } else {
+        setValidatedCount(validatedDocs.length);
+      }
+    }, (err) => {
+      console.warn("Could not fetch enrollments for student count:", err);
+    });
+
     const qReviews = query(collection(db, 'reviews'), where('courseId', '==', id));
     const unsubReviews = onSnapshot(qReviews, (snapshot) => {
       setReviews(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'reviews'));
+
+    let unsubProgress: (() => void) | undefined;
 
     // Check enrollment
     if (user) {
@@ -227,35 +276,27 @@ export default function CourseDetail() {
         if (snap.empty) {
           setIsEnrolled(false);
         } else {
-          const anyPaid = snap.docs.some(docSnap => docSnap.data().paid === true);
+          const anyPaid = snap.docs.some(docSnap => docSnap.data().paid === true || docSnap.data().status === 'approved');
           setIsEnrolled(anyPaid);
         }
       });
 
       // Listen to progress
       const qProgress = query(collection(db, 'progress'), where('uid', '==', user.uid), where('courseId', '==', id), where('completed', '==', true));
-      const unsubProgress = onSnapshot(qProgress, (snap) => {
+      unsubProgress = onSnapshot(qProgress, (snap) => {
         const completed = new Set<string>(snap.docs.map(docSnap => {
           const data = docSnap.data();
           return `${data.chapter}-${data.type}`;
         }));
         setCompletedLessons(completed);
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'progress'));
-
-      return () => {
-        unsubReviews();
-        unsubProgress();
-      };
     }
 
-    const qEnrollments = query(collection(db, 'enrollments'), where('courseId', '==', id));
-    getDocs(qEnrollments).then(snap => {
-      setEnrollmentCount(snap.size);
-    }).catch(err => {
-      console.error(err);
-    });
-
-    return () => unsubReviews();
+    return () => {
+      unsubEnrollments();
+      unsubReviews();
+      if (unsubProgress) unsubProgress();
+    };
   }, [id, user]);
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -732,13 +773,13 @@ export default function CourseDetail() {
                     <span className="text-gray-500 flex items-center gap-2">
                       <Calendar className="w-4 h-4" /> {t('course.lastUpdated')}
                     </span>
-                    <span className="text-gray-300">March 2024</span>
+                    <span className="text-gray-300 font-medium">{displayLastUpdated}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500 flex items-center gap-2">
                       <Users className="w-4 h-4" /> {t('stats.students')}
                     </span>
-                    <span className="text-gray-300">{enrollmentCount}</span>
+                    <span className="text-gray-300 font-medium">{displayStudentsCount}</span>
                   </div>
                 </div>
 
