@@ -1,48 +1,8 @@
 import express from "express";
 import path from "path";
-import fs from "fs";
 import axios from "axios";
 import crypto from "crypto";
 import "dotenv/config";
-import { getSeoMetadata, buildHtmlMetaTags } from "./src/lib/seo";
-
-// In-memory cache for Firestore settings and courses in server.ts for fast SSR SEO responses
-let cachedSettings: any = null;
-let cachedCourses: any[] = [];
-let lastFetchTime = 0;
-const CACHE_TTL_MS = 30000; // 30-second TTL cache
-
-async function getCachedSettingsAndCourses() {
-  const now = Date.now();
-  if (cachedSettings && (now - lastFetchTime < CACHE_TTL_MS)) {
-    return { settings: cachedSettings, courses: cachedCourses };
-  }
-  try {
-    const { getDocs, collection } = await import('firebase/firestore');
-    const { db } = await import('./src/firebase');
-
-    const [settingsSnap, coursesSnap] = await Promise.all([
-      getDocs(collection(db, 'config')).catch(() => null),
-      getDocs(collection(db, 'courses')).catch(() => null)
-    ]);
-
-    if (settingsSnap) {
-      const settingsDoc = settingsSnap.docs.find(d => d.id === 'settings');
-      if (settingsDoc) {
-        cachedSettings = settingsDoc.data();
-      }
-    }
-
-    if (coursesSnap && coursesSnap.docs.length > 0) {
-      cachedCourses = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }
-
-    lastFetchTime = now;
-  } catch (err) {
-    console.warn('Failed fetching Firestore SEO settings in server.ts:', err);
-  }
-  return { settings: cachedSettings, courses: cachedCourses };
-}
 
 async function startServer() {
   const app = express();
@@ -224,11 +184,6 @@ async function startServer() {
     res.type("html").send("google-site-verification: google6a12a3d2ac0ead47.html");
   });
 
-  // Free trial session redirect
-  app.get(["/free-trial-session", "/free-trial", "/free-session"], (_req, res) => {
-    res.redirect("/courses/1/video/1/session");
-  });
-
   // XML Sitemap for search engines & Google Search Console
   app.get("/sitemap.xml", (_req, res) => {
     const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -320,81 +275,25 @@ async function startServer() {
     res.type("application/xml").send(sitemapXml);
   });
 
-  // Vite middleware & Dynamic SEO HTML injection
+  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-
-    // Intercept HTML GET requests in development to pre-render Open Graph & Twitter meta tags
-    app.use(async (req, res, next) => {
-      if (req.method !== "GET" || req.path.startsWith("/api") || path.extname(req.path)) {
-        return next();
-      }
-      try {
-        const indexPath = path.join(process.cwd(), "index.html");
-        let template = fs.readFileSync(indexPath, "utf-8");
-        template = await vite.transformIndexHtml(req.originalUrl || req.url, template);
-
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const hostHeader = req.headers.host || "cutscene.vercel.app";
-        const hostUrl = `${protocol}://${hostHeader}`;
-
-        const { settings, courses } = await getCachedSettingsAndCourses();
-        const seo = getSeoMetadata(req.path, hostUrl, settings, courses);
-        const seoTags = buildHtmlMetaTags(seo);
-
-        const html = template.replace(/<title>.*?<\/title>/i, seoTags);
-        return res.status(200).set({ "Content-Type": "text/html" }).send(html);
-      } catch (e) {
-        vite.ssrFixStacktrace(e as Error);
-        next(e);
-      }
-    });
-
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath, { index: false }));
-
-    // Production HTML fallback handler: Returns pre-rendered dynamic SEO meta tags in initial HTML response
-    app.get("*all", async (req, res, next) => {
-      if (req.path.startsWith("/api") || (path.extname(req.path) && path.extname(req.path) !== ".html")) {
-        return next();
-      }
-      try {
-        const indexPath = path.join(distPath, "index.html");
-        if (!fs.existsSync(indexPath)) {
-          return res.status(404).send("dist/index.html not found");
-        }
-        let template = fs.readFileSync(indexPath, "utf-8");
-
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const hostHeader = req.headers.host || "cutscene.vercel.app";
-        const hostUrl = `${protocol}://${hostHeader}`;
-
-        const { settings, courses } = await getCachedSettingsAndCourses();
-        const seo = getSeoMetadata(req.path, hostUrl, settings, courses);
-        const seoTags = buildHtmlMetaTags(seo);
-
-        const html = template.replace(/<title>.*?<\/title>/i, seoTags);
-        return res.status(200).set({ "Content-Type": "text/html" }).send(html);
-      } catch (e) {
-        next(e);
-      }
+    app.use(express.static(distPath));
+    app.get("*all", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
-
-  return app;
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
-const appPromise = startServer();
-export default appPromise;
+startServer();

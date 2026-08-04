@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, MessageCircle, Phone, ArrowRight, HelpCircle, Send, CheckCircle2, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { db, doc, getDoc } from '../firebase';
 
 const faqs = [
   {
@@ -108,24 +107,6 @@ function FAQItem({ item, lang }: { item: typeof faqs[0]; lang: string }) {
 
 export default function Support() {
   const { t, language } = useLanguage();
-  const [contactPhone, setContactPhone] = useState<string>('0793193921');
-  const [contactEmail, setContactEmail] = useState<string>('cutscenedz@gmail.com');
-
-  useEffect(() => {
-    async function loadSupportSettings() {
-      try {
-        const snap = await getDoc(doc(db, 'config', 'settings'));
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.contactPhone) setContactPhone(data.contactPhone);
-          if (data.contactEmail) setContactEmail(data.contactEmail);
-        }
-      } catch (e) {
-        console.warn('Error fetching support settings:', e);
-      }
-    }
-    loadSupportSettings();
-  }, []);
 
   const faqTitles = {
     en: { title: "Frequently Asked Questions", desc: "Find answers to the most common queries about Cutscene Academy, our learning structure, and mentorship support." },
@@ -135,33 +116,30 @@ export default function Support() {
 
   const currentFaqHeader = faqTitles[language as keyof typeof faqTitles] || faqTitles.en;
 
-  const cleanPhoneForWa = contactPhone.replace(/\D/g, '');
-  const waNumber = cleanPhoneForWa.startsWith('0') ? '213' + cleanPhoneForWa.slice(1) : cleanPhoneForWa;
-
   const supportItems = [
     { 
       title: t('support.emailTitle'), 
       desc: t('support.emailDesc'), 
-      contact: contactEmail, 
+      contact: 'cutscenedz@gmail.com', 
       icon: Mail,
       action: t('support.emailAction'),
-      url: `mailto:${contactEmail}`
+      url: 'mailto:cutscenedz@gmail.com'
     },
     { 
       title: t('support.whatsappTitle'), 
       desc: t('support.whatsappDesc'), 
-      contact: contactPhone, 
+      contact: '+213 776 76 22 66', 
       icon: MessageCircle,
       action: t('support.whatsappAction'),
-      url: `https://wa.me/${waNumber}`
+      url: 'https://wa.me/213776762266'
     },
     { 
       title: t('support.phoneTitle'), 
       desc: t('support.phoneDesc'), 
-      contact: contactPhone, 
+      contact: '+213 776 76 22 66', 
       icon: Phone,
       action: t('support.phoneAction'),
-      url: `tel:${contactPhone}`
+      url: 'tel:+213776762266'
     }
   ];
 

@@ -20,7 +20,6 @@ import TermsAndConditions from './pages/TermsAndConditions';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CompleteOrder from './pages/CompleteOrder';
 import ScrollToTop from './components/ScrollToTop';
-import { SEO } from './components/SEO';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { RegionProvider } from './context/RegionContext';
@@ -48,9 +47,7 @@ function AnimatedRoutes() {
   const location = useLocation();
   
   return (
-    <>
-      <SEO />
-      <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait">
       <motion.div
         key={location.pathname}
         initial={{ opacity: 0, y: 12 }}
@@ -78,15 +75,11 @@ function AnimatedRoutes() {
           <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/complete-order" element={<CompleteOrder />} />
-          <Route path="/free-trial-session" element={<Navigate to="/courses/1/video/1/session" replace />} />
-          <Route path="/free-trial" element={<Navigate to="/courses/1/video/1/session" replace />} />
-          <Route path="/free-session" element={<Navigate to="/courses/1/video/1/session" replace />} />
           {/* Catch-all route to redirect back to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </motion.div>
     </AnimatePresence>
-    </>
   );
 }
 

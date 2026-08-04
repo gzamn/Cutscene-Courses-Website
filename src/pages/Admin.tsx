@@ -7,7 +7,7 @@ import {
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
   Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
   Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw, Key, Lock,
-  Flame, Upload, Sliders
+  Flame, Upload
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -97,15 +97,9 @@ export default function AdminPanel() {
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
     contactEmail: 'contact@cutscene-academy.com',
-    contactPhone: '0793193921',
     instagram: 'https://www.instagram.com/cutscene.dz/',
     youtube: 'https://youtube.com/cutscene',
     discord: 'https://discord.gg/cutscene',
-    seoTitle: 'Cutscene | Master Video Editing & Visual Storytelling',
-    seoDescription: 'Learn professional video editing, color grading, VFX, sound design, and post-production through hands-on masterclasses.',
-    seoImage: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=1200&auto=format&fit=crop',
-    canonicalBase: 'https://cutscene.vercel.app',
-    pageSeoMap: {},
     // Dynamic Coming Soon Parameters
     isSoftwaresComingSoon: true,
     softwaresComingSoonText: 'We are preparing professional software applications, editors, and helper tool configuration bundles. Stay tuned!',
@@ -135,9 +129,6 @@ export default function AdminPanel() {
   const [shippedAccountsLoading, setShippedAccountsLoading] = useState(false);
   const [accountEmails, setAccountEmails] = useState<{[key: string]: string}>({});
   const [accountPasswords, setAccountPasswords] = useState<{[key: string]: string}>({});
-
-  // Active SEO Page Route selector state
-  const [activeSeoPageRoute, setActiveSeoPageRoute] = useState<string>('/');
 
   // Direct Image upload handling states
   const [promoUploading, setPromoUploading] = useState(false);
@@ -5712,208 +5703,6 @@ export default function AdminPanel() {
                       onChange={(e) => setWebsiteSettings({ ...websiteSettings, discord: e.target.value })}
                       className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Central Contact Phone & WhatsApp Number</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g., 0793193921"
-                      value={websiteSettings.contactPhone || ''}
-                      onChange={(e) => setWebsiteSettings({ ...websiteSettings, contactPhone: e.target.value })}
-                      className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
-                    />
-                  </div>
-
-                  {/* GLOBAL SEO & OPEN GRAPH META CONSOLE */}
-                  <div className="pt-6 border-t border-purple-950/20 space-y-5">
-                    <div>
-                      <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-                        <Globe className="w-3.5 h-3.5" />
-                        GLOBAL SEO & SOCIAL MEDIA PREVIEW CONSOLE
-                      </h3>
-                      <p className="text-[10px] text-gray-500 leading-normal">
-                        Control how your website appears on search engines, WhatsApp, Facebook, Discord, X (Twitter), and Telegram sharing cards:
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Global Default SEO Title</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Cutscene | Master Video Editing & Visual Storytelling"
-                          value={websiteSettings.seoTitle || ''}
-                          onChange={(e) => setWebsiteSettings({ ...websiteSettings, seoTitle: e.target.value })}
-                          className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Canonical Base URL Domain</label>
-                        <input
-                          type="url"
-                          placeholder="https://cutscene.vercel.app"
-                          value={websiteSettings.canonicalBase || ''}
-                          onChange={(e) => setWebsiteSettings({ ...websiteSettings, canonicalBase: e.target.value })}
-                          className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Global Default SEO Description</label>
-                      <textarea
-                        rows={2}
-                        placeholder="Default search engine and social media card summary description..."
-                        value={websiteSettings.seoDescription || ''}
-                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, seoDescription: e.target.value })}
-                        className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Global Default Social Preview Image (OG / Twitter Card Image URL)</label>
-                      <input
-                        type="url"
-                        placeholder="https://... (1200x630px recommended)"
-                        value={websiteSettings.seoImage || ''}
-                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, seoImage: e.target.value })}
-                        className="w-full bg-zinc-950 border border-purple-950/45 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
-                      />
-                    </div>
-
-                    {/* LIVE SOCIAL CARD PREVIEW BOX */}
-                    <div className="bg-zinc-950/80 border border-purple-900/30 rounded-2xl p-4 space-y-2">
-                      <div className="flex items-center justify-between text-[10px] text-purple-400 font-bold uppercase tracking-wider">
-                        <span>Live Social Share Card Simulation</span>
-                        <span className="text-gray-500 font-mono">1200x630 OpenGraph</span>
-                      </div>
-                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden max-w-lg">
-                        <div className="h-40 bg-zinc-950 relative overflow-hidden flex items-center justify-center">
-                          {websiteSettings.seoImage ? (
-                            <img src={websiteSettings.seoImage} alt="SEO Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xs text-gray-600 italic">No image URL configured</span>
-                          )}
-                        </div>
-                        <div className="p-3 bg-zinc-900/90 space-y-1">
-                          <span className="text-[9px] font-mono text-purple-400 uppercase tracking-widest block">CUTSCENE.VERCEL.APP</span>
-                          <h4 className="text-xs font-bold text-white truncate">{websiteSettings.seoTitle || 'Cutscene | Master Video Editing'}</h4>
-                          <p className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">{websiteSettings.seoDescription || 'Learn professional video editing...'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* PAGE-SPECIFIC SEO OVERRIDES EDITOR */}
-                    <div className="pt-4 border-t border-purple-950/20 space-y-4">
-                      <div>
-                        <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                          <Sliders className="w-3.5 h-3.5 text-purple-400" />
-                          PAGE-SPECIFIC SEO META OVERRIDES
-                        </h4>
-                        <p className="text-[10px] text-gray-500">Configure unique Meta Titles, Descriptions, and OpenGraph images for specific website pages:</p>
-                      </div>
-
-                      {/* Route Selection Tabs */}
-                      <div className="flex flex-wrap gap-1.5 bg-zinc-950/60 p-2 rounded-xl border border-purple-950/20">
-                        {[
-                          { route: '/', label: 'Home (/)' },
-                          { route: '/courses', label: 'Courses (/courses)' },
-                          { route: '/store', label: 'Store (/store)' },
-                          { route: '/resources', label: 'Resources (/resources)' },
-                          { route: '/student-work', label: 'Showcase (/student-work)' },
-                          { route: '/support', label: 'Support (/support)' },
-                          { route: '/login', label: 'Sign In (/login)' },
-                          { route: '/payment', label: 'Checkout (/payment)' },
-                          { route: '/privacy-policy', label: 'Privacy Policy (/privacy-policy)' },
-                          { route: '/terms-and-conditions', label: 'Terms (/terms)' },
-                        ].map((item) => (
-                          <button
-                            key={item.route}
-                            type="button"
-                            onClick={() => setActiveSeoPageRoute(item.route)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                              activeSeoPageRoute === item.route
-                                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                                : 'bg-zinc-900/80 text-gray-400 hover:text-white hover:bg-zinc-800'
-                            }`}
-                          >
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Active Route Override Form */}
-                      <div className="bg-zinc-950/50 border border-purple-950/30 p-4 rounded-xl space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-widest">
-                            Editing Route: {activeSeoPageRoute}
-                          </span>
-                          {websiteSettings.pageSeoMap?.[activeSeoPageRoute] ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newMap = { ...(websiteSettings.pageSeoMap || {}) };
-                                delete newMap[activeSeoPageRoute];
-                                setWebsiteSettings({ ...websiteSettings, pageSeoMap: newMap });
-                              }}
-                              className="text-[9px] text-red-400 hover:text-red-300 underline font-mono cursor-pointer"
-                            >
-                              Reset to Default
-                            </button>
-                          ) : (
-                            <span className="text-[9px] text-gray-500 italic">Using Global Defaults</span>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase text-gray-400 mb-1">Custom Title for {activeSeoPageRoute}</label>
-                          <input
-                            type="text"
-                            placeholder="Page specific meta title..."
-                            value={websiteSettings.pageSeoMap?.[activeSeoPageRoute]?.title || ''}
-                            onChange={(e) => {
-                              const newMap = { ...(websiteSettings.pageSeoMap || {}) };
-                              newMap[activeSeoPageRoute] = { ...(newMap[activeSeoPageRoute] || {}), title: e.target.value };
-                              setWebsiteSettings({ ...websiteSettings, pageSeoMap: newMap });
-                            }}
-                            className="w-full bg-zinc-950 border border-purple-950/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase text-gray-400 mb-1">Custom Description for {activeSeoPageRoute}</label>
-                          <textarea
-                            rows={2}
-                            placeholder="Page specific meta description..."
-                            value={websiteSettings.pageSeoMap?.[activeSeoPageRoute]?.description || ''}
-                            onChange={(e) => {
-                              const newMap = { ...(websiteSettings.pageSeoMap || {}) };
-                              newMap[activeSeoPageRoute] = { ...(newMap[activeSeoPageRoute] || {}), description: e.target.value };
-                              setWebsiteSettings({ ...websiteSettings, pageSeoMap: newMap });
-                            }}
-                            className="w-full bg-zinc-950 border border-purple-950/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase text-gray-400 mb-1">Custom Social Preview Image for {activeSeoPageRoute}</label>
-                          <input
-                            type="url"
-                            placeholder="https://... (page social image)"
-                            value={websiteSettings.pageSeoMap?.[activeSeoPageRoute]?.image || ''}
-                            onChange={(e) => {
-                              const newMap = { ...(websiteSettings.pageSeoMap || {}) };
-                              newMap[activeSeoPageRoute] = { ...(newMap[activeSeoPageRoute] || {}), image: e.target.value };
-                              setWebsiteSettings({ ...websiteSettings, pageSeoMap: newMap });
-                            }}
-                            className="w-full bg-zinc-950 border border-purple-950/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
                   </div>
 
                   {/* COMING SOON OVERRIDES HUB */}

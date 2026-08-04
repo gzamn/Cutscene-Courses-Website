@@ -316,19 +316,6 @@ export const DEFAULT_COURSES = [
     },
     isComingSoon: false,
     formatAvailability: ["recorded"],
-    video_url: "https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1?autoplay=true&loop=true&muted=true&preload=true&responsive=true",
-    chapters: [
-      {
-        id: "ch1",
-        position: 1,
-        title: "Introduction & Montage Basics",
-        session_url_1: "https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1",
-        session_name_1: "Introduction & Interface Essentials",
-        sessions: [
-          { url: "https://iframe.mediadelivery.net/embed/674907/2c8123ea-b758-4743-8e78-50f577c890a1", name: "Introduction & Interface Essentials" }
-        ]
-      }
-    ]
   },
   {
     id: "2",
