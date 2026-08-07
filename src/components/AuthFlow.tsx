@@ -4,7 +4,10 @@ import {
   FacebookAuthProvider, 
   OAuthProvider,
   signInWithPopup,
-  sendEmailVerification
+  sendEmailVerification,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { 
   db, 
@@ -32,7 +35,9 @@ import {
   ShieldCheck, 
   Check, 
   Smartphone, 
-  AlertCircle 
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { SparkleButton } from './AnimatedButtons';
@@ -65,6 +70,30 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
   // Unique identifier storage for OAuth setups
   const [tempOAuthUser, setTempOAuthUser] = useState<any>(null);
 
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Restore remembered state/email if available
+  useEffect(() => {
+    const savedRemember = localStorage.getItem('cutscene_remember_me');
+    if (savedRemember !== null) {
+      setRememberMe(savedRemember === 'true');
+    }
+    const savedEmail = localStorage.getItem('cutscene_remembered_email');
+    if (savedEmail) {
+      setFormData(prev => ({ ...prev, email: savedEmail }));
+    }
+  }, []);
+
+  const applyPersistence = async () => {
+    try {
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+    } catch (err) {
+      console.warn('Could not set auth persistence:', err);
+    }
+  };
+
   // Check if username is already taken in the DB
   const isUsernameAvailable = async (usernameToCheck: string): Promise<boolean> => {
     const trimmed = usernameToCheck.trim().toLowerCase();
@@ -86,6 +115,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
     setError('');
     setInfoMessage('');
     try {
+      await applyPersistence();
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -136,6 +166,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
     setError('');
     setInfoMessage('');
     try {
+      await applyPersistence();
       const provider = new FacebookAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -183,6 +214,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
     setError('');
     setInfoMessage('');
     try {
+      await applyPersistence();
       const provider = new OAuthProvider('apple.com');
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -245,21 +277,17 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
     if (!isSignUp) {
       // --- Standard SIGN IN flow ---
       try {
-        const userCredential = await loginWithEmail(formData.email, formData.password);
-        
-        if (!userCredential.emailVerified) {
-          try {
-            await sendEmailVerification(userCredential);
-            setInfoMessage('Verification email sent to ' + userCredential.email + '! Please check your inbox.');
-          } catch (verifErr: any) {
-            console.error('Email verification send failed:', verifErr);
-            setError('Verification required, please click resend to try again.');
-          }
-          setStep('verify_email');
-          setIsLoading(false);
-          return;
+        await applyPersistence();
+        if (rememberMe) {
+          localStorage.setItem('cutscene_remember_me', 'true');
+          localStorage.setItem('cutscene_remembered_email', formData.email);
+        } else {
+          localStorage.setItem('cutscene_remember_me', 'false');
+          localStorage.removeItem('cutscene_remembered_email');
         }
 
+        const userCredential = await loginWithEmail(formData.email, formData.password);
+        
         const userDoc = await getDoc(doc(db, 'users', userCredential.uid));
 
         if (userDoc.exists()) {
@@ -318,6 +346,15 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
     }
 
     try {
+      await applyPersistence();
+      if (rememberMe) {
+        localStorage.setItem('cutscene_remember_me', 'true');
+        localStorage.setItem('cutscene_remembered_email', formData.email);
+      } else {
+        localStorage.setItem('cutscene_remember_me', 'false');
+        localStorage.removeItem('cutscene_remembered_email');
+      }
+
       // Lock check unique username
       const available = await isUsernameAvailable(usernameClean);
       if (!available) {
@@ -343,16 +380,7 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      // Send verification email
-      try {
-        await sendEmailVerification(user);
-        setInfoMessage('A verification link has been sent to ' + formData.email + '. Please check your inbox.');
-      } catch (verifErr: any) {
-        console.error('Verification email failed during sign up:', verifErr);
-        setError('Account created, but verification email failed to send. You can resend it shortly.');
-      }
-
-      setStep('verify_email');
+      onSuccess();
     } catch (err: any) {
       console.error('Sign-up failed:', err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -528,28 +556,74 @@ export default function AuthFlow({ onSuccess, titleOverride, subtitleOverride, i
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Password"
-                  className="w-full bg-black border border-purple-900/30 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  className="w-full bg-black border border-purple-900/30 rounded-2xl pl-12 pr-12 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors p-1"
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5 text-purple-400" />
+                  ) : (
+                    <Eye className="w-5 h-5 text-gray-500 hover:text-gray-300" />
+                  )}
+                </button>
               </div>
 
               {isSignUp && (
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     required
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     placeholder="Confirm Password"
-                    className="w-full bg-black border border-purple-900/30 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    className="w-full bg-black border border-purple-900/30 rounded-2xl pl-12 pr-12 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors p-1"
+                    tabIndex={-1}
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-5 h-5 text-purple-400" />
+                    ) : (
+                      <Eye className="w-5 h-5 text-gray-500 hover:text-gray-300" />
+                    )}
+                  </button>
                 </div>
               )}
+
+              {/* Remember Me Checkbox */}
+              <div className="flex items-center justify-between text-xs pt-1 pb-1">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none group">
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-5 h-5 bg-black border border-purple-900/40 rounded-lg peer-checked:bg-purple-600 peer-checked:border-purple-500 group-hover:border-purple-500/80 transition-all flex items-center justify-center shadow-inner">
+                      {rememberMe && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                    </div>
+                  </div>
+                  <span className="text-gray-300 group-hover:text-white transition-colors font-medium">
+                    {t('auth.rememberMe') || (language === 'ar' ? 'تذكرني' : language === 'fr' ? 'Se souvenir de moi' : 'Remember me')}
+                  </span>
+                </label>
+              </div>
 
               {!isSignUp ? (
                 <SparkleButton

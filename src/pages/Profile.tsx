@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, auth, doc, updateDoc, ref, uploadBytes, getDownloadURL, updateProfile, updateEmail, updatePassword } from '../firebase';
-import { User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2, Upload } from 'lucide-react';
+import { User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2, Upload, Eye, EyeOff } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 
@@ -15,6 +15,8 @@ export default function Profile() {
   const [email, setEmail] = useState(user?.email || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -266,23 +268,51 @@ export default function Profile() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">{t('profile.password')}</label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full bg-black border border-white/5 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                        placeholder="••••••••"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full bg-black border border-white/5 rounded-2xl py-4 pl-6 pr-12 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors p-1"
+                          tabIndex={-1}
+                        >
+                          {showNewPassword ? (
+                            <EyeOff className="w-5 h-5 text-purple-400" />
+                          ) : (
+                            <Eye className="w-5 h-5 text-gray-500 hover:text-gray-300" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">{t('profile.confirmPassword')}</label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full bg-black border border-white/5 rounded-2xl py-4 px-6 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                        placeholder="••••••••"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full bg-black border border-white/5 rounded-2xl py-4 pl-6 pr-12 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors p-1"
+                          tabIndex={-1}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-5 h-5 text-purple-400" />
+                          ) : (
+                            <Eye className="w-5 h-5 text-gray-500 hover:text-gray-300" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <p className="text-[10px] text-gray-500 italic">Leave blank to keep current password.</p>
