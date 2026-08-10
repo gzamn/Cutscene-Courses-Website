@@ -35,63 +35,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currUser) {
         const userRef = doc(db, 'users', currUser.uid);
         unsubProfile = onSnapshot(userRef, async (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            if (!data.activePlan) {
-              const updatedProfile = {
-                ...data,
+          try {
+            if (snap.exists()) {
+              const data = snap.data();
+              if (!data.activePlan) {
+                const updatedProfile = {
+                  ...data,
+                  activePlan: 'Free Plan',
+                  activePlanPrice: '0 DA',
+                  hasPlan: true,
+                  subscribed: false,
+                };
+                setUserProfile(updatedProfile);
+                try {
+                  await setDoc(userRef, {
+                    activePlan: 'Free Plan',
+                    activePlanPrice: '0 DA',
+                    hasPlan: true,
+                    subscribed: false,
+                  }, { merge: true });
+                } catch (e) {
+                  console.error("Failed to persist Free Plan to Firestore: ", e);
+                }
+              } else {
+                // Ensure aminerouabhia14@gmail.com is ALWAYS forced to admin role
+                const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
+                if (isAdminEmail && data.role !== 'admin') {
+                  const adminMergedData = { ...data, role: 'admin' };
+                  setUserProfile(adminMergedData);
+                  try {
+                    await setDoc(userRef, { role: 'admin' }, { merge: true });
+                  } catch (e) {
+                    console.error("Failed to force admin role in Firestore:", e);
+                  }
+                } else {
+                  setUserProfile(data);
+                }
+              }
+            } else {
+              // Profile doc might not exist yet during sign-up
+              const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
+              const defaultProfile = {
+                uid: currUser.uid,
+                email: currUser.email,
+                displayName: currUser.displayName || '',
+                role: isAdminEmail ? 'admin' : 'student',
                 activePlan: 'Free Plan',
                 activePlanPrice: '0 DA',
                 hasPlan: true,
                 subscribed: false,
               };
-              setUserProfile(updatedProfile);
+              setUserProfile(defaultProfile);
               try {
-                await setDoc(userRef, {
-                  activePlan: 'Free Plan',
-                  activePlanPrice: '0 DA',
-                  hasPlan: true,
-                  subscribed: false,
-                }, { merge: true });
+                await setDoc(userRef, defaultProfile, { merge: true });
               } catch (e) {
-                console.error("Failed to persist Free Plan to Firestore: ", e);
-              }
-            } else {
-              // Ensure aminerouabhia14@gmail.com is ALWAYS forced to admin role
-              const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
-              if (isAdminEmail && data.role !== 'admin') {
-                const adminMergedData = { ...data, role: 'admin' };
-                setUserProfile(adminMergedData);
-                try {
-                  await setDoc(userRef, { role: 'admin' }, { merge: true });
-                } catch (e) {
-                  console.error("Failed to force admin role in Firestore:", e);
-                }
-              } else {
-                setUserProfile(data);
+                console.error("Failed to initialize profile in Firestore: ", e);
               }
             }
-          } else {
-            // Profile doc might not exist yet during sign-up
-            const isAdminEmail = currUser.email && currUser.email.toLowerCase() === 'aminerouabhia14@gmail.com';
-            const defaultProfile = {
-              uid: currUser.uid,
-              email: currUser.email,
-              displayName: currUser.displayName || '',
-              role: isAdminEmail ? 'admin' : 'student',
-              activePlan: 'Free Plan',
-              activePlanPrice: '0 DA',
-              hasPlan: true,
-              subscribed: false,
-            };
-            setUserProfile(defaultProfile);
-            try {
-              await setDoc(userRef, defaultProfile, { merge: true });
-            } catch (e) {
-              console.error("Failed to initialize profile in Firestore: ", e);
-            }
+          } catch (err) {
+            console.error("Unexpected error in onSnapshot profile listener:", err);
+          } finally {
+            setLoading(false);
           }
-          setLoading(false);
         }, (error) => {
           console.error("Error loading user profile:", error);
           // Set a fallback profile to prevent the UI from blocking if firestore read fails

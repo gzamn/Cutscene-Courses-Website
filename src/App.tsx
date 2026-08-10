@@ -27,6 +27,7 @@ import { RegionProvider } from './context/RegionContext';
 import { ToastProvider } from './context/ToastContext';
 import { useEffect } from 'react';
 import { runOneTimeMigration } from './firebase';
+import ErrorBoundary from './components/ErrorBoundary';
 import { motion, AnimatePresence } from 'motion/react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -116,7 +117,9 @@ function App() {
               <div className="relative z-10">
                 <Navbar />
                 <main>
-                  <AnimatedRoutes />
+                  <ErrorBoundary>
+                    <AnimatedRoutes />
+                  </ErrorBoundary>
                 </main>
                 <Footer />
               </div>

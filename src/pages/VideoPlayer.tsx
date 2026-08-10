@@ -11,11 +11,12 @@ import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 const getLessonVideoUrl = (course: any, chapterStr: string, typeStr: string) => {
   if (!course) return '';
   
+  const titleLower = (course.title || '').toLowerCase();
   const isVideoEditing = course.id === '1' ||
-    course.title?.toLowerCase().includes('video editing') ||
-    course.title?.toLowerCase().includes('video-editing') ||
-    course.title?.toLowerCase().includes('مونتاج') ||
-    course.title?.toLowerCase().includes('cinematic');
+    titleLower.includes('video editing') ||
+    titleLower.includes('video-editing') ||
+    titleLower.includes('مونتاج') ||
+    titleLower.includes('cinematic');
 
   if (isVideoEditing && course.chapters && Array.isArray(course.chapters)) {
     if (typeStr === 'exercise') {
@@ -204,12 +205,13 @@ export default function VideoPlayer() {
     setVideoCurrentTime(seekSeconds);
   };
 
+  const courseTitleLower = (course?.title || '').toLowerCase();
   const isVideoEditingCourse = course && (
     course.id === '1' ||
-    course.title?.toLowerCase().includes('video editing') ||
-    course.title?.toLowerCase().includes('video-editing') ||
-    course.title?.toLowerCase().includes('مونتاج') ||
-    course.title?.toLowerCase().includes('cinematic')
+    courseTitleLower.includes('video editing') ||
+    courseTitleLower.includes('video-editing') ||
+    courseTitleLower.includes('مونتاج') ||
+    courseTitleLower.includes('cinematic')
   );
 
   const orderedLessons = useMemo(() => {

@@ -52,12 +52,13 @@ export default function CourseDetail() {
     return String(validatedCount);
   }, [course, validatedCount]);
 
+  const courseTitleLower = (course?.title || '').toLowerCase();
   const isVideoEditingCourse = course && (
     course.id === '1' ||
-    course.title?.toLowerCase().includes('video editing') ||
-    course.title?.toLowerCase().includes('video-editing') ||
-    course.title?.toLowerCase().includes('مونتاج') ||
-    course.title?.toLowerCase().includes('cinematic')
+    courseTitleLower.includes('video editing') ||
+    courseTitleLower.includes('video-editing') ||
+    courseTitleLower.includes('مونتاج') ||
+    courseTitleLower.includes('cinematic')
   );
 
   const getFlatLessons = () => {

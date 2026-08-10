@@ -52,11 +52,11 @@ export default function ProgressAnalytics({
       return null;
     }
   };
-  // Filter for valid approved/paid enrollments
-  const activeEnrollments = enrollments.filter(e => e.paid || e.status === 'approved');
+  // Filter for valid approved/paid or pending enrollments
+  const activeEnrollments = (enrollments || []).filter(e => e && (e.paid || e.status === 'approved' || e.status === 'pending_verification' || e.receiptUrl));
   
   const enrolledCourses = activeEnrollments
-    .map(e => courses.find(c => c.id === e.courseId))
+    .map(e => (courses || []).find(c => c && c.id === e.courseId))
     .filter(Boolean);
 
   const [selectedCourseId, setSelectedCourseId] = useState<string>(
@@ -65,21 +65,18 @@ export default function ProgressAnalytics({
 
   const [chartType, setChartType] = useState<'modules' | 'sessions'>('modules');
 
-  if (enrolledCourses.length === 0) {
-    return null;
-  }
-
   // Update selected course if the current one is no longer valid
   const currentCourse = enrolledCourses.find(c => c.id === selectedCourseId) || enrolledCourses[0];
   const courseId = currentCourse?.id;
 
   // Determine course-specific layouts
+  const courseTitleLower = (currentCourse?.title || '').toLowerCase();
   const isVideoEditing = currentCourse && (
     currentCourse.id === '1' ||
-    currentCourse.title?.toLowerCase().includes('video editing') ||
-    currentCourse.title?.toLowerCase().includes('video-editing') ||
-    currentCourse.title?.toLowerCase().includes('مونتاج') ||
-    currentCourse.title?.toLowerCase().includes('cinematic')
+    courseTitleLower.includes('video editing') ||
+    courseTitleLower.includes('video-editing') ||
+    courseTitleLower.includes('مونتاج') ||
+    courseTitleLower.includes('cinematic')
   );
 
   let totalSessionsCount = 0;
@@ -99,14 +96,14 @@ export default function ProgressAnalytics({
   }
 
   // Fetch the actual completed counts
-  const completedSessionsCount = progress.filter(p => 
-    p.courseId === courseId && 
+  const completedSessionsCount = (progress || []).filter(p => 
+    p && p.courseId === courseId && 
     (p.type === 'session' || p.type?.startsWith('session_')) && 
     p.completed
   ).length;
 
-  const completedHomeworksCount = progress.filter(p => 
-    p.courseId === courseId && 
+  const completedHomeworksCount = (progress || []).filter(p => 
+    p && p.courseId === courseId && 
     p.type === 'homework' && 
     p.completed
   ).length;
@@ -119,7 +116,8 @@ export default function ProgressAnalytics({
 
   // Course specific quizzes
   const courseQuizzes = useMemo(() => {
-    return quizzes.filter(q => {
+    return (quizzes || []).filter(q => {
+      if (!q) return false;
       if (courseId === '1') {
         return q.status === 'published' && q.sessionId >= 1 && q.sessionId <= 9;
       }
@@ -129,14 +127,14 @@ export default function ProgressAnalytics({
 
   // Quiz attempts for the current course's quizzes
   const courseQuizAttempts = useMemo(() => {
-    return quizAttempts.filter(attempt => 
-      courseQuizzes.some(q => q.id === attempt.quizId)
+    return (quizAttempts || []).filter(attempt => 
+      attempt && courseQuizzes.some(q => q.id === attempt.quizId)
     );
   }, [quizAttempts, courseQuizzes]);
 
   const passedQuizzesCount = useMemo(() => {
     return courseQuizzes.filter(q => 
-      quizAttempts.some(attempt => attempt.quizId === q.id && attempt.passed)
+      (quizAttempts || []).some(attempt => attempt && attempt.quizId === q.id && attempt.passed)
     ).length;
   }, [courseQuizzes, quizAttempts]);
 
@@ -154,21 +152,20 @@ export default function ProgressAnalytics({
   const last7DaysActivity = useMemo(() => {
     const activity = [];
     const studyDates = new Set<string>();
-    progress.forEach((p: any) => {
-      if (p.completed && p.updatedAt) {
+    (progress || []).forEach((p: any) => {
+      if (p && p.completed && p.updatedAt) {
         const dStr = getLocalDateString(p.updatedAt);
         if (dStr) studyDates.add(dStr);
       }
     });
-    quizAttempts.forEach((q: any) => {
-      if (q.submittedAt) {
+    (quizAttempts || []).forEach((q: any) => {
+      if (q && q.submittedAt) {
         const dStr = getLocalDateString(q.submittedAt);
         if (dStr) studyDates.add(dStr);
       }
     });
 
     const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayLabelsFr = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -188,6 +185,21 @@ export default function ProgressAnalytics({
     }
     return activity;
   }, [progress, quizAttempts]);
+
+  // Early return fallback ONLY AFTER all hooks have executed unconditionally
+  if (enrolledCourses.length === 0) {
+    return (
+      <section className="bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 text-center space-y-4">
+        <div className="w-12 h-12 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center mx-auto text-purple-400">
+          <BookOpen className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Course Progress Analytics</h2>
+        <p className="text-gray-400 text-xs max-w-md mx-auto leading-relaxed">
+          Enroll in an academy course to unlock interactive progress analytics, study streak tracking, and session completion metrics.
+        </p>
+      </section>
+    );
+  }
 
   // Data for Module Type chart
   const moduleData = [];
@@ -415,9 +427,10 @@ export default function ProgressAnalytics({
               <Bar dataKey="percentage" radius={[12, 12, 0, 0]}>
                 {moduleData.map((entry, index) => {
                   let fillGrad = "url(#purpleGrad)";
-                  if (entry.name.toLowerCase().includes('homework')) {
+                  const entryNameLower = (entry.name || '').toLowerCase();
+                  if (entryNameLower.includes('homework')) {
                     fillGrad = "url(#amberGrad)";
-                  } else if (entry.name.toLowerCase().includes('quiz')) {
+                  } else if (entryNameLower.includes('quiz')) {
                     fillGrad = "url(#pinkGrad)";
                   }
                   return <Cell key={`cell-${index}`} fill={fillGrad} stroke={entry.color} strokeWidth={1} />;

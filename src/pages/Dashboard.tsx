@@ -954,68 +954,81 @@ export default function Dashboard() {
   };
 
   const hasPassedAllQuizzes = (courseId: string) => {
-    const courseQuizzes = quizzes.filter(q => {
-      if (courseId === '1') {
-        return q.status === 'published' && q.sessionId >= 1 && q.sessionId <= 9;
-      }
-      return q.courseId === courseId && q.status === 'published';
-    });
-    
-    if (courseQuizzes.length === 0) return true;
-    
-    return courseQuizzes.every(q => {
-      return quizAttempts.some(attempt => attempt.quizId === q.id && attempt.passed);
-    });
+    try {
+      const courseQuizzes = (quizzes || []).filter(q => {
+        if (!q) return false;
+        if (courseId === '1') {
+          return q.status === 'published' && q.sessionId >= 1 && q.sessionId <= 9;
+        }
+        return q.courseId === courseId && q.status === 'published';
+      });
+      
+      if (courseQuizzes.length === 0) return true;
+      
+      return courseQuizzes.every(q => {
+        return (quizAttempts || []).some(attempt => attempt && attempt.quizId === q.id && attempt.passed);
+      });
+    } catch {
+      return true;
+    }
   };
 
   const getCourseProgress = (courseId: string) => {
-    const isVideoEditing = courseId === '1';
-    const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
-    
-    if (isVideoEditing) {
-      const completedSessions = courseProgress.filter(p => p.type === 'session').length;
-      return Math.min(100, Math.round((completedSessions / 9) * 100));
-    } else {
-      const chaptersCount = chaptersCountMap[courseId] || (courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
-      const totalLessons = chaptersCount * 2;
+    try {
+      const isVideoEditing = courseId === '1';
+      const courseProgress = (progress || []).filter(p => p && p.courseId === courseId && p.completed);
       
-      const completedSessions = courseProgress.filter(p => p.type === 'session').length;
-      const completedHomeworks = courseProgress.filter(p => p.type === 'homework').length;
-      
-      const totalCompleted = completedSessions + completedHomeworks;
-      if (totalLessons === 0) return 0;
-      return Math.min(100, Math.round((totalCompleted / totalLessons) * 100));
+      if (isVideoEditing) {
+        const completedSessions = courseProgress.filter(p => p && p.type === 'session').length;
+        return Math.min(100, Math.round((completedSessions / 9) * 100));
+      } else {
+        const chaptersCount = (chaptersCountMap && chaptersCountMap[courseId]) || (courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+        const totalLessons = chaptersCount * 2;
+        
+        const completedSessions = courseProgress.filter(p => p && p.type === 'session').length;
+        const completedHomeworks = courseProgress.filter(p => p && p.type === 'homework').length;
+        
+        const totalCompleted = completedSessions + completedHomeworks;
+        if (totalLessons === 0) return 0;
+        return Math.min(100, Math.round((totalCompleted / totalLessons) * 100));
+      }
+    } catch {
+      return 0;
     }
   };
 
   const getContinueUrl = (courseId: string) => {
-    const isVideoEditing = courseId === '1';
-    const courseProgress = progress.filter(p => p.courseId === courseId && p.completed);
-    
-    if (isVideoEditing) {
-      const completedSessions = new Set(courseProgress.filter(p => p.type === 'session').map(p => p.chapter));
-      for (let s = 1; s <= 9; s++) {
-        if (!completedSessions.has(s)) {
-          return `/courses/${courseId}/video/${s}/session`;
-        }
-      }
-      return `/courses/${courseId}/video/1/session`;
-    } else {
-      const completedSet = new Set(courseProgress.map(p => `${p.chapter}-${p.type}`));
-      const chaptersCount = chaptersCountMap[courseId] || (courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+    try {
+      const isVideoEditing = courseId === '1';
+      const courseProgress = (progress || []).filter(p => p && p.courseId === courseId && p.completed);
       
-      for (let c = 1; c <= chaptersCount; c++) {
-        for (const type of ['session', 'homework']) {
-          if (!completedSet.has(`${c}-${type}`)) {
-            return `/courses/${courseId}/video/${c}/${type}`;
+      if (isVideoEditing) {
+        const completedSessions = new Set(courseProgress.filter(p => p && p.type === 'session').map(p => p.chapter));
+        for (let s = 1; s <= 9; s++) {
+          if (!completedSessions.has(s)) {
+            return `/courses/${courseId}/video/${s}/session`;
           }
         }
+        return `/courses/${courseId}/video/1/session`;
+      } else {
+        const completedSet = new Set(courseProgress.map(p => `${p.chapter}-${p.type}`));
+        const chaptersCount = (chaptersCountMap && chaptersCountMap[courseId]) || (courseId === '2' ? 18 : courseId === '3' ? 24 : 10);
+        
+        for (let c = 1; c <= chaptersCount; c++) {
+          for (const type of ['session', 'homework']) {
+            if (!completedSet.has(`${c}-${type}`)) {
+              return `/courses/${courseId}/video/${c}/${type}`;
+            }
+          }
+        }
+        return `/courses/${courseId}/video/1/session`;
       }
-      return `/courses/${courseId}/video/1/session`;
+    } catch {
+      return `/courses/${courseId}`;
     }
   };
 
-  const validEnrollments = enrollments.filter(e => e.format !== 'plan' && (e.receiptUrl || e.paid || e.status === 'approved' || e.status === 'pending_verification'));
+  const validEnrollments = (enrollments || []).filter(e => e && e.format !== 'plan' && (e.receiptUrl || e.paid || e.status === 'approved' || e.status === 'pending_verification'));
 
   const [visibleCredentials, setVisibleCredentials] = useState<{ [key: string]: boolean }>({});
   const [copiedFields, setCopiedFields] = useState<{ [key: string]: boolean }>({});
@@ -1043,87 +1056,97 @@ export default function Dashboard() {
 
   const purchasedItems = [
     // Course enrollments
-    ...enrollments.filter(e => e.format !== 'plan').map(e => {
-      const course = firestoreCourses.find(c => c.id === e.courseId);
+    ...enrollments.filter(e => e && e.format !== 'plan').map(e => {
+      const course = firestoreCourses.find(c => c && c.id === e.courseId);
       return {
-        id: e.id,
+        id: e.id || e.courseId || Math.random().toString(),
         type: 'course',
-        itemId: e.courseId,
-        name: course?.title || 'Academy Course',
-        status: e.status === 'approved' || e.paid ? 'approved' : e.status === 'pending_verification' ? 'pending' : 'pending',
-        submittedAt: e.enrolledAt || ''
+        itemId: e.courseId || '',
+        name: course?.title || e.courseTitle || 'Academy Course',
+        status: e.status === 'approved' || e.paid ? 'approved' : e.status === 'pending_verification' ? 'pending' : (e.status || 'pending'),
+        submittedAt: e.enrolledAt || e.createdAt || ''
       };
     }),
     // Store purchases
-    ...storePurchases.map(p => {
+    ...storePurchases.filter(Boolean).map(p => {
       return {
-        id: p.id,
+        id: p.id || Math.random().toString(),
         type: 'store_product',
-        itemId: p.productId,
-        name: p.productName || 'Adobe Creative Cloud',
+        itemId: p.productId || '',
+        name: p.productName || p.title || 'Adobe Creative Cloud',
         status: p.status || 'pending',
-        submittedAt: p.submittedAt || ''
+        submittedAt: p.submittedAt || p.createdAt || ''
       };
     })
   ];
 
   const quizStatsMap = useMemo(() => {
-    const stats: { [quizId: string]: { totalAttempts: number; passedAttempts: number; totalTime: number; attemptsWithTime: number; highestScore: number; quizTitle: string } } = {};
-    
-    quizAttempts.forEach(attempt => {
-      const quizId = attempt.quizId;
-      const matchingQuiz = quizzes.find(q => q.id === quizId);
-      const quizTitle = matchingQuiz ? matchingQuiz.title : `Session ${attempt.sessionId} Quiz`;
+    try {
+      const stats: { [quizId: string]: { totalAttempts: number; passedAttempts: number; totalTime: number; attemptsWithTime: number; highestScore: number; quizTitle: string } } = {};
       
-      if (!stats[quizId]) {
-        stats[quizId] = {
-          totalAttempts: 0,
-          passedAttempts: 0,
-          totalTime: 0,
-          attemptsWithTime: 0,
-          highestScore: 0,
-          quizTitle
+      (quizAttempts || []).forEach(attempt => {
+        if (!attempt) return;
+        const quizId = attempt.quizId || 'unknown';
+        const matchingQuiz = (quizzes || []).find(q => q && q.id === quizId);
+        const quizTitle = matchingQuiz?.title || attempt.quizTitle || `Session ${attempt.sessionId || 1} Quiz`;
+        
+        if (!stats[quizId]) {
+          stats[quizId] = {
+            totalAttempts: 0,
+            passedAttempts: 0,
+            totalTime: 0,
+            attemptsWithTime: 0,
+            highestScore: 0,
+            quizTitle
+          };
+        }
+        
+        stats[quizId].totalAttempts++;
+        if (attempt.passed) {
+          stats[quizId].passedAttempts++;
+        }
+        if (attempt.timeTaken && attempt.timeTaken > 0) {
+          stats[quizId].totalTime += attempt.timeTaken;
+          stats[quizId].attemptsWithTime++;
+        }
+        if (attempt.score !== undefined && attempt.score > stats[quizId].highestScore) {
+          stats[quizId].highestScore = attempt.score;
+        }
+      });
+      
+      return Object.entries(stats).map(([quizId, s]) => {
+        const successRate = s.totalAttempts > 0 ? Math.round((s.passedAttempts / s.totalAttempts) * 100) : 0;
+        const avgSpeed = s.attemptsWithTime > 0 ? Math.round(s.totalTime / s.attemptsWithTime) : null;
+        return {
+          quizId,
+          quizTitle: s.quizTitle,
+          totalAttempts: s.totalAttempts,
+          passedAttempts: s.passedAttempts,
+          successRate,
+          avgSpeed,
+          highestScore: s.highestScore
         };
-      }
-      
-      stats[quizId].totalAttempts++;
-      if (attempt.passed) {
-        stats[quizId].passedAttempts++;
-      }
-      if (attempt.timeTaken && attempt.timeTaken > 0) {
-        stats[quizId].totalTime += attempt.timeTaken;
-        stats[quizId].attemptsWithTime++;
-      }
-      if (attempt.score !== undefined && attempt.score > stats[quizId].highestScore) {
-        stats[quizId].highestScore = attempt.score;
-      }
-    });
-    
-    return Object.entries(stats).map(([quizId, s]) => {
-      const successRate = s.totalAttempts > 0 ? Math.round((s.passedAttempts / s.totalAttempts) * 100) : 0;
-      const avgSpeed = s.attemptsWithTime > 0 ? Math.round(s.totalTime / s.attemptsWithTime) : null;
-      return {
-        quizId,
-        quizTitle: s.quizTitle,
-        totalAttempts: s.totalAttempts,
-        passedAttempts: s.passedAttempts,
-        successRate,
-        avgSpeed,
-        highestScore: s.highestScore
-      };
-    });
+      });
+    } catch (err) {
+      console.error("Error computing quizStatsMap:", err);
+      return [];
+    }
   }, [quizAttempts, quizzes]);
 
   const adobeLicensedItems = purchasedItems.filter(item => {
+    if (!item) return false;
+    const itemName = (item.name || '').toLowerCase();
     const isVideoEditing = item.itemId === '1' || 
-      item.name?.toLowerCase().includes('video editing') || 
-      item.name?.toLowerCase().includes('مونتاج') || 
-      item.name?.toLowerCase().includes('cinematic');
+      itemName.includes('video editing') || 
+      itemName.includes('video-editing') || 
+      itemName.includes('مونتاج') || 
+      itemName.includes('cinematic');
     
     return !isVideoEditing;
   });
 
   const latestActivity = [...progress]
+    .filter(p => p && p.updatedAt)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
 

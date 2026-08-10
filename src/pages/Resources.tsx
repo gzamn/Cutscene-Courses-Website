@@ -160,15 +160,17 @@ export default function Resources() {
 
   // Filtered resources list
   const filteredResources = resources.filter(resource => {
+    if (!resource) return false;
     const matchesCategory = selectedCategory === 'All' || resource.category === selectedCategory;
-    const matchesSearch = resource.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          resource.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          resource.category.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    const q = (searchQuery || '').toLowerCase();
+    const nameMatch = (resource.name || '').toLowerCase().includes(q);
+    const descMatch = (resource.description || '').toLowerCase().includes(q);
+    const catMatch = (resource.category || '').toLowerCase().includes(q);
+    return matchesCategory && (nameMatch || descMatch || catMatch);
   });
 
   const getCategoryIcon = (category: string) => {
-    switch(category.toLowerCase()) {
+    switch((category || '').toLowerCase()) {
       case 'ai tools':
         return <Sparkles className="w-3.5 h-3.5 text-purple-400" />;
       case 'free stock footage':
