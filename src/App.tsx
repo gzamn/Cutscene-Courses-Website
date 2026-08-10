@@ -28,6 +28,7 @@ import { ToastProvider } from './context/ToastContext';
 import { useEffect } from 'react';
 import { runOneTimeMigration } from './firebase';
 import ErrorBoundary from './components/ErrorBoundary';
+import ContinueWatchingWidget from './components/ContinueWatchingWidget';
 import { motion, AnimatePresence } from 'motion/react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -122,6 +123,7 @@ function App() {
                   </ErrorBoundary>
                 </main>
                 <Footer />
+                <ContinueWatchingWidget />
               </div>
             </div>
           </Router>
