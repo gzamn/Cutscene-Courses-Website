@@ -34,6 +34,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
 import { DEFAULT_SOFTWARE_OPTIONS } from '../components/SoftwareSelectionModal';
 import { CourseSoftwareOption } from '../types';
+import { ImageUploader } from '../components/ImageUploader';
 
 type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises' | 'seo';
 
@@ -638,6 +639,8 @@ export default function AdminPanel() {
   // Modal forms states
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [courseModalTab, setCourseModalTab] = useState<'general' | 'media' | 'curriculum'>('general');
+  const [chapterModalTab, setChapterModalTab] = useState<'core' | 'handouts' | 'exercise'>('core');
   const [enlargedReceiptUrl, setEnlargedReceiptUrl] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomRotation, setZoomRotation] = useState(0);
@@ -1745,6 +1748,7 @@ export default function AdminPanel() {
 
   const startEditCourse = (course: any) => {
     setEditingCourseId(course.id);
+    setCourseModalTab('general');
     setCourseForm({
       title: course.title || '',
       description: course.description || '',
@@ -1905,6 +1909,7 @@ export default function AdminPanel() {
     const title = chapter.title || chapter.session_name || '';
 
     setEditingChapterId(chapter.id);
+    setChapterModalTab('core');
     setChapterForm({
       courseId: chapter.courseId || selectedCourseId,
       softwareId: chapter.softwareId || 'premiere',
@@ -1934,6 +1939,7 @@ export default function AdminPanel() {
 
   const startAddChapter = () => {
     setEditingChapterId(null);
+    setChapterModalTab('core');
     setChapterForm({
       courseId: selectedCourseId,
       softwareId: selectedSoftwareFilter !== 'all' ? selectedSoftwareFilter : 'premiere',
@@ -2010,6 +2016,20 @@ export default function AdminPanel() {
       fetchChaptersForCourse(selectedCourseId);
     } catch (err: any) {
       showToast('error', 'Failed updating sorting indices.');
+    }
+  };
+
+  const handleToggleChapterPreview = async (chapter: any) => {
+    try {
+      const newStatus = !chapter.is_preview;
+      await setDoc(doc(db, `courses/${selectedCourseId}/chapters`, chapter.id), {
+        is_preview: newStatus
+      }, { merge: true });
+      setChapters(prev => prev.map(c => c.id === chapter.id ? { ...c, is_preview: newStatus } : c));
+      showToast('success', `Session "${chapter.title}" set to ${newStatus ? 'Public Free Preview' : 'Locked (Premium)'}`);
+    } catch (err: any) {
+      console.error('Toggle preview error:', err);
+      showToast('error', `Failed to update session preview: ${err.message || err}`);
     }
   };
 
@@ -3663,27 +3683,15 @@ export default function AdminPanel() {
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Square Icon Image URL</label>
-                        <div className="flex items-center gap-2">
-                          {opt.imageUrl ? (
-                            <img src={opt.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-purple-900/30 shrink-0" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-purple-900/20 shrink-0 flex items-center justify-center text-[9px] text-gray-600 font-bold">SQ</div>
-                          )}
-                          <input
-                            type="url"
-                            value={opt.imageUrl}
-                            onChange={(e) => {
-                              const updated = [...editingSoftwareOptions];
-                              updated[idx] = { ...updated[idx], imageUrl: e.target.value };
-                              setEditingSoftwareOptions(updated);
-                            }}
-                            className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2 text-[11px] text-white focus:outline-none"
-                            placeholder="https://..."
-                          />
-                        </div>
-                      </div>
+                      <ImageUploader
+                        label="Square Icon Image"
+                        value={opt.imageUrl || ''}
+                        onChange={(url) => {
+                          const updated = [...editingSoftwareOptions];
+                          updated[idx] = { ...updated[idx], imageUrl: url };
+                          setEditingSoftwareOptions(updated);
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -3794,21 +3802,37 @@ export default function AdminPanel() {
                           </td>
 
                           <td className="py-4 px-6">
-                            {chap.is_preview ? (
-                              <span className="px-2.5 py-1 bg-green-950/35 border border-green-500/20 text-green-400 text-[10px] uppercase font-black rounded-lg">
-                                Public Preview
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-1 bg-purple-900/15 border border-purple-500/10 text-purple-300 text-[10px] uppercase font-bold rounded-lg">
-                                Locked (Premium)
-                              </span>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleChapterPreview(chap)}
+                              className={`px-3 py-1 text-[10px] uppercase font-black rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                                chap.is_preview 
+                                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/50' 
+                                  : 'bg-zinc-900 border-purple-900/30 text-gray-400 hover:text-white hover:border-purple-500'
+                              }`}
+                              title="Click to toggle public free preview mode"
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${chap.is_preview ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+                              {chap.is_preview ? 'Public Free Preview' : 'Locked (Premium)'}
+                            </button>
                           </td>
-                          <td className="py-4 px-6 text-xs text-gray-450 space-y-1">
-                            {chap.homework_url && (
-                              <div className="text-[10px] text-amber-500 font-semibold">📁 Homework: {chap.homework_url}</div>
-                            )}
-                            {!chap.homework_url && <span className="text-gray-650">—</span>}
+                          <td className="py-4 px-6 text-xs text-gray-450">
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {chap.exercise_title || chap.exercise_url || (chap.exercise_tasks && chap.exercise_tasks.length > 0) ? (
+                                <span className="px-2 py-0.5 bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 text-[9px] font-bold uppercase rounded-md flex items-center gap-1">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  Exercise
+                                </span>
+                              ) : null}
+                              {chap.homework_url ? (
+                                <span className="px-2 py-0.5 bg-amber-950/40 border border-amber-500/30 text-amber-300 text-[9px] font-bold uppercase rounded-md flex items-center gap-1">
+                                  📁 Handout
+                                </span>
+                              ) : null}
+                              {!chap.exercise_title && !chap.exercise_url && !chap.homework_url && (
+                                <span className="text-gray-650 text-xs">—</span>
+                              )}
+                            </div>
                           </td>
                            <td className="py-4 px-6 text-right space-x-1.5 sticky right-0 bg-[#09090b] group-hover:bg-[#18181b] transition-colors border-l border-purple-950/20 z-10 shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">
                             <button
@@ -7904,16 +7928,11 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Illustration Image URL</label>
-                  <input
-                    type="text"
-                    required
-                    value={workForm.image_url}
-                    onChange={(e) => setWorkForm({ ...workForm, image_url: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
+                <ImageUploader
+                  label="Illustration / Showcase Cover Image"
+                  value={workForm.image_url}
+                  onChange={(url) => setWorkForm({ ...workForm, image_url: url })}
+                />
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Video Player URL (Optional)</label>
@@ -7979,191 +7998,257 @@ export default function AdminPanel() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-xl shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-white">{editingCourseId ? 'Edit Course' : 'Create Course'}</h2>
-                  <p className="text-gray-400 text-xs">Fill out the academic metadata constraints</p>
+                  <p className="text-gray-400 text-xs">Configure course details, pricing, media & curriculum outcomes</p>
                 </div>
                 <button onClick={() => setShowCourseModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* Course Modal Navigation Tabs */}
+              <div className="flex items-center gap-2 mb-6 bg-black border border-purple-950/40 p-1.5 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setCourseModalTab('general')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    courseModalTab === 'general'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  📌 General Info
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCourseModalTab('media')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    courseModalTab === 'media'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🖼️ Media & Covers
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCourseModalTab('curriculum')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    courseModalTab === 'curriculum'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🎯 Pricing & Details
+                </button>
+              </div>
+
               <form onSubmit={handleCourseSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Program Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={courseForm.title}
-                    onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
+                {courseModalTab === 'general' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Program Title</label>
+                      <input
+                        type="text"
+                        required
+                        value={courseForm.title}
+                        onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        placeholder="e.g. Master Video Editing in Premiere Pro"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Description Summary</label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={courseForm.description}
-                    onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Description Summary</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={courseForm.description}
+                        onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        placeholder="Describe the course content and learning goals..."
+                      />
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Instructor Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={courseForm.instructor}
-                      onChange={(e) => setCourseForm({ ...courseForm, instructor: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Category</label>
-                    <input
-                      type="text"
-                      required
-                      value={courseForm.category}
-                      onChange={(e) => setCourseForm({ ...courseForm, category: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      placeholder="e.g. Editing, Sound Design"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Level</label>
-                    <select
-                      value={courseForm.level}
-                      onChange={(e) => setCourseForm({ ...courseForm, level: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-300 focus:outline-none"
-                    >
-                      <option>Beginner</option>
-                      <option>Intermediate</option>
-                      <option>Advanced</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course Duration</label>
-                    <input
-                      type="text"
-                      required
-                      value={courseForm.duration}
-                      onChange={(e) => setCourseForm({ ...courseForm, duration: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Direct Image Thumbnail URL</label>
-                  <input
-                    type="url"
-                    required
-                    value={courseForm.thumbnail_url}
-                    onChange={(e) => setCourseForm({ ...courseForm, thumbnail_url: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course Trailer Video Link (YouTube, Vimeo, Drive, Bunny, etc.)</label>
-                  <input
-                    type="url"
-                    value={courseForm.trailerUrl || ''}
-                    onChange={(e) => setCourseForm({ ...courseForm, trailerUrl: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Adds an interactive player modal accessible from the Course Detail header.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Custom Course Certificate URL (Optional / Image or PDF link)</label>
-                  <input
-                    type="url"
-                    value={courseForm.certificateUrl || ''}
-                    onChange={(e) => setCourseForm({ ...courseForm, certificateUrl: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    placeholder="e.g. https://example.com/certificate-template.png"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Learning Outcomes (One per line)</label>
-                  <textarea
-                    rows={3}
-                    value={courseForm.outcomes || ''}
-                    onChange={(e) => setCourseForm({ ...courseForm, outcomes: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    placeholder="e.g. Master professional video editing&#10;Incorporate advanced color grading&#10;Optimize editing efficiency"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Course Requirements (One per line)</label>
-                  <textarea
-                    rows={3}
-                    value={courseForm.requirements || ''}
-                    onChange={(e) => setCourseForm({ ...courseForm, requirements: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    placeholder="e.g. A computer capable of video editing&#10;Adobe Premiere Pro installed&#10;No prior experience required"
-                  />
-                </div>
-
-                <div className="p-4 bg-zinc-900 rounded-xl border border-white/5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-300">Is this course free for sandbox trial?</span>
-                    <input
-                      type="checkbox"
-                      checked={courseForm.is_free}
-                      onChange={(e) => setCourseForm({ ...courseForm, is_free: e.target.checked })}
-                      className="w-4 h-4 accent-purple-600 rounded"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-purple-950/25">
-                    <span className="text-xs font-bold text-gray-300">Flag as "Coming Soon"?</span>
-                    <input
-                      type="checkbox"
-                      checked={courseForm.is_coming_soon || false}
-                      onChange={(e) => setCourseForm({ ...courseForm, is_coming_soon: e.target.checked })}
-                      className="w-4 h-4 accent-purple-600 rounded"
-                    />
-                  </div>
-
-                  {!courseForm.is_free && (
-                    <div className="pt-2 border-t border-purple-950/25">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Tuition Price (DZD)</label>
-                      <div className="relative">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Instructor Name</label>
                         <input
-                          type="number"
-                          value={courseForm.price}
-                          onChange={(e) => setCourseForm({ ...courseForm, price: e.target.value })}
-                          className="w-full bg-black border border-purple-900/30 rounded-xl pl-8 pr-4 py-2.5 text-xs text-white focus:outline-none"
+                          type="text"
+                          required
+                          value={courseForm.instructor}
+                          onChange={(e) => setCourseForm({ ...courseForm, instructor: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          placeholder="e.g. Academy Staff"
                         />
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-purple-500 font-black">đ</span>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Category</label>
+                        <input
+                          type="text"
+                          required
+                          value={courseForm.category}
+                          onChange={(e) => setCourseForm({ ...courseForm, category: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          placeholder="e.g. Editing, Sound Design"
+                        />
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Level</label>
+                        <select
+                          value={courseForm.level}
+                          onChange={(e) => setCourseForm({ ...courseForm, level: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-300 focus:outline-none cursor-pointer"
+                        >
+                          <option>Beginner</option>
+                          <option>Intermediate</option>
+                          <option>Advanced</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Course Duration</label>
+                        <input
+                          type="text"
+                          required
+                          value={courseForm.duration}
+                          onChange={(e) => setCourseForm({ ...courseForm, duration: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                          placeholder="e.g. 8 weeks"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {courseModalTab === 'media' && (
+                  <div className="space-y-4">
+                    <ImageUploader
+                      label="Course Thumbnail Cover Image"
+                      value={courseForm.thumbnail_url}
+                      onChange={(url) => setCourseForm({ ...courseForm, thumbnail_url: url })}
+                      helperText="Displayed on course catalog cards and header banner."
+                    />
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Course Trailer Video Link (YouTube / Vimeo / Direct)</label>
+                      <input
+                        type="url"
+                        value={courseForm.trailerUrl || ''}
+                        onChange={(e) => setCourseForm({ ...courseForm, trailerUrl: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        placeholder="e.g. https://www.youtube.com/watch?v=..."
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Adds a video trailer player button on the course details hero banner.
+                      </p>
+                    </div>
+
+                    <ImageUploader
+                      label="Custom Graduation Certificate Template"
+                      value={courseForm.certificateUrl || ''}
+                      onChange={(url) => setCourseForm({ ...courseForm, certificateUrl: url })}
+                      helperText="Optional certificate image frame for graduates."
+                    />
+                  </div>
+                )}
+
+                {courseModalTab === 'curriculum' && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-zinc-900 rounded-2xl border border-purple-900/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-300">Free Sandbox Course?</span>
+                        <input
+                          type="checkbox"
+                          checked={courseForm.is_free}
+                          onChange={(e) => setCourseForm({ ...courseForm, is_free: e.target.checked })}
+                          className="w-4 h-4 accent-purple-600 rounded cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-purple-950/25">
+                        <span className="text-xs font-bold text-gray-300">Flag as "Coming Soon"?</span>
+                        <input
+                          type="checkbox"
+                          checked={courseForm.is_coming_soon || false}
+                          onChange={(e) => setCourseForm({ ...courseForm, is_coming_soon: e.target.checked })}
+                          className="w-4 h-4 accent-purple-600 rounded cursor-pointer"
+                        />
+                      </div>
+
+                      {!courseForm.is_free && (
+                        <div className="pt-2 border-t border-purple-950/25">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 font-mono">Tuition Price (DZD)</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={courseForm.price}
+                              onChange={(e) => setCourseForm({ ...courseForm, price: e.target.value })}
+                              className="w-full bg-black border border-purple-900/30 rounded-xl pl-8 pr-4 py-2.5 text-xs text-white focus:outline-none"
+                            />
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-purple-500 font-black">đ</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Learning Outcomes (One per line)</label>
+                      <textarea
+                        rows={3}
+                        value={courseForm.outcomes || ''}
+                        onChange={(e) => setCourseForm({ ...courseForm, outcomes: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        placeholder="e.g. Master professional video editing&#10;Incorporate advanced color grading&#10;Optimize editing efficiency"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Course Requirements (One per line)</label>
+                      <textarea
+                        rows={3}
+                        value={courseForm.requirements || ''}
+                        onChange={(e) => setCourseForm({ ...courseForm, requirements: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        placeholder="e.g. A computer capable of video editing&#10;Adobe Premiere Pro installed&#10;No prior experience required"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  {courseModalTab !== 'general' && (
+                    <button
+                      type="button"
+                      onClick={() => setCourseModalTab(courseModalTab === 'curriculum' ? 'media' : 'general')}
+                      className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-gray-300 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      Back
+                    </button>
+                  )}
+                  {courseModalTab !== 'curriculum' ? (
+                    <button
+                      type="button"
+                      onClick={() => setCourseModalTab(courseModalTab === 'general' ? 'media' : 'curriculum')}
+                      className="flex-1 py-3.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow"
+                    >
+                      Next Step →
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="flex-1 py-3.5 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-purple-600/20"
+                    >
+                      Save Course Configuration
+                    </button>
                   )}
                 </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-4 mt-2 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow-lg"
-                >
-                  Save Program Coordinates
-                </button>
               </form>
             </motion.div>
           </div>
@@ -8180,174 +8265,230 @@ export default function AdminPanel() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
+              className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 w-full max-w-xl shadow-2xl overflow-hidden z-10 text-left max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-white">{editingChapterId ? 'Edit Session' : 'Create Session'}</h2>
-                  <p className="text-gray-400 text-xs">Associate assets, sequential position markers, free triggers</p>
+                  <p className="text-gray-400 text-xs">Configure session video, software targeting, media & interactive exercises</p>
                 </div>
                 <button onClick={() => setShowChapterModal(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* Session Modal Navigation Tabs */}
+              <div className="flex items-center gap-2 mb-6 bg-black border border-purple-950/40 p-1.5 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setChapterModalTab('core')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    chapterModalTab === 'core'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  📹 Core Video
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChapterModalTab('media')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    chapterModalTab === 'media'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🖼️ Thumb & Handout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChapterModalTab('exercise')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    chapterModalTab === 'exercise'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🎯 Exercise Builder
+                </button>
+              </div>
+
               <form onSubmit={handleChapterSubmit} className="space-y-4">
-                
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Choose Parent Course</label>
-                  <select
-                    value={chapterForm.courseId}
-                    onChange={(e) => setChapterForm({ ...chapterForm, courseId: e.target.value })}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-300 focus:outline-none"
-                  >
-                    <option value="">-- Choose Course --</option>
-                    {courses.map(c => (
-                      <option key={c.id} value={c.id}>{c.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5 font-mono">Target Software Variation</label>
-                  <select
-                    value={chapterForm.softwareId || 'premiere'}
-                    onChange={(e) => setChapterForm({ ...chapterForm, softwareId: e.target.value })}
-                    className="w-full bg-zinc-900 border border-purple-500/40 rounded-xl px-4 py-3 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
-                  >
-                    <option value="premiere">Adobe Premiere Pro</option>
-                    <option value="davinci">DaVinci Resolve</option>
-                    <option value="capcut">CapCut</option>
-                  </select>
-                </div>
-
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={chapterForm.title}
-                    onChange={(e) => setFormChapterAndTitle(e.target.value)}
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-                    placeholder="e.g. Session 1: Introduction to Filmmaking"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Order Sequence Position</label>
-                    <input
-                      type="number"
-                      required
-                      value={chapterForm.position}
-                      onChange={(e) => setChapterForm({ ...chapterForm, position: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-end pb-1.5">
-                    <label className="flex items-center gap-2.5 bg-zinc-900 border border-white/5 p-3.5 rounded-xl cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={chapterForm.is_preview}
-                        onChange={(e) => setChapterForm({ ...chapterForm, is_preview: e.target.checked })}
-                        className="w-4 h-4 accent-purple-650"
-                      />
-                      <span className="text-[11px] font-bold text-gray-300">Public Preview Access</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Video URL (YouTube / Direct)</label>
-                    <input
-                      type="url"
-                      required
-                      value={chapterForm.session_url}
-                      onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                      placeholder="https://youtube.com/embed/... or https://..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Thumbnail Image URL (Optional)</label>
-                    <input
-                      type="url"
-                      value={chapterForm.thumbnail_url}
-                      onChange={(e) => setChapterForm({ ...chapterForm, thumbnail_url: e.target.value })}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                      placeholder="e.g. https://images.unsplash.com/... or Bunny CDN link"
-                    />
-                  </div>
-
-                  <div className="pt-2 border-t border-purple-900/15 space-y-4">
+                {chapterModalTab === 'core' && (
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Homework Assignment Submission Link</label>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Choose Parent Course</label>
+                      <select
+                        value={chapterForm.courseId}
+                        onChange={(e) => setChapterForm({ ...chapterForm, courseId: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-gray-300 focus:outline-none cursor-pointer"
+                      >
+                        <option value="">-- Choose Course --</option>
+                        {courses.map(c => (
+                          <option key={c.id} value={c.id}>{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5 font-mono">Target Software Variation</label>
+                      <select
+                        value={chapterForm.softwareId || 'premiere'}
+                        onChange={(e) => setChapterForm({ ...chapterForm, softwareId: e.target.value })}
+                        className="w-full bg-zinc-900 border border-purple-500/40 rounded-xl px-4 py-3 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                      >
+                        <option value="premiere">Adobe Premiere Pro</option>
+                        <option value="davinci">DaVinci Resolve</option>
+                        <option value="capcut">CapCut</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Session Title</label>
+                      <input
+                        type="text"
+                        required
+                        value={chapterForm.title}
+                        onChange={(e) => setFormChapterAndTitle(e.target.value)}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                        placeholder="e.g. Session 1: Introduction to Video Editing"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Order Sequence Position</label>
+                        <input
+                          type="number"
+                          required
+                          value={chapterForm.position}
+                          onChange={(e) => setChapterForm({ ...chapterForm, position: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div className="flex flex-col justify-end pb-1.5">
+                        <label className="flex items-center gap-2.5 bg-zinc-900 border border-white/5 p-3.5 rounded-xl cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={chapterForm.is_preview}
+                            onChange={(e) => setChapterForm({ ...chapterForm, is_preview: e.target.checked })}
+                            className="w-4 h-4 accent-purple-650 rounded"
+                          />
+                          <span className="text-[11px] font-bold text-gray-300">Public Free Preview</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Session Video Stream URL (YouTube Embed / Bunny / Direct)</label>
+                      <input
+                        type="url"
+                        required
+                        value={chapterForm.session_url}
+                        onChange={(e) => setChapterForm({ ...chapterForm, session_url: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                        placeholder="e.g. https://www.youtube.com/embed/..."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {chapterModalTab === 'media' && (
+                  <div className="space-y-4">
+                    <ImageUploader
+                      label="Session Card Thumbnail Image"
+                      value={chapterForm.thumbnail_url}
+                      onChange={(url) => setChapterForm({ ...chapterForm, thumbnail_url: url })}
+                      helperText="Optional cover thumbnail for this specific video lesson."
+                    />
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Homework / Project Files Download Link</label>
                       <input
                         type="url"
                         value={chapterForm.homework_url}
                         onChange={(e) => setChapterForm({ ...chapterForm, homework_url: e.target.value })}
-                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                        placeholder="https://..."
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                        placeholder="e.g. Google Drive / Dropbox link with course materials"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {chapterModalTab === 'exercise' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Exercise Briefing Video Stream URL</label>
+                      <input
+                        type="url"
+                        value={chapterForm.exercise_url}
+                        onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none font-mono"
+                        placeholder="e.g. YouTube embed or direct stream link"
                       />
                     </div>
 
-                    <div className="border-t border-purple-900/10 pt-3 space-y-3">
-                      <div className="text-[10px] font-mono text-purple-400 font-extrabold uppercase tracking-widest">Exercise Builder</div>
-                      
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exercise Briefing Video URL</label>
-                        <input
-                          type="url"
-                          value={chapterForm.exercise_url}
-                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_url: e.target.value })}
-                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                          placeholder="e.g. YouTube embed or direct stream link"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Exercise Title</label>
+                      <input
+                        type="text"
+                        value={chapterForm.exercise_title}
+                        onChange={(e) => setChapterForm({ ...chapterForm, exercise_title: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                        placeholder="e.g. Cut the Interview: Sync & Rough Assembly"
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exercise Title</label>
-                        <input
-                          type="text"
-                          value={chapterForm.exercise_title}
-                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_title: e.target.value })}
-                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
-                          placeholder="e.g. Cut the Interview: Sync & Rough Assembly"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Exercise Briefing / Instructions</label>
+                      <textarea
+                        value={chapterForm.exercise_brief}
+                        onChange={(e) => setChapterForm({ ...chapterForm, exercise_brief: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-20 resize-none"
+                        placeholder="Describe exact instructions and goals for student submission..."
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Exercise Briefing / Instructions</label>
-                        <textarea
-                          value={chapterForm.exercise_brief}
-                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_brief: e.target.value })}
-                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-18 resize-none"
-                          placeholder="What must the student do? Describe instructions..."
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Evaluation Checklist (One requirement per line)</label>
-                        <textarea
-                          value={chapterForm.exercise_tasks_raw}
-                          onChange={(e) => setChapterForm({ ...chapterForm, exercise_tasks_raw: e.target.value })}
-                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-24 font-mono leading-relaxed"
-                          placeholder="Import footage and sync&#10;Build rough cut on the beat&#10;Color match camera angles&#10;Add J/L cut transition"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Evaluation Checklist (One requirement per line)</label>
+                      <textarea
+                        value={chapterForm.exercise_tasks_raw}
+                        onChange={(e) => setChapterForm({ ...chapterForm, exercise_tasks_raw: e.target.value })}
+                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none h-24 font-mono leading-relaxed"
+                        placeholder="Import footage and sync&#10;Build rough cut on the beat&#10;Color match camera angles&#10;Add J/L cut transition"
+                      />
                     </div>
                   </div>
-                </div>
+                )}
 
-                <button
-                  type="submit"
-                  className="w-full py-4 mt-2 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
-                >
-                  Save Session
-                </button>
+                <div className="flex gap-3 pt-2">
+                  {chapterModalTab !== 'core' && (
+                    <button
+                      type="button"
+                      onClick={() => setChapterModalTab(chapterModalTab === 'exercise' ? 'media' : 'core')}
+                      className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-gray-300 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      Back
+                    </button>
+                  )}
+                  {chapterModalTab !== 'exercise' ? (
+                    <button
+                      type="button"
+                      onClick={() => setChapterModalTab(chapterModalTab === 'core' ? 'media' : 'exercise')}
+                      className="flex-1 py-3.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow"
+                    >
+                      Next Step →
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="flex-1 py-3.5 bg-brand-radial hover:opacity-95 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-purple-600/20"
+                    >
+                      Save Session Configuration
+                    </button>
+                  )}
+                </div>
               </form>
             </motion.div>
           </div>
@@ -8751,42 +8892,14 @@ export default function AdminPanel() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Website Logo</label>
-                    <div className="flex items-center gap-3">
-                      {usefulResourceForm.logoUrl ? (
-                        <img 
-                          src={usefulResourceForm.logoUrl} 
-                          alt="Logo Thumbnail" 
-                          className="w-10 h-10 object-cover rounded-lg border border-purple-900/40 bg-black shrink-0"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg border border-dashed border-purple-900/30 flex items-center justify-center text-gray-600 bg-black/50 text-[9px] uppercase font-mono shrink-0">
-                          None
-                        </div>
-                      )}
-                      <input 
-                        type="file"
-                        accept="image/*"
-                        ref={usefulResourceFileRef}
-                        className="hidden"
-                        onChange={uploadUsefulResourceLogo}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => usefulResourceFileRef.current?.click()}
-                        disabled={usefulResourceUploading}
-                        className="flex-1 px-3 py-2.5 bg-purple-650 hover:bg-purple-600 border border-purple-500/20 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                      >
-                        {usefulResourceUploading ? (
-                          <Icons.Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Icons.Upload className="w-3.5 h-3.5" />
-                        )}
-                        {usefulResourceForm.logoUrl ? 'Replace Logo' : 'Import Logo File'}
-                      </button>
-                    </div>
-                  </div>
+                <div>
+                  <ImageUploader
+                    label="Resource Brand Logo / Icon"
+                    value={usefulResourceForm.logoUrl}
+                    onChange={(url) => setUsefulResourceForm({ ...usefulResourceForm, logoUrl: url })}
+                    helperText="Upload or provide a square logo image for this external resource."
+                  />
+                </div>
                 </div>
 
                 <div>
