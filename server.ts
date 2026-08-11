@@ -251,15 +251,17 @@ async function startServer() {
   // Endpoint to issue a secure, signed upload URL/parameters
   app.post("/api/bunny-upload-signed-url", async (req, res) => {
     try {
-      const { filename } = req.body;
-      if (!filename) {
-        return res.status(400).json({ error: "Filename is required" });
+      let { filename } = req.body || {};
+      if (!filename || typeof filename !== "string" || !filename.trim()) {
+        filename = `upload_${Date.now()}.jpg`;
       }
 
       // Generate sanitized unique filename
       const timestamp = Date.now();
-      const sanitizedName = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-      const uniqueFilename = `${timestamp}-${sanitizedName}`;
+      const extension = path.extname(filename) || ".jpg";
+      const baseName = path.basename(filename, extension);
+      const sanitizedBase = baseName.replace(/[^a-zA-Z0-9.\-_]/g, "_") || "file";
+      const uniqueFilename = `${timestamp}-${sanitizedBase}${extension}`;
       
       const expires = Math.floor(Date.now() / 1000) + 1200; // valid for 20 minutes
       

@@ -201,11 +201,12 @@ export default function ExercisePlayer() {
         const signRes = await fetch('/api/bunny-upload-signed-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: uploadFile.name })
+          body: JSON.stringify({ filename: uploadFile.name || 'exercise.zip' })
         });
 
         if (!signRes.ok) {
-          throw new Error('Failed to obtain signature for BunnyCDN upload.');
+          const errData = await signRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Failed to obtain signature for BunnyCDN upload (status ${signRes.status}).`);
         }
 
         const signData = await signRes.json();

@@ -888,11 +888,12 @@ export default function Dashboard() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ filename: videoFile.name })
+        body: JSON.stringify({ filename: videoFile.name || 'video.mp4' })
       });
 
       if (!signRes.ok) {
-        throw new Error('Failed to obtain upload authorization details from server.');
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to obtain upload authorization (status ${signRes.status})`);
       }
       const signData = await signRes.json();
       setVideoUploadProgress(45);

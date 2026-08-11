@@ -512,16 +512,16 @@ export default function Store() {
               >
                 <div>
                   {/* Image Skeleton */}
-                  <div className="aspect-video w-full rounded-2xl bg-zinc-900/60 mb-6" />
+                  <div className="aspect-square w-36 h-36 sm:w-40 sm:h-40 rounded-2xl bg-zinc-900/60 mb-6 mx-auto" />
 
                   {/* Title Skeleton */}
-                  <div className="h-7 w-2/3 bg-zinc-800/80 rounded-lg mb-4" />
+                  <div className="h-7 w-2/3 bg-zinc-800/80 rounded-lg mb-4 mx-auto" />
 
                   {/* Description Skeleton */}
                   <div className="space-y-2.5 mb-6">
                     <div className="h-3 w-full bg-zinc-900/60 rounded" />
-                    <div className="h-3 w-5/6 bg-zinc-900/60 rounded" />
-                    <div className="h-3 w-4/5 bg-zinc-900/60 rounded" />
+                    <div className="h-3 w-5/6 bg-zinc-900/60 rounded mx-auto" />
+                    <div className="h-3 w-4/5 bg-zinc-900/60 rounded mx-auto" />
                   </div>
                 </div>
 
@@ -539,6 +539,10 @@ export default function Store() {
           /* Products Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 justify-center">
             {products.map((product) => {
+              const durationKeys = product.durationKeysOrder || Object.keys(product.durations || {});
+              const activeDuration = selectedDurations[product.id] || product.defaultDuration || durationKeys[0] || '';
+              const activePrice = product.durations?.[activeDuration];
+
               return (
                 <motion.div 
                   key={product.id}
@@ -554,37 +558,73 @@ export default function Store() {
                   className="bg-zinc-950/40 rounded-[2.5rem] border border-purple-950/25 p-6 flex flex-col justify-between overflow-hidden shadow-2xl relative group cursor-pointer"
                 >
                   <div>
-                    {/* Image */}
-                    <div className="aspect-video w-full rounded-2xl overflow-hidden mb-6 relative bg-zinc-900">
+                    {/* Square Smaller Image */}
+                    <div className="aspect-square w-36 h-36 sm:w-40 sm:h-40 rounded-2xl overflow-hidden mb-5 mx-auto relative bg-zinc-900 border border-purple-900/30 shadow-xl shadow-purple-950/50 group-hover:border-purple-500/50 transition-all shrink-0">
                       <img 
                         src={product.imageUrl} 
                         alt={product.name} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         referrerPolicy="no-referrer"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                     </div>
 
                     {/* Product Metadata */}
-                    <h3 className="text-2xl font-black tracking-tight text-white mb-2">
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white mb-2 text-center">
                       {product.name}
                     </h3>
-                    <p className="text-gray-400 text-xs leading-relaxed mb-6 h-12 overflow-hidden text-ellipsis">
+                    <p className="text-gray-400 text-xs leading-relaxed mb-4 h-12 overflow-hidden text-ellipsis text-center">
                       {product.description}
                     </p>
                   </div>
 
                   <div>
-                    {selectedDurations[product.id] && product.durations[selectedDurations[product.id]] && (
-                      <div className="text-center mb-4 pb-2 border-b border-purple-950/20">
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-extrabold mr-1.5">
-                          {selectedDurations[product.id]}:
-                        </span>
-                        <span className="text-sm font-black text-white font-mono">
-                          {formatPrice(product.durations[selectedDurations[product.id]])}
-                        </span>
-                      </div>
-                    )}
+                    {/* Month & Price Section (Bigger) */}
+                    <div className="text-center mb-4 pt-3 border-t border-purple-950/20">
+                      {/* Month / Duration Badge */}
+                      {activeDuration && (
+                        <div className="mb-2 flex justify-center">
+                          <span className="text-sm sm:text-base font-black uppercase font-mono tracking-wider text-purple-300 bg-purple-950/60 border border-purple-700/40 px-3.5 py-1 rounded-full shadow-inner inline-flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                            {activeDuration}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Price Display */}
+                      {activePrice !== undefined && (
+                        <div className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight my-2 drop-shadow-[0_2px_12px_rgba(168,85,247,0.35)]">
+                          {formatPrice(activePrice)}
+                        </div>
+                      )}
+
+                      {/* Duration Selector Chips */}
+                      {durationKeys.length > 1 && (
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                          {durationKeys.map((key) => {
+                            const isSelected = key === activeDuration;
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedDurations(prev => ({ ...prev, [product.id]: key }));
+                                }}
+                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 border border-purple-400/30 scale-105'
+                                    : 'bg-zinc-900/80 hover:bg-zinc-800 text-gray-400 hover:text-white border border-purple-900/20'
+                                }`}
+                              >
+                                {key}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     <RainbowButton
                       onClick={() => handleStartCheckout(product)}
                       className="w-full py-4 text-xs font-black uppercase tracking-wider text-center"

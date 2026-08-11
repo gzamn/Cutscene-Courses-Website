@@ -146,9 +146,12 @@ export default function AdminPanel() {
       const signRes = await fetch('/api/bunny-upload-signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name })
+        body: JSON.stringify({ filename: file.name || 'promo_cover.jpg' })
       });
-      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Signed URL signing failed with status ${signRes.status}`);
+      }
       const signData = await signRes.json();
 
       const uploadRes = await fetch(signData.uploadUrl, {
@@ -156,7 +159,10 @@ export default function AdminPanel() {
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file
       });
-      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        throw new Error(`Upload proxy failed (${uploadRes.status}): ${errText}`);
+      }
       const uploadResult = await uploadRes.json();
       
       setSpecialOfferForm(prev => ({ ...prev, imageUrl: uploadResult.publicUrl }));
@@ -182,9 +188,12 @@ export default function AdminPanel() {
       const signRes = await fetch('/api/bunny-upload-signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name })
+        body: JSON.stringify({ filename: file.name || 'store_product.jpg' })
       });
-      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Signed URL signing failed with status ${signRes.status}`);
+      }
       const signData = await signRes.json();
 
       const uploadRes = await fetch(signData.uploadUrl, {
@@ -192,7 +201,10 @@ export default function AdminPanel() {
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file
       });
-      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        throw new Error(`Upload proxy failed (${uploadRes.status}): ${errText}`);
+      }
       const uploadResult = await uploadRes.json();
       
       setStoreProductForm(prev => ({ ...prev, imageUrl: uploadResult.publicUrl }));
@@ -215,9 +227,12 @@ export default function AdminPanel() {
       const signRes = await fetch('/api/bunny-upload-signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name })
+        body: JSON.stringify({ filename: file.name || 'resource_logo.jpg' })
       });
-      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Signed URL signing failed with status ${signRes.status}`);
+      }
       const signData = await signRes.json();
 
       const uploadRes = await fetch(signData.uploadUrl, {
@@ -225,7 +240,10 @@ export default function AdminPanel() {
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file
       });
-      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        throw new Error(`Upload proxy failed (${uploadRes.status}): ${errText}`);
+      }
       const uploadResult = await uploadRes.json();
       
       setUsefulResourceForm(prev => ({ ...prev, logoUrl: uploadResult.publicUrl }));
@@ -530,9 +548,12 @@ export default function AdminPanel() {
       const signRes = await fetch('/api/bunny-upload-signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name })
+        body: JSON.stringify({ filename: file.name || 'seo_card.jpg' })
       });
-      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Signed URL signing failed with status ${signRes.status}`);
+      }
       const signData = await signRes.json();
 
       const uploadRes = await fetch(signData.uploadUrl, {
@@ -540,7 +561,10 @@ export default function AdminPanel() {
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file
       });
-      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        throw new Error(`Upload proxy failed (${uploadRes.status}): ${errText}`);
+      }
       const uploadResult = await uploadRes.json();
 
       if (routeIndex === -1) {
@@ -2840,9 +2864,12 @@ export default function AdminPanel() {
       const signRes = await fetch('/api/bunny-upload-signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name })
+        body: JSON.stringify({ filename: file.name || 'question_media.jpg' })
       });
-      if (!signRes.ok) throw new Error('Signed URL signing failed.');
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Signed URL signing failed with status ${signRes.status}`);
+      }
       const signData = await signRes.json();
 
       const uploadRes = await fetch(signData.uploadUrl, {
@@ -2850,7 +2877,10 @@ export default function AdminPanel() {
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file
       });
-      if (!uploadRes.ok) throw new Error('Upload streaming proxy error.');
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        throw new Error(`Upload proxy failed (${uploadRes.status}): ${errText}`);
+      }
       const uploadResult = await uploadRes.json();
       
       setCurrentQuestionForm(prev => ({ ...prev, [field]: uploadResult.publicUrl }));

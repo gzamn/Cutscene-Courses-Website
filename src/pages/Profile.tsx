@@ -36,11 +36,12 @@ export default function Profile() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ filename: file.name })
+        body: JSON.stringify({ filename: file.name || 'avatar.jpg' })
       });
 
       if (!signRes.ok) {
-        throw new Error('Failed to obtain secured upload authorization.');
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload authorization failed with status ${signRes.status}`);
       }
       const signData = await signRes.json();
 
