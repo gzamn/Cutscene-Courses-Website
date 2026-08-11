@@ -53,13 +53,15 @@ export function ContinueWatchingWidget() {
           try {
             const parsed = JSON.parse(localSaved);
             if (parsed && parsed.courseId) {
+              const hasValidTime = typeof parsed.currentTime === 'number' && parsed.currentTime > 0;
+              const hasValidDur = typeof parsed.duration === 'number' && parsed.duration > 0;
               candidateItem = {
                 courseId: parsed.courseId,
-                courseTitle: parsed.courseTitle || 'Video Editing 101',
+                courseTitle: parsed.courseTitle || 'Academy Course',
                 chapter: parsed.chapter || 1,
                 type: parsed.type || 'session',
-                currentTime: parsed.currentTime || 0,
-                duration: parsed.duration || 600,
+                currentTime: hasValidTime ? parsed.currentTime : undefined,
+                duration: hasValidDur ? parsed.duration : undefined,
                 thumbnail: parsed.thumbnail || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400',
                 lessonTitle: parsed.lessonTitle || `Session ${parsed.chapter || 1}`,
                 updatedAt: parsed.updatedAt
@@ -91,14 +93,17 @@ export function ContinueWatchingWidget() {
 
                 if (fsTime >= localTime || !candidateItem) {
                   const matchingCourse = DEFAULT_COURSES.find(c => c.id === latest.courseId);
+                  const hasValidTime = typeof latest.currentTime === 'number' && latest.currentTime > 0;
+                  const hasValidDur = typeof latest.duration === 'number' && latest.duration > 0;
+
                   candidateItem = {
                     courseId: latest.courseId,
-                    courseTitle: matchingCourse?.title || 'Academy Course',
+                    courseTitle: matchingCourse?.title || candidateItem?.courseTitle || 'Academy Course',
                     chapter: latest.chapter || 1,
                     type: latest.type || 'session',
-                    currentTime: latest.currentTime || 0,
-                    duration: latest.duration || 600,
-                    thumbnail: matchingCourse?.image || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400',
+                    currentTime: hasValidTime ? latest.currentTime : candidateItem?.currentTime,
+                    duration: hasValidDur ? latest.duration : candidateItem?.duration,
+                    thumbnail: matchingCourse?.image || candidateItem?.thumbnail || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400',
                     lessonTitle: latest.lessonTitle || `Session ${latest.chapter || 1}`,
                     updatedAt: latest.updatedAt
                   };
@@ -118,8 +123,8 @@ export function ContinueWatchingWidget() {
             courseTitle: defaultCourse.title,
             chapter: 1,
             type: 'session',
-            currentTime: 0,
-            duration: 600,
+            currentTime: undefined,
+            duration: undefined,
             thumbnail: defaultCourse.image,
             lessonTitle: language === 'ar' ? 'الجلسة 1: أساسيات المونتاج' : language === 'fr' ? 'Session 1: Les bases du montage' : 'Session 1: Premiere Pro Essentials',
           };
@@ -163,10 +168,18 @@ export function ContinueWatchingWidget() {
     return null;
   }
 
+  // Check if real recorded player progress exists
+  const hasRealProgress = Boolean(
+    typeof watchItem.currentTime === 'number' && 
+    watchItem.currentTime > 0 && 
+    typeof watchItem.duration === 'number' && 
+    watchItem.duration > 0
+  );
+
   // Calculate progress percent
-  const percent = watchItem.duration && watchItem.duration > 0 && watchItem.currentTime 
-    ? Math.min(100, Math.max(8, Math.round((watchItem.currentTime / watchItem.duration) * 100)))
-    : 12;
+  const percent = hasRealProgress 
+    ? Math.min(100, Math.max(1, Math.round((watchItem.currentTime! / watchItem.duration!) * 100)))
+    : 0;
 
   // Format time remaining or watched
   const formatSecs = (secs?: number) => {
@@ -245,30 +258,28 @@ export function ContinueWatchingWidget() {
                 {watchItem.lessonTitle}
               </p>
               
-              {watchItem.currentTime && watchItem.currentTime > 0 ? (
+              {hasRealProgress && (
                 <div className="flex items-center gap-1.5 text-[10px] text-purple-300 font-mono">
                   <Clock className="w-3 h-3 text-purple-400 shrink-0" />
                   <span>{formatSecs(watchItem.currentTime)} / {formatSecs(watchItem.duration)}</span>
                   <span className="text-gray-500">•</span>
                   <span className="text-gray-400">{percent}%</span>
                 </div>
-              ) : (
-                <div className="text-[10px] text-purple-300/80 font-medium">
-                  {language === 'ar' ? 'جاهز للبدء' : language === 'fr' ? 'Prêt à commencer' : 'Ready to start'}
-                </div>
               )}
             </div>
           </div>
 
-          {/* Sleek Progress Bar */}
-          <div className="mt-3 relative z-10">
-            <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-purple-900/20">
-              <div 
-                className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full transition-all duration-500"
-                style={{ width: `${percent}%` }}
-              />
+          {/* Sleek Progress Bar - Only shown if real player progress exists */}
+          {hasRealProgress && (
+            <div className="mt-3 relative z-10">
+              <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-purple-900/20">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full transition-all duration-500"
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Action Button */}
           <div className="mt-3 relative z-10">

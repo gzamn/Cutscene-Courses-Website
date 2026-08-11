@@ -32,6 +32,8 @@ import {
 } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
+import { DEFAULT_SOFTWARE_OPTIONS } from '../components/SoftwareSelectionModal';
+import { CourseSoftwareOption } from '../types';
 
 type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises' | 'seo';
 
@@ -727,8 +729,12 @@ export default function AdminPanel() {
 
   const [showChapterModal, setShowChapterModal] = useState(false);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [selectedSoftwareFilter, setSelectedSoftwareFilter] = useState<string>('all');
+  const [editingSoftwareOptions, setEditingSoftwareOptions] = useState<CourseSoftwareOption[]>(DEFAULT_SOFTWARE_OPTIONS);
+
   const [chapterForm, setChapterForm] = useState({
     courseId: '',
+    softwareId: 'premiere',
     title: '',
     position: '1',
     is_preview: false,
@@ -750,6 +756,7 @@ export default function AdminPanel() {
     session_name: '',
     sessions: [] as Array<{ url: string; name: string }>
   });
+
 
   const [showStoreProductModal, setShowStoreProductModal] = useState(false);
   const [editingStoreProductId, setEditingStoreProductId] = useState<string | null>(null);
@@ -867,10 +874,35 @@ export default function AdminPanel() {
   useEffect(() => {
     if (selectedCourseId) {
       fetchChaptersForCourse(selectedCourseId);
+      const found = courses.find(c => c.id === selectedCourseId);
+      if (found && Array.isArray(found.softwareOptions) && found.softwareOptions.length > 0) {
+        setEditingSoftwareOptions(found.softwareOptions);
+      } else {
+        setEditingSoftwareOptions(DEFAULT_SOFTWARE_OPTIONS);
+      }
     } else {
       setChapters([]);
+      setEditingSoftwareOptions(DEFAULT_SOFTWARE_OPTIONS);
     }
-  }, [selectedCourseId]);
+  }, [selectedCourseId, courses]);
+
+  const handleSaveSoftwareOptions = async () => {
+    if (!selectedCourseId) {
+      showToast('error', 'Please choose a course first.');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'courses', selectedCourseId), {
+        softwareOptions: editingSoftwareOptions
+      });
+      showToast('success', 'Software variations updated successfully for course.');
+      await fetchCourses();
+    } catch (err: any) {
+      console.error('Error updating software options:', err);
+      showToast('error', err.message || 'Failed to update software variations.');
+    }
+  };
+
 
   // ----------------------------------------------------
   // DATA FETCHING CONTROLLERS
@@ -1796,6 +1828,7 @@ export default function AdminPanel() {
 
       const payload = {
         courseId: chapterForm.courseId,
+        softwareId: chapterForm.softwareId || 'premiere',
         title: name,
         position: Number(chapterForm.position),
         is_preview: !!chapterForm.is_preview,
@@ -1838,6 +1871,7 @@ export default function AdminPanel() {
       setEditingChapterId(null);
       setChapterForm({
         courseId: selectedCourseId,
+        softwareId: selectedSoftwareFilter !== 'all' ? selectedSoftwareFilter : 'premiere',
         title: '',
         position: (chapters.length + 1).toString(),
         is_preview: false,
@@ -1873,6 +1907,7 @@ export default function AdminPanel() {
     setEditingChapterId(chapter.id);
     setChapterForm({
       courseId: chapter.courseId || selectedCourseId,
+      softwareId: chapter.softwareId || 'premiere',
       title: title,
       position: (chapter.position || '1').toString(),
       is_preview: !!chapter.is_preview,
@@ -1901,6 +1936,7 @@ export default function AdminPanel() {
     setEditingChapterId(null);
     setChapterForm({
       courseId: selectedCourseId,
+      softwareId: selectedSoftwareFilter !== 'all' ? selectedSoftwareFilter : 'premiere',
       title: '',
       position: (chapters.length + 1).toString(),
       is_preview: false,
@@ -1908,6 +1944,7 @@ export default function AdminPanel() {
       thumbnail_url: '',
       exercise_url: '',
       homework_url: '',
+
       exercise_title: '',
       exercise_brief: '',
       exercise_tasks_raw: '',
@@ -3569,6 +3606,116 @@ export default function AdminPanel() {
               </select>
             </div>
 
+            {/* SOFTWARE VARIATIONS MANAGER FOR SELECTED COURSE */}
+            {selectedCourseId && (
+              <div className="bg-black/60 border border-purple-950/30 p-6 rounded-3xl space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-purple-500" />
+                      Software Variations Configuration
+                    </h3>
+                    <p className="text-[11px] text-gray-400">Configure titles, square icons, and status ('Available' or 'Coming Soon') for each software variation.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveSoftwareOptions}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer shrink-0"
+                  >
+                    Save Variations Config
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  {(editingSoftwareOptions || DEFAULT_SOFTWARE_OPTIONS).map((opt, idx) => (
+                    <div key={opt.id || idx} className="bg-zinc-950 border border-purple-900/20 rounded-2xl p-4 space-y-3 relative">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-purple-400 uppercase tracking-widest">{opt.id}</span>
+                        <select
+                          value={opt.status}
+                          onChange={(e) => {
+                            const updated = [...editingSoftwareOptions];
+                            updated[idx] = { ...updated[idx], status: e.target.value as any };
+                            setEditingSoftwareOptions(updated);
+                          }}
+                          className={`text-[10px] font-bold uppercase rounded-lg px-2 py-1 border cursor-pointer focus:outline-none ${
+                            opt.status === 'available'
+                              ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-400'
+                              : 'bg-amber-950/50 border-amber-500/30 text-amber-400'
+                          }`}
+                        >
+                          <option value="available">Available</option>
+                          <option value="coming_soon">Coming Soon</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={opt.title}
+                          onChange={(e) => {
+                            const updated = [...editingSoftwareOptions];
+                            updated[idx] = { ...updated[idx], title: e.target.value };
+                            setEditingSoftwareOptions(updated);
+                          }}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Square Icon Image URL</label>
+                        <div className="flex items-center gap-2">
+                          {opt.imageUrl ? (
+                            <img src={opt.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-purple-900/30 shrink-0" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-purple-900/20 shrink-0 flex items-center justify-center text-[9px] text-gray-600 font-bold">SQ</div>
+                          )}
+                          <input
+                            type="url"
+                            value={opt.imageUrl}
+                            onChange={(e) => {
+                              const updated = [...editingSoftwareOptions];
+                              updated[idx] = { ...updated[idx], imageUrl: e.target.value };
+                              setEditingSoftwareOptions(updated);
+                            }}
+                            className="w-full bg-black border border-purple-900/30 rounded-xl px-3 py-2 text-[11px] text-white focus:outline-none"
+                            placeholder="https://..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SESSIONS FILTER BY SOFTWARE VARIATION */}
+            {selectedCourseId && (
+              <div className="flex items-center gap-2 bg-zinc-950/80 border border-purple-950/30 p-2 rounded-2xl overflow-x-auto">
+                <span className="text-xs font-bold text-gray-400 uppercase px-3 whitespace-nowrap">Filter Sessions:</span>
+                {[
+                  { id: 'all', name: 'All Variations' },
+                  { id: 'premiere', name: 'Premiere Pro' },
+                  { id: 'davinci', name: 'DaVinci Resolve' },
+                  { id: 'capcut', name: 'CapCut' }
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedSoftwareFilter(s.id)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                      selectedSoftwareFilter === s.id
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                        : 'bg-black text-gray-400 hover:text-white border border-purple-900/10'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {loadingChapters ? (
               <div className="py-24 flex justify-center">
                 <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
@@ -3587,6 +3734,7 @@ export default function AdminPanel() {
                     <thead className="bg-[#09090b] text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-purple-950/30">
                       <tr>
                         <th className="py-4 px-6 bg-[#09090b]">Index/Pos</th>
+                        <th className="py-4 px-6 bg-[#09090b]">Software</th>
                         <th className="py-4 px-6 bg-[#09090b]">Session Topic / Title</th>
                         <th className="py-4 px-6 bg-[#09090b]">Type Status</th>
                         <th className="py-4 px-6 bg-[#09090b]">Handouts & Exercises</th>
@@ -3594,24 +3742,39 @@ export default function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-purple-950/15">
-                      {chapters.map((chap) => (
+                      {chapters.filter((chap) => {
+                        if (!selectedSoftwareFilter || selectedSoftwareFilter === 'all') return true;
+                        if (selectedSoftwareFilter === 'premiere') return !chap.softwareId || chap.softwareId === 'premiere';
+                        return chap.softwareId === selectedSoftwareFilter;
+                      }).map((chap) => (
                         <tr key={chap.id} className="hover:bg-white/5 transition-colors group">
                           <td className="py-4 px-6 font-mono text-xs font-black text-purple-400 flex items-center gap-2">
                             <span>{chap.position || 'N/A'}</span>
                             <div className="flex flex-col gap-1">
                               <button 
                                 onClick={() => handleUpdateChapterPosition(chap, Number(chap.position || 0) + 1)}
-                                className="text-[9px] hover:text-white transition-colors"
+                                className="text-[9px] hover:text-white transition-colors cursor-pointer"
                               >
                                 ▲
                               </button>
                               <button 
                                 onClick={() => handleUpdateChapterPosition(chap, Math.max(1, Number(chap.position || 0) - 1))}
-                                className="text-[9px] hover:text-white transition-colors"
+                                className="text-[9px] hover:text-white transition-colors cursor-pointer"
                               >
                                 ▼
                               </button>
                             </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border ${
+                              chap.softwareId === 'davinci'
+                                ? 'bg-amber-950/40 border-amber-500/30 text-amber-300'
+                                : chap.softwareId === 'capcut'
+                                  ? 'bg-cyan-950/40 border-cyan-500/30 text-cyan-300'
+                                  : 'bg-purple-950/40 border-purple-500/30 text-purple-300'
+                            }`}>
+                              {chap.softwareId === 'davinci' ? 'DaVinci' : chap.softwareId === 'capcut' ? 'CapCut' : 'Premiere'}
+                            </span>
                           </td>
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-2">
@@ -3629,6 +3792,7 @@ export default function AdminPanel() {
                               </div>
                             )}
                           </td>
+
                           <td className="py-4 px-6">
                             {chap.is_preview ? (
                               <span className="px-2.5 py-1 bg-green-950/35 border border-green-500/20 text-green-400 text-[10px] uppercase font-black rounded-lg">
@@ -8043,6 +8207,20 @@ export default function AdminPanel() {
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1.5 font-mono">Target Software Variation</label>
+                  <select
+                    value={chapterForm.softwareId || 'premiere'}
+                    onChange={(e) => setChapterForm({ ...chapterForm, softwareId: e.target.value })}
+                    className="w-full bg-zinc-900 border border-purple-500/40 rounded-xl px-4 py-3 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                  >
+                    <option value="premiere">Adobe Premiere Pro</option>
+                    <option value="davinci">DaVinci Resolve</option>
+                    <option value="capcut">CapCut</option>
+                  </select>
+                </div>
+
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Session Title</label>

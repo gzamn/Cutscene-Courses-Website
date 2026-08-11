@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck, Trash2, Trophy } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Star, Clock, BarChart, CheckCircle2, ArrowRight, Play, BookOpen, FileText, Lock, MessageSquare, Send, Calendar, Users, ShieldCheck, Trash2, Trophy, Layers, Edit3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, collection, query, where, onSnapshot, addDoc, getDocs, doc, getDoc, deleteDoc, ensureDefaultStatisticsSeeded } from '../firebase';
 import { useLanguage } from '../context/LanguageContext';
 import { RainbowButton, SparkleButton } from '../components/AnimatedButtons';
 import { useRegion } from '../context/RegionContext';
+import { SoftwareSelectionModal, DEFAULT_SOFTWARE_OPTIONS } from '../components/SoftwareSelectionModal';
+import { CourseSoftwareOption } from '../types';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, userProfile } = useAuth();
   const isAdmin = userProfile?.role === 'admin';
   const { t, language } = useLanguage();
@@ -22,6 +25,28 @@ export default function CourseDetail() {
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
   const [validatedCount, setValidatedCount] = useState<number>(0);
+
+  // Software Choice State
+  const softwareParam = searchParams.get('software');
+  const [selectedSoftware, setSelectedSoftware] = useState<string>(
+    softwareParam || (id ? localStorage.getItem(`selected_software_${id}`) || 'premiere' : 'premiere')
+  );
+  const [isSoftwareModalOpen, setIsSoftwareModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (softwareParam && softwareParam !== selectedSoftware) {
+      setSelectedSoftware(softwareParam);
+      if (id) localStorage.setItem(`selected_software_${id}`, softwareParam);
+    }
+  }, [softwareParam, id]);
+
+  const handleConfirmSoftwareChange = (newSoftwareId: string, option: CourseSoftwareOption) => {
+    setSelectedSoftware(newSoftwareId);
+    if (id) localStorage.setItem(`selected_software_${id}`, newSoftwareId);
+    setSearchParams({ software: newSoftwareId });
+    setIsSoftwareModalOpen(false);
+  };
+
 
   const displayLastUpdated = useMemo(() => {
     if (!course) return 'July 2026';
@@ -193,45 +218,52 @@ export default function CourseDetail() {
           let chaptersData = [];
 
           if (!chaptersSnap.empty) {
-            chaptersData = chaptersSnap.docs.map(docSnap => {
-              const ch = docSnap.data();
-              let sessionsList: Array<{ url: string; name: string }> = [];
-              if (Array.isArray(ch.sessions)) {
-                sessionsList = ch.sessions.filter((s: any) => s.url);
-              } else {
-                const legacy = [
-                  { url: ch.session_url_1 || (ch.session_url || ""), name: ch.session_name_1 || ch.session_name || "" },
-                  { url: ch.session_url_2 || "", name: ch.session_name_2 || "" },
-                  { url: ch.session_url_3 || "", name: ch.session_name_3 || "" },
-                  { url: ch.session_url_4 || "", name: ch.session_name_4 || "" }
-                ].filter(s => s.url);
-                sessionsList = legacy;
-              }
+            chaptersData = chaptersSnap.docs
+              .map(docSnap => ({ id: docSnap.id, ...docSnap.data() as any }))
+              .filter((ch: any) => {
+                if (!selectedSoftware || selectedSoftware === 'premiere') {
+                  return !ch.softwareId || ch.softwareId === 'premiere';
+                }
+                return ch.softwareId === selectedSoftware;
+              })
+              .map(ch => {
+                let sessionsList: Array<{ url: string; name: string }> = [];
+                if (Array.isArray(ch.sessions)) {
+                  sessionsList = ch.sessions.filter((s: any) => s.url);
+                } else {
+                  const legacy = [
+                    { url: ch.session_url_1 || (ch.session_url || ""), name: ch.session_name_1 || ch.session_name || "" },
+                    { url: ch.session_url_2 || "", name: ch.session_name_2 || "" },
+                    { url: ch.session_url_3 || "", name: ch.session_name_3 || "" },
+                    { url: ch.session_url_4 || "", name: ch.session_name_4 || "" }
+                  ].filter(s => s.url);
+                  sessionsList = legacy;
+                }
 
-              if (sessionsList.length === 0) {
-                sessionsList.push({ url: ch.session_url || "", name: ch.session_name || "Session Video" });
-              }
+                if (sessionsList.length === 0) {
+                  sessionsList.push({ url: ch.session_url || "", name: ch.session_name || "Session Video" });
+                }
 
-              const dynamicLessons: any[] = [];
-              sessionsList.forEach((s, sIdx) => {
-                dynamicLessons.push({
-                  id: `session_${sIdx + 1}`,
-                  type: `session_${sIdx + 1}`,
-                  title: s.name ? s.name : `Session ${sIdx + 1}`,
-                  video_url: s.url
+                const dynamicLessons: any[] = [];
+                sessionsList.forEach((s, sIdx) => {
+                  dynamicLessons.push({
+                    id: `session_${sIdx + 1}`,
+                    type: `session_${sIdx + 1}`,
+                    title: s.name ? s.name : `Session ${sIdx + 1}`,
+                    video_url: s.url
+                  });
                 });
-              });
 
-              if (ch.homework_url) {
-                dynamicLessons.push({ id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url });
-              }
+                if (ch.homework_url) {
+                  dynamicLessons.push({ id: "homework", type: "homework", title: "Homework Video", video_url: ch.homework_url });
+                }
 
-              return {
-                id: docSnap.id,
-                ...ch,
-                lessons: dynamicLessons
-              };
-            }).sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0));
+                return {
+                  ...ch,
+                  lessons: dynamicLessons
+                };
+              })
+              .sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0));
           }
 
           setCourse({ id: courseSnap.id, ...data, chapters: chaptersData });
@@ -244,6 +276,7 @@ export default function CourseDetail() {
     };
 
     fetchCourse();
+
 
     // Fetch all validated enrollments to compute student statistics based on validated receipts
     const unsubEnrollments = onSnapshot(collection(db, 'enrollments'), (snap) => {
@@ -298,7 +331,7 @@ export default function CourseDetail() {
       unsubReviews();
       if (unsubProgress) unsubProgress();
     };
-  }, [id, user]);
+  }, [id, user, selectedSoftware]);
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,13 +453,48 @@ export default function CourseDetail() {
                 {course.description}
               </p>
 
-              <div className="flex flex-wrap gap-6 text-sm text-gray-500 mb-10">
+              <div className="flex flex-wrap gap-6 text-sm text-gray-500 mb-6">
                 <span className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-purple-500" /> {course.duration}
                 </span>
                 <span className="flex items-center gap-2">
                   <BarChart className="w-5 h-5 text-purple-500" /> {course.level || 'Beginner to Advanced'}
                 </span>
+              </div>
+
+              {/* Selected Software Banner */}
+              <div className="bg-zinc-900/90 border border-purple-500/20 rounded-2xl p-4 mb-8 flex items-center justify-between gap-4 backdrop-blur-sm max-w-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-500/30 flex items-center justify-center shrink-0">
+                    <Layers className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
+                      {language === 'ar' ? 'البرنامج المختار' : language === 'fr' ? 'Logiciel Sélectionné' : 'Target Software'}
+                    </div>
+                    <div className="text-sm font-black text-white flex items-center gap-2">
+                      {(() => {
+                        const opts = course.softwareOptions || DEFAULT_SOFTWARE_OPTIONS;
+                        const currentOpt = opts.find((o: any) => o.id === selectedSoftware) || opts[0];
+                        return (
+                          <>
+                            {currentOpt?.imageUrl && (
+                              <img src={currentOpt.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />
+                            )}
+                            <span>{currentOpt?.title || 'Adobe Premiere Pro'}</span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsSoftwareModalOpen(true)}
+                  className="px-3.5 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>{language === 'ar' ? 'تغيير' : language === 'fr' ? 'Changer' : 'Change'}</span>
+                </button>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
@@ -447,13 +515,14 @@ export default function CourseDetail() {
                   </button>
                 ) : (
                   <RainbowButton 
-                    to={`/payment?courseId=${course.id}`}
+                    to={`/payment?courseId=${course.id}&software=${selectedSoftware}`}
                     className="px-10 py-4 font-bold text-lg"
                   >
                     <span>{t('courses.getStarted')}</span>
                     <ArrowRight className={`w-5 h-5 inline-block ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </RainbowButton>
                 )}
+
                 {!isEnrolled && (
                   <SparkleButton 
                     to={`/courses/${course.id}/video/1/session`}
@@ -807,7 +876,7 @@ export default function CourseDetail() {
                     </button>
                   ) : (
                     <RainbowButton 
-                      to={`/payment?courseId=${course.id}`}
+                      to={`/payment?courseId=${course.id}&software=${selectedSoftware}`}
                       className="w-full py-4 text-white font-bold"
                     >
                       <span>{t('courses.getStarted')}</span>
@@ -820,6 +889,17 @@ export default function CourseDetail() {
           </div>
         </div>
       </section>
+
+      {/* Floating Software Selection Modal */}
+      <SoftwareSelectionModal
+        isOpen={isSoftwareModalOpen}
+        onClose={() => setIsSoftwareModalOpen(false)}
+        onConfirm={handleConfirmSoftwareChange}
+        courseTitle={course?.title}
+        options={course?.softwareOptions}
+        initialSelectedId={selectedSoftware}
+      />
     </div>
   );
 }
+

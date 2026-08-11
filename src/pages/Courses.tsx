@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BarChart, ArrowRight, Search, CheckCircle2, User, Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useRegion } from '../context/RegionContext';
@@ -7,14 +7,42 @@ import { useEffect, useState } from 'react';
 import { db, handleFirestoreError, OperationType, ensureDefaultCoursesSeeded, collection, getDocs, query, where, onSnapshot } from '../firebase';
 import { SparkleButton, RainbowButton } from '../components/AnimatedButtons';
 import { useAuth } from '../context/AuthContext';
+import { SoftwareSelectionModal, DEFAULT_SOFTWARE_OPTIONS } from '../components/SoftwareSelectionModal';
+import { CourseSoftwareOption } from '../types';
 
 export default function Courses() {
   const { t, language } = useLanguage();
   const { getCoursePrice } = useRegion();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<any[]>([]);
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Software Selection Modal State
+  const [selectedCourseForModal, setSelectedCourseForModal] = useState<any>(null);
+  const [targetDestination, setTargetDestination] = useState<'details' | 'payment'>('details');
+  const [isSoftwareModalOpen, setIsSoftwareModalOpen] = useState(false);
+
+  const handleOpenSoftwareModal = (course: any, target: 'details' | 'payment') => {
+    // If course has software options or is video editing course (id === '1')
+    setSelectedCourseForModal(course);
+    setTargetDestination(target);
+    setIsSoftwareModalOpen(true);
+  };
+
+  const handleConfirmSoftware = (softwareId: string, option: CourseSoftwareOption) => {
+    if (!selectedCourseForModal) return;
+    const courseId = selectedCourseForModal.id;
+    localStorage.setItem(`selected_software_${courseId}`, softwareId);
+    setIsSoftwareModalOpen(false);
+
+    if (targetDestination === 'payment') {
+      navigate(`/payment?courseId=${courseId}&software=${softwareId}`);
+    } else {
+      navigate(`/courses/${courseId}?software=${softwareId}`);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -102,11 +130,14 @@ export default function Courses() {
                 }}
                 className="bg-zinc-950 border border-purple-900/20 rounded-[2rem] overflow-hidden flex flex-col group h-full shadow-xl hover:shadow-[0_0_30px_rgba(147,51,234,0.15)] transition-all duration-300"
               >
-                <Link to={`/courses/${course.id}`} className="relative aspect-video overflow-hidden shrink-0">
+                <div 
+                  onClick={() => !course.isComingSoon && handleOpenSoftwareModal(course, 'details')} 
+                  className="relative aspect-video overflow-hidden shrink-0 cursor-pointer group/img"
+                >
                   <img 
                     src={course.image || 'https://picsum.photos/seed/course/800/600'} 
                     alt={course.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-700"
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -135,16 +166,20 @@ export default function Courses() {
                       )}
                     </div>
                   )}
-                </Link>
+                </div>
                 
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div className="flex-1 flex flex-col mb-6">
                     <div className="flex justify-between items-start gap-2 mb-3">
-                      <Link to={`/courses/${course.id}`} className="group/title flex-1">
+                      <div 
+                        onClick={() => !course.isComingSoon && handleOpenSoftwareModal(course, 'details')} 
+                        className="group/title flex-1 cursor-pointer"
+                      >
                         <h3 className="text-xl font-bold text-white group-hover/title:text-purple-400 transition-colors line-clamp-1">
                           {course.title}
                         </h3>
-                      </Link>
+                      </div>
+
                       <div className="text-lg font-black text-purple-500 whitespace-nowrap">
                         {course.isComingSoon ? (
                           <span className="text-xs text-purple-400 uppercase tracking-widest">{t('course.comingSoon') || 'Coming Soon'}</span>
@@ -184,34 +219,34 @@ export default function Courses() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-3">
-                        <SparkleButton 
-                          to={`/courses/${course.id}`}
-                          className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs"
+                        <button 
+                          onClick={() => handleOpenSoftwareModal(course, 'details')}
+                          className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs bg-zinc-900 border border-purple-500/20 text-purple-300 hover:bg-purple-950/40 hover:text-white transition-all cursor-pointer"
                         >
                           <span>{t('courses.details')}</span>
-                        </SparkleButton>
+                        </button>
                         {(() => {
                           const enrollment = enrollments.find(e => e.courseId === course.id);
                           const isApproved = enrollment && (enrollment.paid === true || enrollment.status === 'approved');
                           if (isApproved) {
                             return (
-                              <RainbowButton 
-                                to={`/courses/${course.id}`}
-                                className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs bg-purple-600 hover:bg-purple-700"
+                              <button 
+                                onClick={() => handleOpenSoftwareModal(course, 'details')}
+                                className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs bg-purple-600 hover:bg-purple-700 text-white transition-all cursor-pointer shadow-lg shadow-purple-600/30"
                               >
                                 <span>{t('courses.continueLearning')}</span>
                                 <ArrowRight className={`w-3.5 h-3.5 inline-block shrink-0 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                              </RainbowButton>
+                              </button>
                             );
                           }
                           return (
-                            <RainbowButton 
-                              to={`/payment?courseId=${course.id}`}
-                              className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs"
+                            <button 
+                              onClick={() => handleOpenSoftwareModal(course, 'payment')}
+                              className="px-4 py-3 font-bold flex items-center justify-center gap-1.5 rounded-xl text-xs bg-brand-radial text-white hover:opacity-95 transition-all cursor-pointer shadow-lg shadow-purple-600/30"
                             >
                               <span>{t('courses.getStarted')}</span>
                               <ArrowRight className={`w-3.5 h-3.5 inline-block shrink-0 ${language === 'ar' ? 'rotate-180' : ''}`} />
-                            </RainbowButton>
+                            </button>
                           );
                         })()}
                       </div>
@@ -222,7 +257,18 @@ export default function Courses() {
             ))}
           </div>
         )}
+
+        {/* Floating Software Selection Modal */}
+        <SoftwareSelectionModal
+          isOpen={isSoftwareModalOpen}
+          onClose={() => setIsSoftwareModalOpen(false)}
+          onConfirm={handleConfirmSoftware}
+          courseTitle={selectedCourseForModal?.title}
+          options={selectedCourseForModal?.softwareOptions}
+          initialSelectedId={selectedCourseForModal ? localStorage.getItem(`selected_software_${selectedCourseForModal.id}`) || 'premiere' : 'premiere'}
+        />
       </div>
     </div>
   );
 }
+

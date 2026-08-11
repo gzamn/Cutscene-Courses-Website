@@ -17,11 +17,16 @@ export default function Payment() {
   const { currentRegion, getCoursePrice } = useRegion();
   const searchParams = new URLSearchParams(location.search);
   const courseId = searchParams.get('courseId');
+  const softwareParam = searchParams.get('software');
+  const [selectedSoftware, setSelectedSoftware] = useState<string>(
+    softwareParam || (courseId ? localStorage.getItem(`selected_software_${courseId}`) || 'premiere' : 'premiere')
+  );
   
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<'info' | 'payment'>('info');
   const [selectedMethod, setSelectedMethod] = useState<string>('');
+
 
   useEffect(() => {
     const activeMethods = currentRegion?.paymentMethods?.filter((m: any) => m.active) || [];
@@ -285,6 +290,7 @@ export default function Payment() {
       const payload = {
         uid: user.uid,
         courseId: courseId,
+        softwareId: selectedSoftware,
         enrolledAt: new Date().toISOString(),
         status: 'pending_verification',
         fullName: formData.fullName,
@@ -299,6 +305,7 @@ export default function Payment() {
         paymentMethod: selectedMethod,
         submittedAt: new Date().toISOString()
       };
+
 
       if (snap.empty) {
         await addDoc(collection(db, 'enrollments'), payload);
@@ -401,10 +408,17 @@ export default function Payment() {
                   <span>Course Format</span>
                   <span className="text-purple-400 font-semibold uppercase tracking-widest text-[11px]">Recorded Lectures</span>
                 </div>
+                <div className="flex justify-between text-gray-400 text-sm items-center">
+                  <span>Target Software</span>
+                  <span className="text-white font-bold bg-purple-950/60 border border-purple-500/30 px-3 py-1 rounded-xl text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    {selectedSoftware === 'davinci' ? 'DaVinci Resolve' : selectedSoftware === 'capcut' ? 'CapCut' : 'Adobe Premiere Pro'}
+                  </span>
+                </div>
                 <div className="flex justify-between text-gray-400 text-sm">
                   <span>{t('payment.platformFee')}</span>
                   <span className="text-white font-medium">0 {currentRegion.currency}</span>
                 </div>
+
                 <div className="pt-4 border-t border-purple-900/20 flex justify-between items-center">
                   <span className="text-lg font-bold">{t('payment.totalAmount')}</span>
                   <span className="text-2xl font-black text-purple-500">{getCoursePrice(course).formatted}</span>

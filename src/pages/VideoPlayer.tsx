@@ -488,12 +488,25 @@ export default function VideoPlayer() {
           }
         }
 
-        // Handle standard key-value message signatures
-        if (typeof msgData.currentTime === 'number') {
-          setVideoCurrentTime(msgData.currentTime);
+        // Handle standard or player-specific message payloads (YouTube, Bunny Stream, HTML5, etc.)
+        const extractedTime = 
+          typeof msgData.currentTime === 'number' ? msgData.currentTime :
+          typeof msgData.time === 'number' ? msgData.time :
+          typeof msgData.seconds === 'number' ? msgData.seconds :
+          typeof msgData.data?.currentTime === 'number' ? msgData.data.currentTime :
+          typeof msgData.data?.time === 'number' ? msgData.data.time :
+          undefined;
+
+        const extractedDuration = 
+          typeof msgData.duration === 'number' && msgData.duration > 0 ? msgData.duration :
+          typeof msgData.data?.duration === 'number' && msgData.data.duration > 0 ? msgData.data.duration :
+          undefined;
+
+        if (typeof extractedTime === 'number' && !isNaN(extractedTime) && extractedTime >= 0) {
+          setVideoCurrentTime(extractedTime);
         }
-        if (typeof msgData.duration === 'number') {
-          setVideoDuration(msgData.duration);
+        if (typeof extractedDuration === 'number' && !isNaN(extractedDuration) && extractedDuration > 0) {
+          setVideoDuration(extractedDuration);
         }
       } catch (err) {
         // Safe to ignore non-JSON or unrelated messages
@@ -508,7 +521,7 @@ export default function VideoPlayer() {
 
   // Save/Update "Continue Watching" progress in local storage & Firestore
   useEffect(() => {
-    if (!course || !id || !chapter || !type || videoCurrentTime <= 5) return;
+    if (!course || !id || !chapter || !type || videoCurrentTime <= 2) return;
 
     // Determine lesson title
     let lessonTitle = '';
@@ -522,17 +535,19 @@ export default function VideoPlayer() {
       lessonTitle = `Chapter ${chapter}: ${type === 'exercise' ? 'Practice Exercise' : type === 'homework' ? 'Homework Video' : 'Session Video'}`;
     }
 
-    const item = {
+    const item: any = {
       courseId: id,
       courseTitle: course.title || '',
       chapter: chapter,
       type: type,
       currentTime: videoCurrentTime,
-      duration: videoDuration || 600,
       thumbnail: course.image || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400',
       lessonTitle: lessonTitle,
       updatedAt: new Date().toISOString()
     };
+    if (videoDuration && videoDuration > 0) {
+      item.duration = videoDuration;
+    }
 
     localStorage.setItem('continue_watching', JSON.stringify(item));
 
@@ -542,15 +557,19 @@ export default function VideoPlayer() {
       const lessonId = `${user.uid}-${id}-${chapter}-${type}`;
       const progressRef = doc(db, 'progress', lessonId);
       
-      setDoc(progressRef, {
+      const payload: any = {
         uid: user.uid,
         courseId: id,
         chapter: parseInt(chapter),
         type: type,
         currentTime: videoCurrentTime,
-        duration: videoDuration || 600,
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(err => {
+      };
+      if (videoDuration && videoDuration > 0) {
+        payload.duration = videoDuration;
+      }
+
+      setDoc(progressRef, payload, { merge: true }).catch(err => {
         console.error('Failed to save watch progress to Firestore:', err);
       });
     }
@@ -655,9 +674,18 @@ export default function VideoPlayer() {
           const chaptersSnap = await getDocs(chaptersQuery);
           let chaptersData = [];
 
-            if (!chaptersSnap.empty) {
-              chaptersData = chaptersSnap.docs.map(docSnap => {
-                const ch = docSnap.data();
+          const targetSoftware = localStorage.getItem(`selected_software_${id}`) || 'premiere';
+
+          if (!chaptersSnap.empty) {
+            chaptersData = chaptersSnap.docs
+              .map(docSnap => ({ id: docSnap.id, ...docSnap.data() as any }))
+              .filter((ch: any) => {
+                if (targetSoftware === 'premiere') {
+                  return !ch.softwareId || ch.softwareId === 'premiere';
+                }
+                return ch.softwareId === targetSoftware;
+              })
+              .map(ch => {
                 let sessionsList: Array<{ url: string; name: string }> = [];
                 if (Array.isArray(ch.sessions)) {
                   sessionsList = ch.sessions.filter((s: any) => s.url);
@@ -690,14 +718,15 @@ export default function VideoPlayer() {
                 }
 
                 return {
-                  id: docSnap.id,
                   ...ch,
                   lessons: dynamicLessons
                 };
-              }).sort((a, b) => (a.position || 0) - (b.position || 0));
+              })
+              .sort((a, b) => (a.position || 0) - (b.position || 0));
           } else {
             chaptersData = data.chapters || [];
           }
+
 
           setCourse({ id: courseSnap.id, ...data, chapters: chaptersData });
         }

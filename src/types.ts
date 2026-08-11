@@ -4,6 +4,13 @@ export interface Homework {
   expectedOutcome: string;
 }
 
+export interface CourseSoftwareOption {
+  id: string; // e.g. 'premiere', 'davinci', 'capcut'
+  title: string; // e.g. 'Adobe Premiere Pro'
+  imageUrl: string; // Icon image URL
+  status: 'available' | 'coming_soon';
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -24,6 +31,7 @@ export interface Course {
   homeworks?: Homework[];
   isComingSoon?: boolean;
   formatAvailability?: ('recorded')[];
+  softwareOptions?: CourseSoftwareOption[];
 }
 
 
