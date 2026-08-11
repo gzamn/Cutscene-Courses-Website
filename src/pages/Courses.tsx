@@ -25,7 +25,18 @@ export default function Courses() {
   const [isSoftwareModalOpen, setIsSoftwareModalOpen] = useState(false);
 
   const handleOpenSoftwareModal = (course: any, target: 'details' | 'payment') => {
-    // If course has software options or is video editing course (id === '1')
+    // Check if user already bought and was validated for this course
+    const enrollment = enrollments.find(e => String(e.courseId) === String(course.id));
+    const isApproved = enrollment && (enrollment.paid === true || enrollment.status === 'approved');
+
+    if (isApproved) {
+      // Keep them with their initial choice, do not ask them again
+      const softwareId = enrollment.softwareId || localStorage.getItem(`selected_software_${course.id}`) || 'premiere';
+      localStorage.setItem(`selected_software_${course.id}`, softwareId);
+      navigate(`/courses/${course.id}?software=${softwareId}`);
+      return;
+    }
+
     setSelectedCourseForModal(course);
     setTargetDestination(target);
     setIsSoftwareModalOpen(true);

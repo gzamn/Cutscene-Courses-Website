@@ -41,6 +41,10 @@ export default function CourseDetail() {
   }, [softwareParam, id]);
 
   const handleConfirmSoftwareChange = (newSoftwareId: string, option: CourseSoftwareOption) => {
+    if (isEnrolled) {
+      setIsSoftwareModalOpen(false);
+      return;
+    }
     setSelectedSoftware(newSoftwareId);
     if (id) localStorage.setItem(`selected_software_${id}`, newSoftwareId);
     setSearchParams({ software: newSoftwareId });
@@ -302,16 +306,26 @@ export default function CourseDetail() {
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'reviews'));
 
     let unsubProgress: (() => void) | undefined;
+    let unsubEnrollment: (() => void) | undefined;
 
-    // Check enrollment
-    if (user) {
+    // Check enrollment and lock software choice for validated students
+    if (user && id) {
       const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
-      getDocs(qEnrollment).then(snap => {
+      unsubEnrollment = onSnapshot(qEnrollment, (snap) => {
         if (snap.empty) {
           setIsEnrolled(false);
         } else {
-          const anyPaid = snap.docs.some(docSnap => docSnap.data().paid === true || docSnap.data().status === 'approved');
-          setIsEnrolled(anyPaid);
+          const validatedDoc = snap.docs.find(docSnap => docSnap.data().paid === true || docSnap.data().status === 'approved');
+          const isApproved = !!validatedDoc;
+          setIsEnrolled(isApproved);
+
+          if (isApproved && validatedDoc) {
+            const enrolledSoftware = validatedDoc.data().softwareId;
+            if (enrolledSoftware && enrolledSoftware !== selectedSoftware) {
+              setSelectedSoftware(enrolledSoftware);
+              localStorage.setItem(`selected_software_${id}`, enrolledSoftware);
+            }
+          }
         }
       });
 
@@ -330,6 +344,7 @@ export default function CourseDetail() {
       unsubEnrollments();
       unsubReviews();
       if (unsubProgress) unsubProgress();
+      if (unsubEnrollment) unsubEnrollment();
     };
   }, [id, user, selectedSoftware]);
 
@@ -488,13 +503,20 @@ export default function CourseDetail() {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setIsSoftwareModalOpen(true)}
-                  className="px-3.5 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>{language === 'ar' ? 'تغيير' : language === 'fr' ? 'Changer' : 'Change'}</span>
-                </button>
+                {isEnrolled ? (
+                  <div className="px-3.5 py-2 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 select-none">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'محرر ومثبت' : language === 'fr' ? 'Verrouillé' : 'Locked'}</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsSoftwareModalOpen(true)}
+                    className="px-3.5 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'تغيير' : language === 'fr' ? 'Changer' : 'Change'}</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
@@ -892,7 +914,7 @@ export default function CourseDetail() {
 
       {/* Floating Software Selection Modal */}
       <SoftwareSelectionModal
-        isOpen={isSoftwareModalOpen}
+        isOpen={isSoftwareModalOpen && !isEnrolled}
         onClose={() => setIsSoftwareModalOpen(false)}
         onConfirm={handleConfirmSoftwareChange}
         courseTitle={course?.title}

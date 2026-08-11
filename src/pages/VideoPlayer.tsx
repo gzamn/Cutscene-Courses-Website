@@ -674,7 +674,22 @@ export default function VideoPlayer() {
           const chaptersSnap = await getDocs(chaptersQuery);
           let chaptersData = [];
 
-          const targetSoftware = localStorage.getItem(`selected_software_${id}`) || 'premiere';
+          let targetSoftware = localStorage.getItem(`selected_software_${id}`) || 'premiere';
+          if (user) {
+            try {
+              const qEnrollment = query(collection(db, 'enrollments'), where('uid', '==', user.uid), where('courseId', '==', id));
+              const snapEnrollment = await getDocs(qEnrollment);
+              if (!snapEnrollment.empty) {
+                const validatedDoc = snapEnrollment.docs.find(d => d.data().paid === true || d.data().status === 'approved');
+                if (validatedDoc && validatedDoc.data().softwareId) {
+                  targetSoftware = validatedDoc.data().softwareId;
+                  localStorage.setItem(`selected_software_${id}`, targetSoftware);
+                }
+              }
+            } catch (err) {
+              console.warn("Could not fetch enrollment software in VideoPlayer:", err);
+            }
+          }
 
           if (!chaptersSnap.empty) {
             chaptersData = chaptersSnap.docs
