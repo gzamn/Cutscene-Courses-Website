@@ -13,7 +13,7 @@ import {
   User, Mail, Lock, Camera, CheckCircle2, AlertCircle, Loader2, Upload, Eye, EyeOff, 
   Grid, Play, Film, Award, Heart, Share2, Plus, Edit3, ExternalLink, Trash2, 
   Check, Globe, Instagram, Youtube, Github, Twitter, Linkedin, 
-  Palette, Menu, MoreVertical, X, ChevronRight, Sparkles, SlidersHorizontal
+  Palette, Menu, MoreVertical, X, ChevronRight, Sparkles, SlidersHorizontal, Image as ImageIcon
 } from 'lucide-react';
 
 interface UserPostItem {
@@ -96,6 +96,11 @@ export default function Profile() {
   // Active tab: 'posts' | 'reels' | 'certificates'
   const [activeTab, setActiveTab] = useState<'posts' | 'reels' | 'certificates'>('posts');
 
+  // Profile Likes System
+  const [profileLikes, setProfileLikes] = useState<string[]>([]);
+  const [profileLikesCount, setProfileLikesCount] = useState<number>(0);
+  const [likingProfile, setLikingProfile] = useState<boolean>(false);
+
   // Data lists
   const [posts, setPosts] = useState<UserPostItem[]>([]);
   const [certificates, setCertificates] = useState<CertificateItem[]>([]);
@@ -109,7 +114,9 @@ export default function Profile() {
   const [showEditProfileModal, setShowEditProfileModal] = useState<boolean>(false);
   const [showSecurityModal, setShowSecurityModal] = useState<boolean>(false);
   const [showGradientModal, setShowGradientModal] = useState<boolean>(false);
+  const [showCreateChooserModal, setShowCreateChooserModal] = useState<boolean>(false);
   const [showCreatePostModal, setShowCreatePostModal] = useState<boolean>(false);
+  const [createContentType, setCreateContentType] = useState<'post' | 'reel'>('post');
   const [selectedPost, setSelectedPost] = useState<UserPostItem | null>(null);
   const [selectedCertificate, setSelectedCertificate] = useState<CertificateItem | null>(null);
 
@@ -203,6 +210,12 @@ export default function Profile() {
           if (userDoc.exists()) {
             const data = userDoc.data();
             setProfileData(data);
+
+            // Load profile likes
+            const likesArr = Array.isArray(data.profileLikes) ? data.profileLikes : [];
+            const likesCnt = typeof data.profileLikesCount === 'number' ? data.profileLikesCount : likesArr.length;
+            setProfileLikes(likesArr);
+            setProfileLikesCount(likesCnt);
 
             // Load saved theme gradient
             if (data.themeGradient && data.themeGradient.color1 && data.themeGradient.color2) {
@@ -348,6 +361,7 @@ export default function Profile() {
   // Total likes counter
   const totalLikes = posts.reduce((acc, curr) => acc + (curr.likesCount || 0), 0);
   const videoReelsPosts = posts.filter(p => p.mediaType === 'video' || !!p.videoUrl);
+  const isProfileLiked = currentUser ? profileLikes.includes(currentUser.uid) : false;
 
   // Avatar Upload Handler
   const handleDirectAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -572,6 +586,74 @@ export default function Profile() {
       toast.error('Failed to create post.');
     } finally {
       setSubmittingPost(false);
+    }
+  };
+
+  // Open Create Dialog (Chooser or Direct)
+  const openCreateDialog = (type?: 'post' | 'reel') => {
+    if (type) {
+      setCreateContentType(type);
+      setPostForm(prev => ({
+        ...prev,
+        mediaType: type === 'reel' ? 'video' : 'image'
+      }));
+      setShowCreateChooserModal(false);
+      setShowCreatePostModal(true);
+    } else {
+      setShowCreateChooserModal(true);
+    }
+  };
+
+  // Toggle Like for User Profile
+  const handleToggleProfileLike = async () => {
+    if (!currentUser) {
+      toast.info('Please sign in to like creator profiles.');
+      return;
+    }
+    if (!profileUserId) return;
+
+    if (currentUser.uid === profileUserId) {
+      toast.info('This is your own profile! Share your portfolio link so other creators can like your profile.');
+      return;
+    }
+
+    const currentLikes = profileLikes || [];
+    const isLiked = currentLikes.includes(currentUser.uid);
+    const updatedLikes = isLiked
+      ? currentLikes.filter(id => id !== currentUser.uid)
+      : [...currentLikes, currentUser.uid];
+    const updatedCount = updatedLikes.length;
+
+    // Optimistic UI update
+    setProfileLikes(updatedLikes);
+    setProfileLikesCount(updatedCount);
+    setProfileData((prev: any) => ({
+      ...prev,
+      profileLikes: updatedLikes,
+      profileLikesCount: updatedCount
+    }));
+
+    try {
+      setLikingProfile(true);
+      const userRef = doc(db, 'users', profileUserId);
+      await setDoc(userRef, {
+        profileLikes: updatedLikes,
+        profileLikesCount: updatedCount
+      }, { merge: true });
+
+      if (isLiked) {
+        toast.info(`Removed like from ${displayName}'s profile.`);
+      } else {
+        toast.success(`You liked ${displayName}'s profile! ❤️`);
+      }
+    } catch (err: any) {
+      console.error('Failed to update profile like status:', err);
+      // Revert optimistic update on failure
+      setProfileLikes(currentLikes);
+      setProfileLikesCount(currentLikes.length);
+      toast.error('Failed to update profile like. Please try again.');
+    } finally {
+      setLikingProfile(false);
     }
   };
 
@@ -842,6 +924,18 @@ export default function Profile() {
                           <>
                             <button
                               type="button"
+                              onClick={() => {
+                                setMenuOpen(false);
+                                handleToggleProfileLike();
+                              }}
+                              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-gray-200 hover:text-white hover:bg-red-950/40 transition-colors text-left cursor-pointer"
+                            >
+                              <Heart className={`w-4 h-4 ${isProfileLiked ? 'fill-red-500 text-red-500' : 'text-red-500'}`} />
+                              <span>{isProfileLiked ? 'Unlike Profile' : 'Like Profile'}</span>
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={handleShareProfile}
                               className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-gray-200 hover:text-white hover:bg-purple-950/60 transition-colors text-left cursor-pointer"
                             >
@@ -869,19 +963,47 @@ export default function Profile() {
                 </div>
               </div>
 
-              {/* STATS ROW (Clean Counts) */}
-              <div className="flex items-center justify-center md:justify-start gap-8 py-2.5 border-y border-white/5 font-mono text-sm">
+              {/* STATS ROW (Clean Counts with red profile likes) */}
+              <div className="flex items-center justify-center md:justify-start gap-6 sm:gap-8 py-2.5 border-y border-white/5 font-mono text-sm">
                 <div className="flex items-center gap-1.5">
                   <span className="font-black text-white text-base">{posts.length}</span>
                   <span className="text-gray-400 text-xs uppercase tracking-wider">posts</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-white text-base">{certificates.length}</span>
-                  <span className="text-gray-400 text-xs uppercase tracking-wider">certs</span>
-                </div>
+                
+                {/* Profile Likes Stat (RED, Interactive for visitors) */}
+                <button
+                  type="button"
+                  onClick={!isOwner ? handleToggleProfileLike : undefined}
+                  disabled={likingProfile}
+                  className={`flex items-center gap-1.5 transition-all group ${
+                    !isOwner ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'
+                  }`}
+                  title={!isOwner ? (isProfileLiked ? 'Click to unlike profile' : 'Click to like profile') : 'Total profile likes received'}
+                >
+                  <Heart 
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isProfileLiked 
+                        ? 'fill-red-500 text-red-500 scale-110' 
+                        : 'text-red-500 fill-red-500/20 group-hover:scale-125 group-hover:fill-red-500/40'
+                    }`} 
+                  />
+                  <span className="font-black text-red-500 text-base">{profileLikesCount}</span>
+                  <span className="text-gray-400 text-xs uppercase tracking-wider">
+                    {profileLikesCount === 1 ? 'profile like' : 'profile likes'}
+                  </span>
+                  {!isOwner && (
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors ${
+                      isProfileLiked ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-gray-400 group-hover:bg-red-500/20 group-hover:text-red-300'
+                    }`}>
+                      {isProfileLiked ? 'liked' : 'like'}
+                    </span>
+                  )}
+                </button>
+
+                {/* Work / Post Likes Stat */}
                 <div className="flex items-center gap-1.5">
                   <span className="font-black text-purple-400 text-base">{totalLikes}</span>
-                  <span className="text-gray-400 text-xs uppercase tracking-wider">likes</span>
+                  <span className="text-gray-400 text-xs uppercase tracking-wider">work likes</span>
                 </div>
               </div>
 
@@ -1118,8 +1240,8 @@ export default function Profile() {
                 </p>
                 {isOwner && (
                   <button
-                    onClick={() => setShowCreatePostModal(true)}
-                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30"
+                    onClick={() => openCreateDialog('post')}
+                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30 cursor-pointer"
                   >
                     + Create First Post
                   </button>
@@ -1180,11 +1302,8 @@ export default function Profile() {
                 </p>
                 {isOwner && (
                   <button
-                    onClick={() => {
-                      setPostForm(prev => ({ ...prev, mediaType: 'video' }));
-                      setShowCreatePostModal(true);
-                    }}
-                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30"
+                    onClick={() => openCreateDialog('reel')}
+                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30 cursor-pointer"
                   >
                     + Add Video Project
                   </button>
@@ -1257,14 +1376,99 @@ export default function Profile() {
       {isOwner && (
         <button
           type="button"
-          onClick={() => setShowCreatePostModal(true)}
+          onClick={() => openCreateDialog()}
           className="fixed bottom-8 right-8 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 hover:scale-110 active:scale-95 shadow-2xl shadow-purple-600/50 flex items-center justify-center text-white cursor-pointer transition-all duration-300 group border border-white/20"
-          title="Create New Portfolio Post"
-          aria-label="Create New Portfolio Post"
+          title="Share Post or Reel"
+          aria-label="Share Post or Reel"
         >
           <Plus className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
         </button>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CHOOSE CONTENT TYPE (POST OR REEL)                                 */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showCreateChooserModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-zinc-950 border border-purple-900/50 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative overflow-hidden my-8"
+            >
+              {/* Glow Accents */}
+              <div className="absolute -top-16 -right-16 w-44 h-44 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-16 w-44 h-44 bg-pink-600/20 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-purple-950/60 pb-4 mb-6 relative z-10">
+                <div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-purple-400">Share Your Work</span>
+                  <h3 className="text-xl font-black text-white mt-0.5">What do you want to share?</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateChooserModal(false)}
+                  className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-zinc-900 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Two Option Selection Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
+                {/* 1. Share a Post (Artwork, Graphic Design, Cover) */}
+                <button
+                  type="button"
+                  onClick={() => openCreateDialog('post')}
+                  className="group text-left p-5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-900 border border-purple-900/40 hover:border-purple-500/80 transition-all duration-300 shadow-xl hover:shadow-purple-600/20 cursor-pointer flex flex-col justify-between active:scale-[0.98]"
+                >
+                  <div>
+                    <div className="w-12 h-12 rounded-2xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 mb-4 group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all duration-300 shadow-lg shadow-purple-600/20">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-base font-black text-white group-hover:text-purple-300 transition-colors">
+                      Portfolio Post
+                    </h4>
+                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                      Upload high-res artwork, graphic design, photos, color grading stills, or 3D project visuals.
+                    </p>
+                  </div>
+                  <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between text-xs font-mono font-bold text-purple-400 group-hover:text-purple-300">
+                    <span>Create Post</span>
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </button>
+
+                {/* 2. Share a Reel (Video, YouTube, Vimeo, Motion) */}
+                <button
+                  type="button"
+                  onClick={() => openCreateDialog('reel')}
+                  className="group text-left p-5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-900 border border-pink-900/40 hover:border-pink-500/80 transition-all duration-300 shadow-xl hover:shadow-pink-600/20 cursor-pointer flex flex-col justify-between active:scale-[0.98]"
+                >
+                  <div>
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-600/20 to-purple-600/20 border border-pink-500/40 flex items-center justify-center text-pink-400 mb-4 group-hover:scale-110 group-hover:bg-gradient-to-tr group-hover:from-purple-600 group-hover:to-pink-600 group-hover:text-white transition-all duration-300 shadow-lg shadow-pink-600/20">
+                      <Film className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-base font-black text-white group-hover:text-pink-300 transition-colors">
+                      Video Reel
+                    </h4>
+                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                      Embed YouTube, Vimeo, or video stream links with play overlay in your dedicated Reels tab.
+                    </p>
+                  </div>
+                  <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between text-xs font-mono font-bold text-pink-400 group-hover:text-pink-300">
+                    <span>Share Reel</span>
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ========================================================================= */}
       {/* MODAL: PROFILE BOX GRADIENT / THEME CUSTOMIZER                            */}
@@ -1760,7 +1964,7 @@ export default function Profile() {
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* MODAL: CREATE PORTFOLIO POST                                              */}
+      {/* MODAL: CREATE PORTFOLIO POST / VIDEO REEL                                 */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {showCreatePostModal && (
@@ -1771,35 +1975,125 @@ export default function Profile() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-zinc-950 border border-purple-900/40 rounded-3xl p-6 sm:p-8 max-w-xl w-full my-8 shadow-2xl relative"
             >
-              <div className="flex items-center justify-between border-b border-purple-950/40 pb-4 mb-6">
+              <div className="flex items-center justify-between border-b border-purple-950/40 pb-4 mb-5">
                 <div>
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Plus className="w-5 h-5 text-purple-400" />
-                    <span>Create Portfolio Post</span>
+                    {createContentType === 'reel' ? (
+                      <>
+                        <Film className="w-5 h-5 text-pink-400" />
+                        <span>Share Video Reel</span>
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-5 h-5 text-purple-400" />
+                        <span>Create Portfolio Post</span>
+                      </>
+                    )}
                   </h3>
-                  <p className="text-xs text-gray-400">Share your latest video edit, artwork, or commercial project.</p>
+                  <p className="text-xs text-gray-400">
+                    {createContentType === 'reel'
+                      ? 'Share your motion design, film edit, animation, or video project.'
+                      : 'Share your high-res design, artwork, photography, or project stills.'}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowCreatePostModal(false)}
-                  className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-zinc-900 transition-colors"
+                  className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-zinc-900 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* POST / REEL SWITCHER TABS */}
+              <div className="flex bg-black/60 p-1 rounded-2xl border border-white/10 mb-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateContentType('post');
+                    setPostForm(prev => ({ ...prev, mediaType: 'image' }));
+                  }}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    createContentType === 'post'
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Standard Post</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateContentType('reel');
+                    setPostForm(prev => ({ ...prev, mediaType: 'video' }));
+                  }}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    createContentType === 'reel'
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-pink-600/30'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Film className="w-4 h-4" />
+                  <span>Video Reel</span>
+                </button>
+              </div>
+
               <form onSubmit={handleCreatePost} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-purple-400 mb-1">Project Title</label>
+                  <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-purple-400 mb-1">
+                    {createContentType === 'reel' ? 'Reel Title' : 'Project Title'}
+                  </label>
                   <input
                     type="text"
                     required
                     value={postForm.title}
                     onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
-                    placeholder="e.g. Cinematic Color Grading Reel"
+                    placeholder={createContentType === 'reel' ? 'e.g. 2026 Showreel & Motion Cuts' : 'e.g. Cyberpunk Poster Artwork'}
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                   />
                 </div>
+
+                {createContentType === 'reel' && (
+                  <div className="p-3.5 bg-purple-950/20 border border-purple-900/40 rounded-2xl space-y-2">
+                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-pink-400">
+                      🎬 Video Stream Link (YouTube / Vimeo / Direct MP4)
+                    </label>
+                    <input
+                      type="url"
+                      required={createContentType === 'reel'}
+                      value={postForm.videoUrl}
+                      onChange={(e) => setPostForm({ ...postForm, videoUrl: e.target.value, mediaType: 'video' })}
+                      placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+                      className="w-full bg-black border border-pink-900/40 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none font-mono focus:ring-1 focus:ring-pink-500"
+                    />
+                    <p className="text-[10px] text-gray-400">
+                      This will be playable directly in your portfolio with a play button overlay.
+                    </p>
+                  </div>
+                )}
+
+                <ImageUploader
+                  label={createContentType === 'reel' ? 'Video Cover / Thumbnail Art' : 'Cover Image / Artwork'}
+                  value={postForm.mediaUrl}
+                  onChange={(url) => setPostForm({ ...postForm, mediaUrl: url })}
+                  helperText={createContentType === 'reel' ? 'Thumbnail shown in your Reels grid before playback.' : 'Primary image card displayed on your portfolio grid.'}
+                />
+
+                {createContentType === 'post' && (
+                  <div>
+                    <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-purple-400 mb-1">
+                      Optional Video Stream Link (YouTube / Vimeo)
+                    </label>
+                    <input
+                      type="url"
+                      value={postForm.videoUrl}
+                      onChange={(e) => setPostForm({ ...postForm, videoUrl: e.target.value, mediaType: e.target.value ? 'video' : 'image' })}
+                      placeholder="e.g. https://www.youtube.com/watch?v=..."
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none font-mono"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-purple-400 mb-1">External Project Link (Optional)</label>
@@ -1807,28 +2101,9 @@ export default function Profile() {
                     type="url"
                     value={postForm.externalUrl}
                     onChange={(e) => setPostForm({ ...postForm, externalUrl: e.target.value })}
-                    placeholder="e.g. https://behance.net/..."
+                    placeholder="e.g. https://behance.net/... or https://artstation.com/..."
                     className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none font-mono"
                   />
-                </div>
-
-                <ImageUploader
-                  label="Cover Image / Thumbnail"
-                  value={postForm.mediaUrl}
-                  onChange={(url) => setPostForm({ ...postForm, mediaUrl: url })}
-                  helperText="Primary image card displayed on your portfolio grid."
-                />
-
-                <div>
-                  <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-purple-400 mb-1">Video Stream Link (YouTube / Vimeo / MP4)</label>
-                  <input
-                    type="url"
-                    value={postForm.videoUrl}
-                    onChange={(e) => setPostForm({ ...postForm, videoUrl: e.target.value, mediaType: e.target.value ? 'video' : 'image' })}
-                    placeholder="e.g. https://www.youtube.com/watch?v=..."
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none font-mono"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">If provided, this post will feature an embedded video player in Reels.</p>
                 </div>
 
                 <div>
@@ -1889,10 +2164,10 @@ export default function Profile() {
                     {submittingPost ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Publishing Post...</span>
+                        <span>Publishing...</span>
                       </>
                     ) : (
-                      <span>Publish Portfolio Post</span>
+                      <span>{createContentType === 'reel' ? 'Publish Video Reel' : 'Publish Portfolio Post'}</span>
                     )}
                   </button>
                 </div>

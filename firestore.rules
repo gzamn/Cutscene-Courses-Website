@@ -32,7 +32,7 @@ service cloud.firestore {
     // Users (Student/Instructor Profiles)
     match /users/{userId} {
       allow read: if true;
-      allow write: if isAdmin() || (isOwner(userId) && request.resource.data.uid == userId);
+      allow write: if isAdmin() || (isOwner(userId) && request.resource.data.uid == userId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileLikes', 'profileLikesCount']));
     }
 
     // Courses Metadata

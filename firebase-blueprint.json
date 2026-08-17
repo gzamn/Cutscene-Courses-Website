@@ -16,6 +16,8 @@
         "location": { "type": "string" },
         "socialLinks": { "type": "object" },
         "skills": { "type": "array" },
+        "profileLikes": { "type": "array" },
+        "profileLikesCount": { "type": "number" },
         "themeGradient": { "type": "object" },
         "role": { "type": "string", "enum": ["student", "instructor", "admin"] },
         "createdAt": { "type": "string" }
