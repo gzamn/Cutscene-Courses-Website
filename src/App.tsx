@@ -19,6 +19,7 @@ import Resources from './pages/Resources';
 import TermsAndConditions from './pages/TermsAndConditions';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CompleteOrder from './pages/CompleteOrder';
+import Plans from './pages/Plans';
 import ScrollToTop from './components/ScrollToTop';
 import SEOHead from './components/SEOHead';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -62,6 +63,7 @@ function AnimatedRoutes() {
         <Routes location={location}>
           <Route path="/" element={<Home />} />
           <Route path="/courses" element={<Courses />} />
+          <Route path="/plans" element={<Plans />} />
           <Route path="/store" element={<Store />} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/student-work" element={<StudentWork />} />

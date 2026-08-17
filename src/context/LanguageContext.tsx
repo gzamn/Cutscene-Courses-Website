@@ -13,6 +13,7 @@ const translations: Record<Language, Record<string, string>> = {
   en: {
     'nav.home': 'Home',
     'nav.courses': 'Courses',
+    'nav.plans': 'Plans',
     'nav.store': 'Store',
     'nav.resources': 'Resources',
     'nav.updates': 'Announcements',
@@ -208,6 +209,7 @@ const translations: Record<Language, Record<string, string>> = {
   fr: {
     'nav.home': 'Accueil',
     'nav.courses': 'Cours',
+    'nav.plans': 'Formules',
     'nav.store': 'Boutique',
     'nav.resources': 'Ressources',
     'nav.updates': 'Annonces',
@@ -403,6 +405,7 @@ const translations: Record<Language, Record<string, string>> = {
   ar: {
     'nav.home': 'الرئيسية',
     'nav.courses': 'الدورات',
+    'nav.plans': 'الاشتراكات',
     'nav.store': 'المتجر',
     'nav.resources': 'المصادر',
     'nav.updates': 'الإعلانات',

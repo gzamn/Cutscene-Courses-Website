@@ -7,7 +7,7 @@ import {
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
   Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
   Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw, Key, Lock,
-  Flame, Upload
+  Flame, Upload, Eye, EyeOff
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -26,7 +26,9 @@ import {
   ensureDefaultSpecialOffersSeeded,
   ensureDefaultStatisticsSeeded,
   ensureDefaultQuizzesSeeded,
+  ensureDefaultPlansSeeded,
   DEFAULT_STATISTICS,
+  DEFAULT_PLANS,
   query,
   where
 } from '../firebase';
@@ -96,6 +98,9 @@ export default function AdminPanel() {
   const [storePurchases, setStorePurchases] = useState<any[]>([]);
   const [usefulResources, setUsefulResources] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [planPurchases, setPlanPurchases] = useState<any[]>([]);
+  const [loadingPlanPurchases, setLoadingPlanPurchases] = useState<boolean>(false);
+  const [planActiveSubTab, setPlanActiveSubTab] = useState<'tiers' | 'receipts'>('tiers');
   const [heroVideos, setHeroVideos] = useState<any[]>([]);
   const [websiteSettings, setWebsiteSettings] = useState<any>({
     webName: 'CUTSCENE Academy',
@@ -114,7 +119,7 @@ export default function AdminPanel() {
     musicComingSoonText: 'Lofi background beats and epic orchestral tracks are under production by our studio composers.',
     isSoundEffectsComingSoon: true,
     soundEffectsComingSoonText: 'Acoustic swooshes, low loops, and tech feedback effects are being processed in our foley library.',
-    isPlansComingSoon: true,
+    isPlansComingSoon: false,
     plansComingSoonText: 'Membership sub-packages are coming soon. Access is strictly granted through direct course purchases for now!'
   });
 
@@ -790,10 +795,15 @@ export default function AdminPanel() {
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [planForm, setPlanForm] = useState({
     name: '',
+    tagline: '',
     price: '',
+    interval: 'Per year',
     description: '',
+    badge: '',
+    buttonText: 'Choose Plan',
     featuresText: '',
     isPopular: false,
+    active: true,
     order: '1'
   });
 
@@ -868,6 +878,7 @@ export default function AdminPanel() {
       fetchStorePurchases();
       fetchUsefulResources();
       fetchPlans();
+      fetchPlanPurchases();
       fetchHeroVideos();
       fetchSettings();
       fetchSpecialOffers();
@@ -1317,19 +1328,86 @@ export default function AdminPanel() {
   const fetchPlans = async () => {
     setLoadingPlans(true);
     try {
-      const snap = await getDocs(collection(db, 'plans'));
+      let snap = await getDocs(collection(db, 'plans'));
+      if (snap.empty) {
+        await ensureDefaultPlansSeeded();
+        snap = await getDocs(collection(db, 'plans'));
+      }
       const list = snap.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       // Sort plans by 'order' or fallback to numeric position
-      list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      list.sort((a: any, b: any) => (Number(a.order) || 0) - (Number(b.order) || 0));
       setPlans(list);
     } catch (err: any) {
       console.error('Fetch plans error:', err);
       showToast('error', 'Failed loading subscription plans from database.');
     } finally {
       setLoadingPlans(false);
+    }
+  };
+
+  const fetchPlanPurchases = async () => {
+    setLoadingPlanPurchases(true);
+    try {
+      const snap = await getDocs(collection(db, 'plan_purchases'));
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      list.sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt || 0).getTime() - new Date(a.submittedAt || a.createdAt || 0).getTime());
+      setPlanPurchases(list);
+    } catch (err: any) {
+      console.error('Fetch plan purchases error:', err);
+    } finally {
+      setLoadingPlanPurchases(false);
+    }
+  };
+
+  const handleApprovePlanPurchase = async (purchaseId: string) => {
+    try {
+      const docRef = doc(db, 'plan_purchases', purchaseId);
+      await updateDoc(docRef, {
+        status: 'approved',
+        paid: true,
+        approvedAt: new Date().toISOString()
+      });
+      showToast('success', 'Plan subscription purchase approved successfully!');
+      fetchPlanPurchases();
+    } catch (err: any) {
+      console.error('Error approving plan purchase:', err);
+      showToast('error', 'Failed approving plan purchase.');
+    }
+  };
+
+  const handleRejectPlanPurchase = async (purchaseId: string) => {
+    const reason = prompt('Enter rejection reason for this subscription order:') || 'Receipt invalid or illegible';
+    try {
+      const docRef = doc(db, 'plan_purchases', purchaseId);
+      await updateDoc(docRef, {
+        status: 'rejected',
+        paid: false,
+        rejectionReason: reason,
+        rejectedAt: new Date().toISOString()
+      });
+      showToast('success', 'Plan subscription purchase rejected.');
+      fetchPlanPurchases();
+    } catch (err: any) {
+      console.error('Error rejecting plan purchase:', err);
+      showToast('error', 'Failed rejecting plan purchase.');
+    }
+  };
+
+  const handleDeletePlanPurchase = async (purchaseId: string) => {
+    if (!window.confirm('Are you sure you want to delete this purchase receipt record?')) return;
+    try {
+      await deleteDoc(doc(db, 'plan_purchases', purchaseId));
+      showToast('success', 'Plan purchase record removed.');
+      fetchPlanPurchases();
+    } catch (err: any) {
+      console.error('Error deleting plan purchase:', err);
+      showToast('error', 'Failed deleting record.');
     }
   };
 
@@ -2667,6 +2745,40 @@ export default function AdminPanel() {
 
 
   // PLANS
+  const handleTogglePlanVisibility = async (plan: any) => {
+    const currentActive = plan.active !== false && !plan.hidden && !plan.isHidden;
+    const newActive = !currentActive;
+    try {
+      await setDoc(doc(db, 'plans', plan.id), {
+        active: newActive,
+        hidden: !newActive,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      showToast('success', `Plan "${plan.name}" is now ${newActive ? 'visible to public students' : 'hidden from public view (Draft)'}.`);
+      fetchPlans();
+    } catch (err: any) {
+      console.error('Toggle plan visibility error:', err);
+      showToast('error', 'Failed to update plan visibility: ' + err.message);
+    }
+  };
+
+  const handleTogglePlansSectionVisibility = async () => {
+    const newComingSoon = !websiteSettings.isPlansComingSoon;
+    try {
+      const updated = {
+        ...websiteSettings,
+        isPlansComingSoon: newComingSoon,
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'config', 'settings'), updated, { merge: true });
+      setWebsiteSettings(updated);
+      showToast('success', newComingSoon ? 'Plans section is now HIDDEN (Coming Soon mode active).' : 'Plans section is now PUBLIC and LIVE.');
+    } catch (err: any) {
+      console.error('Toggle plans section visibility error:', err);
+      showToast('error', 'Failed to update plans section visibility.');
+    }
+  };
+
   const handlePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -2676,10 +2788,16 @@ export default function AdminPanel() {
 
       const payload = {
         name: planForm.name,
+        tagline: planForm.tagline || '',
         price: planForm.price,
+        interval: planForm.interval || 'Per year',
         description: planForm.description,
+        badge: planForm.badge || '',
+        buttonText: planForm.buttonText || 'Choose Plan',
         features,
         isPopular: !!planForm.isPopular,
+        active: planForm.active !== false,
+        hidden: planForm.active === false,
         order: Number(planForm.order || 1),
         updatedAt: new Date().toISOString()
       };
@@ -2700,10 +2818,15 @@ export default function AdminPanel() {
       setEditingPlanId(null);
       setPlanForm({
         name: '',
+        tagline: '',
         price: '',
+        interval: 'Per year',
         description: '',
+        badge: '',
+        buttonText: 'Choose Plan',
         featuresText: '',
         isPopular: false,
+        active: true,
         order: '1'
       });
       fetchPlans();
@@ -2717,10 +2840,15 @@ export default function AdminPanel() {
     setEditingPlanId(plan.id);
     setPlanForm({
       name: plan.name || '',
+      tagline: plan.tagline || '',
       price: plan.price || '',
+      interval: plan.interval || 'Per year',
       description: plan.description || '',
+      badge: plan.badge || '',
+      buttonText: plan.buttonText || 'Choose Plan',
       featuresText: Array.isArray(plan.features) ? plan.features.join('\n') : '',
       isPopular: !!plan.isPopular,
+      active: plan.active !== false && !plan.hidden && !plan.isHidden,
       order: String(plan.order || 1)
     });
     setShowPlanModal(true);
@@ -5819,87 +5947,385 @@ export default function AdminPanel() {
         {/* TAB 4.2: PLANS MANAGER */}
         {activeTab === 'plans' && (
           <div className="space-y-8 animate-fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-black text-white tracking-tight">Academy Membership Plans</h1>
-                <p className="text-gray-400 text-xs mt-1">Configure pricing bundles, billing rates, features lists, and visual tags</p>
+                <p className="text-gray-400 text-xs mt-1">Configure pricing tiers, manage hide/show visibility, and review incoming subscription orders and receipts</p>
               </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm("Restore and seed the 3 official starter membership tiers (Individual, Pro, Team) to Firestore?")) {
+                      try {
+                        setLoadingPlans(true);
+                        for (const plan of DEFAULT_PLANS) {
+                          await setDoc(doc(db, 'plans', plan.id), plan);
+                        }
+                        showToast('success', '3 Starter membership tiers seeded successfully.');
+                        fetchPlans();
+                      } catch (err: any) {
+                        console.error('Seed plans error:', err);
+                        showToast('error', 'Failed seeding plans.');
+                      } finally {
+                        setLoadingPlans(false);
+                      }
+                    }
+                  }}
+                  className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-purple-400 border border-purple-900/30 font-bold rounded-2xl text-xs uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Seed 3 Default Tiers
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPlanId(null);
+                    setPlanForm({
+                      name: '',
+                      tagline: '',
+                      price: '',
+                      interval: 'Per year',
+                      description: '',
+                      badge: '',
+                      buttonText: 'Choose Plan',
+                      featuresText: '',
+                      isPopular: false,
+                      active: true,
+                      order: String(plans.length + 1)
+                    });
+                    setShowPlanModal(true);
+                  }}
+                  className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Create Plan Tier
+                </button>
+              </div>
+            </div>
+
+            {/* Plans Section Visibility & Quick Controls Banner */}
+            <div className={`p-5 rounded-2xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+              websiteSettings.isPlansComingSoon
+                ? 'bg-amber-950/20 border-amber-500/30'
+                : 'bg-zinc-950/60 border-purple-900/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  websiteSettings.isPlansComingSoon
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                }`}>
+                  {websiteSettings.isPlansComingSoon ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-white">Global Plans Page Status:</h4>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      websiteSettings.isPlansComingSoon
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    }`}>
+                      {websiteSettings.isPlansComingSoon ? 'Hidden (Coming Soon Mode)' : 'Public & Live'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {websiteSettings.isPlansComingSoon
+                      ? 'The /plans route is in Coming Soon mode. Visitors see the launch teaser placeholder.'
+                      : 'The /plans page is published and accepting student subscription requests.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                <div className="text-right hidden sm:block">
+                  <div className="text-[11px] text-gray-400 font-mono">
+                    <span className="text-emerald-400 font-bold">{plans.filter(p => p.active !== false && !p.hidden && !p.isHidden).length}</span> Visible / <span className="text-amber-400 font-bold">{plans.filter(p => p.active === false || p.hidden || p.isHidden).length}</span> Hidden
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-mono">Tiers in catalog</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTogglePlansSectionVisibility}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    websiteSettings.isPlansComingSoon
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                      : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/20'
+                  }`}
+                >
+                  {websiteSettings.isPlansComingSoon ? (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Make Plans Live</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Hide Plans Page</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-tab Navigation */}
+            <div className="flex items-center gap-3 border-b border-purple-950/20 pb-4">
               <button
-                onClick={() => {
-                  setEditingPlanId(null);
-                  setPlanForm({
-                    name: '',
-                    price: '',
-                    description: '',
-                    featuresText: '',
-                    isPopular: false,
-                    order: String(plans.length + 1)
-                  });
-                  setShowPlanModal(true);
-                }}
-                className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all self-start flex items-center gap-2 shadow-lg shadow-purple-600/20 cursor-pointer text-white"
+                type="button"
+                onClick={() => setPlanActiveSubTab('tiers')}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  planActiveSubTab === 'tiers'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                    : 'bg-zinc-900/80 text-gray-400 hover:text-white hover:bg-zinc-800'
+                }`}
               >
-                <PlusCircle className="w-4 h-4" />
-                Create Plan Bundle
+                Subscription Tiers ({plans.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlanActiveSubTab('receipts');
+                  fetchPlanPurchases();
+                }}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                  planActiveSubTab === 'receipts'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                    : 'bg-zinc-900/80 text-gray-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Subscription Receipts ({planPurchases.length})</span>
+                {planPurchases.filter(p => p.status === 'pending' || (!p.status && !p.paid)).length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-black font-mono text-[10px] font-black">
+                    {planPurchases.filter(p => p.status === 'pending' || (!p.status && !p.paid)).length}
+                  </span>
+                )}
               </button>
             </div>
 
-            {loadingPlans ? (
-              <div className="py-20 flex justify-center">
-                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-              </div>
-            ) : plans.length === 0 ? (
-              <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
-                <PlusCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
-                <p className="text-gray-400 font-bold">No bundles defined in plans database</p>
-                <p className="text-xs text-gray-650 mt-1">Get started by compiling pricing bundles for academic members!</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {plans.map((p) => (
-                  <div key={p.id} className="bg-zinc-950/60 p-6 rounded-[2rem] border border-purple-950/20 hover:border-purple-500/10 relative flex flex-col justify-between">
-                    {p.isPopular && (
-                      <span className="absolute top-4 right-4 bg-purple-600 text-white font-bold text-[9px] px-2.5 py-1 rounded-full uppercase tracking-widest shadow shadow-purple-500/50">
-                        Most Popular
-                      </span>
-                    )}
-                    <div>
-                      <div className="flex items-baseline gap-2 mb-4">
-                        <span className="text-2xl font-black text-white">{p.price}</span>
-                        <span className="text-[10px] text-gray-500 uppercase tracking-widest">Order: {p.order || '1'}</span>
-                      </div>
-                      <h4 className="text-lg font-bold text-white mb-1.5">{p.name}</h4>
-                      <p className="text-xs text-gray-400 leading-relaxed mb-4 line-clamp-2">{p.description}</p>
-                      
-                      <ul className="space-y-1 text-xs text-gray-500 mb-6">
-                        {Array.isArray(p.features) && p.features.slice(0, 3).map((f: string, fi: number) => (
-                          <li key={fi} className="truncate flex items-center gap-1.5">
-                            <span className="w-1 h-1 rounded-full bg-purple-400" />
-                            {f}
-                          </li>
-                        ))}
-                        {Array.isArray(p.features) && p.features.length > 3 && (
-                          <li className="italic text-[10px] mt-1 text-purple-450">+{p.features.length - 3} more advantages</li>
-                        )}
-                      </ul>
-                    </div>
+            {planActiveSubTab === 'tiers' ? (
+              loadingPlans ? (
+                <div className="py-20 flex justify-center">
+                  <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+                </div>
+              ) : plans.length === 0 ? (
+                <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto">
+                  <PlusCircle className="w-12 h-12 text-gray-500 mx-auto mb-3 animate-pulse" />
+                  <p className="text-gray-400 font-bold">No tiers defined in plans database</p>
+                  <p className="text-xs text-gray-650 mt-1">Click "Seed 3 Default Tiers" above to quickly initialize Individual, Pro, and Team packages!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {plans.map((p) => {
+                    const isVisible = p.active !== false && !p.hidden && !p.isHidden;
+                    return (
+                      <div 
+                        key={p.id} 
+                        className={`bg-zinc-950/60 p-6 rounded-[2rem] border relative flex flex-col justify-between transition-all ${
+                          isVisible 
+                            ? 'border-purple-950/20 hover:border-purple-500/30' 
+                            : 'border-amber-500/20 bg-amber-950/5 opacity-80 hover:opacity-100'
+                        }`}
+                      >
+                        {/* Top Badges */}
+                        <div className="flex items-center gap-2 absolute top-4 right-4">
+                          <span className={`font-bold text-[9px] px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 ${
+                            isVisible
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          }`}>
+                            {isVisible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
+                            {isVisible ? 'Visible' : 'Hidden (Draft)'}
+                          </span>
 
-                    <div className="pt-4 border-t border-purple-950/20 flex justify-end gap-2">
-                      <button
-                        onClick={() => startEditPlan(p)}
-                        className="px-4 py-2 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-350 cursor-pointer hover:bg-zinc-800"
-                      >
-                        Edit Plan
-                      </button>
-                      <button
-                        onClick={() => handleDeletePlan(p.id, p.name)}
-                        className="px-3 py-2 bg-red-950/10 hover:bg-red-950/30 text-red-500 hover:text-red-400 rounded-xl text-xs transition-all cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                          {p.isPopular && (
+                            <span className="bg-purple-600 text-white font-bold text-[9px] px-2.5 py-1 rounded-full uppercase tracking-widest shadow shadow-purple-500/50">
+                              Popular
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-baseline gap-2 mb-2">
+                            <span className="text-2xl font-black text-white">{p.price}</span>
+                            <span className="text-[10px] text-gray-500 uppercase tracking-widest">Order: {p.order || '1'}</span>
+                          </div>
+                          {p.tagline && (
+                            <p className="text-xs text-purple-400 font-medium mb-3">{p.tagline}</p>
+                          )}
+                          <h4 className="text-lg font-bold text-white mb-1.5">{p.name}</h4>
+                          <p className="text-xs text-gray-400 leading-relaxed mb-4 line-clamp-2">{p.description}</p>
+                          
+                          <ul className="space-y-1.5 text-xs text-gray-400 mb-6">
+                            {Array.isArray(p.features) && p.features.slice(0, 4).map((f: string, fi: number) => (
+                              <li key={fi} className="truncate flex items-center gap-2">
+                                <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                <span>{f}</span>
+                              </li>
+                            ))}
+                            {Array.isArray(p.features) && p.features.length > 4 && (
+                              <li className="italic text-[10px] mt-1 text-purple-400">+{p.features.length - 4} more perks</li>
+                            )}
+                          </ul>
+                        </div>
+
+                        <div className="pt-4 border-t border-purple-950/20 flex items-center justify-between gap-2">
+                          {/* Hide / Show Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePlanVisibility(p)}
+                            title={isVisible ? 'Hide this plan from visitors' : 'Make this plan public'}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isVisible
+                                ? 'bg-amber-950/20 hover:bg-amber-950/40 text-amber-400 border border-amber-500/20'
+                                : 'bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-400 border border-emerald-500/20'
+                            }`}
+                          >
+                            {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            <span>{isVisible ? 'Hide' : 'Show'}</span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditPlan(p)}
+                              className="px-4 py-2 bg-zinc-900 border border-white/5 hover:border-purple-500/20 rounded-xl text-xs font-bold transition-all text-gray-300 cursor-pointer hover:bg-zinc-800"
+                            >
+                              Edit Plan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePlan(p.id, p.name)}
+                              className="px-3 py-2 bg-red-950/10 hover:bg-red-950/30 text-red-500 hover:text-red-400 rounded-xl text-xs transition-all cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              /* MEMBER SUBSCRIPTION RECEIPTS TAB */
+              <div className="space-y-6">
+                {loadingPlanPurchases ? (
+                  <div className="py-20 flex justify-center">
+                    <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                  </div>
+                ) : planPurchases.length === 0 ? (
+                  <div className="text-center py-20 bg-zinc-950/20 rounded-[2rem] border border-dashed border-purple-900/10 max-w-xl mx-auto p-8">
+                    <Receipt className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-400 font-bold">No subscription purchase receipts yet</p>
+                    <p className="text-xs text-gray-500 mt-1">When users choose a plan and upload a payment receipt, the ledger items will appear here for review.</p>
+                  </div>
+                ) : (
+                  <div className="bg-black/60 border border-purple-950/30 rounded-[2.5rem] p-6 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-purple-950/20 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                            <th className="py-4 px-6">User / Contact</th>
+                            <th className="py-4 px-6">Plan & Price</th>
+                            <th className="py-4 px-6">Payment Method</th>
+                            <th className="py-4 px-6">Receipt</th>
+                            <th className="py-4 px-6">Status</th>
+                            <th className="py-4 px-6 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-purple-950/10 text-xs">
+                          {planPurchases.map((pur) => (
+                            <tr key={pur.id} className="hover:bg-purple-950/10 transition-colors">
+                              <td className="py-4 px-6 font-medium text-white">
+                                <div>{pur.fullName || pur.userName || 'Anonymous'}</div>
+                                <div className="text-[11px] text-gray-400 font-mono">{pur.email || pur.userEmail}</div>
+                                {pur.phoneNumber && (
+                                  <div className="text-[10px] text-purple-400 font-mono">{pur.phoneNumber}</div>
+                                )}
+                              </td>
+                              <td className="py-4 px-6">
+                                <span className="font-bold text-white block">{pur.planName || 'Membership Plan'}</span>
+                                <span className="text-[11px] text-purple-400 font-mono font-semibold">{pur.planPrice || pur.price || 'Free'}</span>
+                              </td>
+                              <td className="py-4 px-6 text-gray-300 font-mono text-xs">
+                                {pur.paymentMethod || 'BaridiMob'}
+                              </td>
+                              <td className="py-4 px-6">
+                                {pur.receiptUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEnlargedReceiptUrl(pur.receiptUrl)}
+                                    className="relative group block w-14 h-14 rounded-xl overflow-hidden border border-purple-900/30 hover:border-purple-500 transition-colors cursor-pointer"
+                                  >
+                                    <img 
+                                      src={pur.receiptUrl} 
+                                      alt="Receipt" 
+                                      className="w-full h-full object-cover" 
+                                    />
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                      <ZoomIn className="w-4 h-4" />
+                                    </div>
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-500 italic text-[11px]">No image</span>
+                                )}
+                              </td>
+                              <td className="py-4 px-6">
+                                {pur.status === 'approved' || pur.paid ? (
+                                  <span className="px-2.5 py-1 rounded-full bg-green-950/60 border border-green-500/30 text-green-400 text-[10px] font-bold uppercase tracking-wider">
+                                    Approved
+                                  </span>
+                                ) : pur.status === 'rejected' ? (
+                                  <span className="px-2.5 py-1 rounded-full bg-red-950/60 border border-red-500/30 text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                                    Rejected
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-500/30 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
+                                    Pending
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-4 px-6 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {pur.status !== 'approved' && !pur.paid && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApprovePlanPurchase(pur.id)}
+                                      className="px-3 py-1.5 bg-green-900/40 hover:bg-green-800/60 text-green-400 rounded-lg text-xs font-bold transition-all border border-green-500/30 cursor-pointer"
+                                      title="Approve Subscription"
+                                    >
+                                      Approve
+                                    </button>
+                                  )}
+                                  {pur.status !== 'rejected' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRejectPlanPurchase(pur.id)}
+                                      className="px-3 py-1.5 bg-amber-900/40 hover:bg-amber-800/60 text-amber-400 rounded-lg text-xs font-bold transition-all border border-amber-500/30 cursor-pointer"
+                                      title="Reject Subscription"
+                                    >
+                                      Reject
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePlanPurchase(pur.id)}
+                                    className="p-1.5 bg-red-950/20 text-red-400 hover:text-white rounded-lg border border-red-500/20 transition-all cursor-pointer"
+                                    title="Delete Record"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
@@ -6356,6 +6782,39 @@ export default function AdminPanel() {
                         placeholder="Sound Effects Coming Soon Custom Text..."
                         value={websiteSettings.isSoundEffectsComingSoon !== false ? websiteSettings.soundEffectsComingSoonText || '' : ''}
                         onChange={(e) => setWebsiteSettings({ ...websiteSettings, soundEffectsComingSoonText: e.target.value })}
+                        className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* MEMBERSHIP PLANS */}
+                    <div className="bg-zinc-950/40 border border-purple-950/10 p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-black text-white uppercase tracking-wider block">Membership Plans (3 Tiers) Section</label>
+                          <span className="text-[9px] text-gray-500 block">Controls global visibility of the subscription tiers page at /plans.</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {websiteSettings.isPlansComingSoon ? (
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-wider">🔒 Coming Soon</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-950/40 border border-green-500/20 text-green-400 text-[9px] font-bold uppercase tracking-wider">✅ Section Active</span>
+                          )}
+                          <input
+                            type="checkbox"
+                            checked={!!websiteSettings.isPlansComingSoon}
+                            onChange={(e) => setWebsiteSettings({ ...websiteSettings, isPlansComingSoon: e.target.checked })}
+                            className="w-4 h-4 text-purple-600 bg-zinc-950 border-purple-950/30 rounded focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-400 italic font-medium leading-relaxed bg-zinc-950/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        Status: {websiteSettings.isPlansComingSoon ? 'The Plans page is hidden behind a Coming Soon overlay.' : 'Live! Plans page and tier subscription checkout are fully visible.'}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Plans Coming Soon Custom Text..."
+                        value={websiteSettings.plansComingSoonText || ''}
+                        onChange={(e) => setWebsiteSettings({ ...websiteSettings, plansComingSoonText: e.target.value })}
                         className="w-full bg-zinc-950 border border-purple-950/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
                       />
                     </div>
@@ -9009,6 +9468,43 @@ export default function AdminPanel() {
               </div>
 
               <form onSubmit={handlePlanSubmit} className="space-y-4">
+                {/* Visibility Toggle */}
+                <div className="p-4 bg-zinc-900/60 rounded-2xl border border-purple-900/30 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      planForm.active !== false 
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    }`}>
+                      {planForm.active !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-2">
+                        <span>Tier Visibility</span>
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full uppercase ${
+                          planForm.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                        }`}>
+                          {planForm.active !== false ? 'Live (Visible)' : 'Hidden (Draft)'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {planForm.active !== false 
+                          ? 'This tier will be visible to all visitors on the /plans page.' 
+                          : 'This tier will only be visible to admins for testing and draft preview.'}
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={planForm.active !== false}
+                      onChange={(e) => setPlanForm({ ...planForm, active: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Plan Name / Title</label>
@@ -9023,20 +9519,44 @@ export default function AdminPanel() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Price (e.g. DA)</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Price Display (e.g. DA)</label>
                     <input
                       type="text"
                       required
                       value={planForm.price}
                       onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })}
                       className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-                      placeholder="e.g. 9,900 DA"
+                      placeholder="e.g. 18,000 DA"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Tagline Sub-header</label>
+                    <input
+                      type="text"
+                      value={planForm.tagline}
+                      onChange={(e) => setPlanForm({ ...planForm, tagline: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                      placeholder="e.g. For users who want to do more."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">Billing Interval</label>
+                    <input
+                      type="text"
+                      value={planForm.interval}
+                      onChange={(e) => setPlanForm({ ...planForm, interval: e.target.value })}
+                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none"
+                      placeholder="e.g. Per year / For a Lifetime"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold font-bold">Brief Tagline Description</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 font-mono font-bold">Brief Description</label>
                   <input
                     type="text"
                     required

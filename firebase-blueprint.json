@@ -265,11 +265,18 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "tagline": { "type": "string" },
         "price": { "type": "string" },
+        "rawPrice": { "type": "number" },
+        "interval": { "type": "string" },
         "description": { "type": "string" },
         "features": { "type": "array" },
         "isPopular": { "type": "boolean" },
-        "order": { "type": "number" }
+        "badge": { "type": "string" },
+        "buttonText": { "type": "string" },
+        "order": { "type": "number" },
+        "active": { "type": "boolean" },
+        "hidden": { "type": "boolean" }
       },
       "required": ["name", "price"]
     },

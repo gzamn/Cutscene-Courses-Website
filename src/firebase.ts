@@ -599,6 +599,95 @@ export const ensureDefaultSpecialOffersSeeded = async () => {
   }
 };
 
+export const DEFAULT_PLANS = [
+  {
+    id: "plan_individual",
+    name: "Individual",
+    tagline: "Perfect plan for starters",
+    price: "Free",
+    rawPrice: 0,
+    interval: "For a Lifetime",
+    description: "Start your video editing journey with community access and essential resources.",
+    features: [
+      "2 auto tracking project templates",
+      "All starter widget & plugin access",
+      "24/7 Community support access",
+      "Standard 1080p export presets",
+      "Discord member community room"
+    ],
+    isPopular: false,
+    badge: "Starter",
+    buttonText: "Choose Plan",
+    order: 1,
+    active: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "plan_pro",
+    name: "Pro",
+    tagline: "For users who want to do more.",
+    price: "18,000 DA",
+    rawPrice: 18000,
+    interval: "Per year",
+    description: "Complete access to full masterclasses, premium presets, project files, and mentor feedback.",
+    features: [
+      "Everything in Individual plan",
+      "All Widget & Masterclass Access",
+      "AI Editing Advisor & Toolsets",
+      "Direct instructor project reviews",
+      "Prior customer support line",
+      "4K Cinematic LUTs & Sound FX Packs",
+      "Official Verified Certificate"
+    ],
+    isPopular: true,
+    badge: "Most Popular",
+    buttonText: "Choose Plan",
+    order: 2,
+    active: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "plan_team",
+    name: "Team",
+    tagline: "Your entire team in one place",
+    price: "32,000 DA",
+    rawPrice: 32000,
+    interval: "Per year per person",
+    description: "All-inclusive studio tier with commercial licenses, group review, and VIP fast-track.",
+    features: [
+      "Everything in Pro plan",
+      "Instant withdrawal & offline downloads",
+      "Sharing permission & team controls",
+      "Admin tools & multi-seat billing",
+      "Collaborative workspace & assets",
+      "Commercial client license coverage",
+      "VIP private 1-on-1 portfolio review"
+    ],
+    isPopular: false,
+    badge: "Team Choice",
+    buttonText: "Choose Plan",
+    order: 3,
+    active: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const ensureDefaultPlansSeeded = async () => {
+  try {
+    const plansRef = fbCollection(db, 'plans');
+    const snap = await fbGetDocs(plansRef);
+    if (snap.empty) {
+      console.log("Empty Firestore plans collection detected. Seeding 3 default subscription tiers...");
+      for (const plan of DEFAULT_PLANS) {
+        await fbSetDoc(fbDoc(db, 'plans', plan.id), plan);
+      }
+      console.log("Starter 3 subscription plans database seeding completed successfully.");
+    }
+  } catch (error) {
+    console.warn("Could not seed starter subscription plans:", error);
+  }
+};
+
 export const DEFAULT_STATISTICS = [
   {
     id: "students",
