@@ -838,27 +838,31 @@ export default function CourseDetail() {
               {/* Instructor Card */}
               <div className="bg-zinc-950 border border-purple-900/30 rounded-3xl p-8 sticky top-32">
                 <h3 className="text-xl font-bold mb-6">{t('course.instructor')}</h3>
-                <div className="flex items-center gap-4 mb-6">
-                  {course.instructor && (
+                {(() => {
+                  const instName = (typeof course.instructor === 'object' ? course.instructor?.name : course.instructor) || course.instructorName || 'Master Instructor';
+                  const instAvatar = (typeof course.instructor === 'object' ? course.instructor?.avatar : null) || course.instructorAvatar || course.instructor_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
+                  const instBio = (typeof course.instructor === 'object' ? course.instructor?.bio : null) || course.instructorBio || course.instructor_bio || 'Experienced multimedia creator and verified academy instructor.';
+
+                  return (
                     <>
-                      <img 
-                        src={course.instructor.avatar} 
-                        alt={course.instructor.name} 
-                        className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-600"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div>
-                        <div className="font-bold text-lg">{course.instructor.name}</div>
-                        <div className="text-purple-400 text-sm">Professional Instructor</div>
+                      <div className="flex items-center gap-4 mb-6">
+                        <img 
+                          src={instAvatar} 
+                          alt={instName} 
+                          className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-500 shadow-md shadow-purple-500/20"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div>
+                          <div className="font-bold text-lg text-white">{instName}</div>
+                          <div className="text-purple-400 text-xs font-mono font-semibold uppercase tracking-wider">Professional Instructor</div>
+                        </div>
                       </div>
+                      <p className="text-gray-400 text-sm italic leading-relaxed mb-8">
+                        "{instBio}"
+                      </p>
                     </>
-                  )}
-                </div>
-                {course.instructor && (
-                  <p className="text-gray-400 text-sm italic leading-relaxed mb-8">
-                    "{course.instructor.bio}"
-                  </p>
-                )}
+                  );
+                })()}
                 
                 <div className="space-y-4 pt-8 border-t border-purple-900/20">
                   <div className="flex items-center justify-between text-sm">

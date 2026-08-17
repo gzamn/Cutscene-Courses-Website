@@ -640,7 +640,7 @@ export default function AdminPanel() {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [courseModalTab, setCourseModalTab] = useState<'general' | 'media' | 'curriculum'>('general');
-  const [chapterModalTab, setChapterModalTab] = useState<'core' | 'handouts' | 'exercise'>('core');
+  const [chapterModalTab, setChapterModalTab] = useState<'core' | 'media' | 'handouts' | 'exercise'>('core');
   const [enlargedReceiptUrl, setEnlargedReceiptUrl] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomRotation, setZoomRotation] = useState(0);
@@ -663,6 +663,8 @@ export default function AdminPanel() {
     thumbnail_url: '',
     is_free: false,
     instructor: '',
+    instructor_avatar: '',
+    instructor_bio: '',
     price: '15000',
     level: 'Beginner',
     duration: '8 weeks',
@@ -1688,6 +1690,14 @@ export default function AdminPanel() {
         isFree: !!courseForm.is_free,
         price: courseForm.price,
         instructorName: courseForm.instructor,
+        instructorAvatar: courseForm.instructor_avatar || '',
+        instructor_avatar: courseForm.instructor_avatar || '',
+        instructorBio: courseForm.instructor_bio || '',
+        instructor: {
+          name: courseForm.instructor,
+          avatar: courseForm.instructor_avatar || '',
+          bio: courseForm.instructor_bio || 'Professional Instructor'
+        },
         level: courseForm.level,
         duration: courseForm.duration,
         certificateUrl: courseForm.certificateUrl || '',
@@ -1730,6 +1740,8 @@ export default function AdminPanel() {
         thumbnail_url: '',
         is_free: false,
         instructor: '',
+        instructor_avatar: '',
+        instructor_bio: '',
         price: '15000',
         level: 'Beginner',
         duration: '8 weeks',
@@ -1756,7 +1768,9 @@ export default function AdminPanel() {
       thumbnail_url: course.image || '',
       is_free: !!course.isFree,
       price: course.price || '15000',
-      instructor: course.instructorName || '',
+      instructor: course.instructorName || course.instructor?.name || '',
+      instructor_avatar: course.instructorAvatar || course.instructor_avatar || course.instructor?.avatar || '',
+      instructor_bio: course.instructorBio || course.instructor_bio || course.instructor?.bio || '',
       level: course.level || 'Beginner',
       duration: course.duration || '8 weeks',
       certificateUrl: course.certificateUrl || '',
@@ -3460,6 +3474,8 @@ export default function AdminPanel() {
                       thumbnail_url: '',
                       is_free: false,
                       instructor: userProfile?.fullName || 'Senior Instructor',
+                      instructor_avatar: '',
+                      instructor_bio: '',
                       price: '15000',
                       level: 'Beginner',
                       duration: '8 weeks',
@@ -8095,6 +8111,25 @@ export default function AdminPanel() {
                           onChange={(e) => setCourseForm({ ...courseForm, category: e.target.value })}
                           className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                           placeholder="e.g. Editing, Sound Design"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-zinc-950/80 rounded-2xl border border-purple-900/30 space-y-3">
+                      <ImageUploader
+                        label="Instructor Headshot / Photo"
+                        value={courseForm.instructor_avatar}
+                        onChange={(url) => setCourseForm({ ...courseForm, instructor_avatar: url })}
+                        helperText="Upload or provide an avatar headshot for the course instructor."
+                      />
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 font-mono">Instructor Bio / Subtitle</label>
+                        <input
+                          type="text"
+                          value={courseForm.instructor_bio}
+                          onChange={(e) => setCourseForm({ ...courseForm, instructor_bio: e.target.value })}
+                          className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          placeholder="e.g. Professional Senior Video Editor & Colorist"
                         />
                       </div>
                     </div>

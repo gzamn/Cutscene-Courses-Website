@@ -2,17 +2,49 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "Information about registered students and instructors",
+      "description": "Information about registered students and instructors with Instagram-like profile portfolio features",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
+        "username": { "type": "string" },
         "photoURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "headline": { "type": "string" },
+        "website": { "type": "string" },
+        "location": { "type": "string" },
+        "socialLinks": { "type": "object" },
+        "skills": { "type": "array" },
+        "themeGradient": { "type": "object" },
         "role": { "type": "string", "enum": ["student", "instructor", "admin"] },
         "createdAt": { "type": "string" }
       },
       "required": ["uid", "email"]
+    },
+    "UserPost": {
+      "title": "User Portfolio Post",
+      "description": "Instagram-style portfolio showcase posts published by students and creators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "userDisplayName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "title": { "type": "string" },
+        "caption": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "videoUrl": { "type": "string" },
+        "software": { "type": "array" },
+        "category": { "type": "string" },
+        "externalUrl": { "type": "string" },
+        "likesCount": { "type": "integer" },
+        "likes": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "title"]
     },
     "Course": {
       "title": "Course",
@@ -522,6 +554,10 @@
     "quiz_attempts/{attemptId}": {
       "schema": "QuizAttempt",
       "description": "Student quiz attempts"
+    },
+    "user_posts/{postId}": {
+      "schema": "UserPost",
+      "description": "Instagram-like portfolio posts shared by students and creators"
     }
   }
 }

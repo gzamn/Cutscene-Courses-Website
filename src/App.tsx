@@ -74,6 +74,8 @@ function AnimatedRoutes() {
           <Route path="/courses/:id/exercise/:chapterId" element={<ProtectedRoute><ExercisePlayer /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/profile/:userId" element={<Profile />} />
+          <Route path="/u/:username" element={<Profile />} />
           <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
           <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
