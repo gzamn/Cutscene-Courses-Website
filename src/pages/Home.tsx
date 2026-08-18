@@ -554,7 +554,7 @@ export default function Home() {
             className="grid grid-cols-2 md:grid-cols-4 gap-0 mt-12 border border-white/5 rounded-[2rem] overflow-hidden glass-surface-dark"
           >
             {(statistics && statistics.length > 0 ? statistics : [
-              { id: 'students', value: '590+', labelEn: 'Students', labelFr: 'Étudiants', labelAr: 'طالب', iconName: 'Users' },
+              { id: 'students', value: '610+', labelEn: 'Students', labelFr: 'Étudiants', labelAr: 'طالب', iconName: 'Users' },
               { id: 'courses', value: '3+', labelEn: 'Courses', labelFr: 'Cours', labelAr: 'دورات', iconName: 'BookOpen' },
               { id: 'workshops', value: '40+', labelEn: 'Free Workshops', labelFr: 'Ateliers gratuits', labelAr: 'ورشة عمل مجانية', iconName: 'Star' },
               { id: 'certified', value: '100%', labelEn: 'Certified', labelFr: 'Certifié', labelAr: 'معتمد', iconName: 'ShieldCheck' },

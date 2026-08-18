@@ -16,6 +16,7 @@ import ExercisePlayer from './pages/ExercisePlayer';
 import StudentWork from './pages/StudentWork';
 import Store from './pages/Store';
 import Resources from './pages/Resources';
+import Community from './pages/Community';
 import TermsAndConditions from './pages/TermsAndConditions';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CompleteOrder from './pages/CompleteOrder';
@@ -63,6 +64,7 @@ function AnimatedRoutes() {
         <Routes location={location}>
           <Route path="/" element={<Home />} />
           <Route path="/courses" element={<Courses />} />
+          <Route path="/community" element={<Community />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/store" element={<Store />} />
           <Route path="/resources" element={<Resources />} />

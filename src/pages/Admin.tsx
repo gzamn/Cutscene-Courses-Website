@@ -7,7 +7,7 @@ import {
   CheckCircle, ShieldAlert, Shield, Globe, Award, RefreshCw, X, Save, 
   Video, HelpCircle, Activity, UserCheck, Play, Loader2, Receipt, Bell, Pin,
   Star, ShieldCheck, Trophy, Search, ChevronDown, ZoomIn, ZoomOut, RotateCw, Key, Lock,
-  Flame, Upload, Eye, EyeOff
+  Flame, Upload, Eye, EyeOff, MessageSquare
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -37,8 +37,9 @@ import { useRegion } from '../context/RegionContext';
 import { DEFAULT_SOFTWARE_OPTIONS } from '../components/SoftwareSelectionModal';
 import { CourseSoftwareOption } from '../types';
 import { ImageUploader } from '../components/ImageUploader';
+import { AdminCommunityManager } from '../components/AdminCommunityManager';
 
-type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises' | 'seo';
+type AdminTab = 'courses' | 'chapters' | 'store-products' | 'store-purchases' | 'useful-resources' | 'plans' | 'students' | 'receipts' | 'student-works' | 'hero-video' | 'settings' | 'offers' | 'statistics' | 'regions' | 'quizzes' | 'exercises' | 'seo' | 'community-control';
 
 interface Toast {
   id: string;
@@ -3339,6 +3340,14 @@ export default function AdminPanel() {
       tabs: [
         { id: 'students', name: 'Students Ledger', icon: Users },
         { id: 'receipts', name: 'Receipt Verifications', icon: Receipt, badge: 'receipts' },
+      ]
+    },
+    {
+      title: 'Community & Guild',
+      id: 'community_group',
+      icon: MessageSquare,
+      tabs: [
+        { id: 'community-control', name: 'Community Control', icon: MessageSquare },
       ]
     },
     {
@@ -7946,6 +7955,14 @@ export default function AdminPanel() {
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB 18: COMMUNITY CONTROL COMMAND CENTER */}
+        {activeTab === 'community-control' && (
+          <AdminCommunityManager
+            showToast={showToast}
+            askConfirmation={askConfirmation}
+          />
         )}
 
       </main>

@@ -457,6 +457,144 @@
         "timeTaken": { "type": "integer" }
       },
       "required": ["id", "studentId", "quizId", "attemptNumber", "answers", "score", "passed", "submittedAt"]
+    },
+    "CommunityChannel": {
+      "title": "Community Channel",
+      "description": "Configurable chat channels and lounges in the creator guild",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "isPrivate": { "type": "boolean" },
+        "order": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category"]
+    },
+    "CommunityMessage": {
+      "title": "Community Message",
+      "description": "Messages sent across community text chat channels",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "channelId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "userRole": { "type": "string" },
+        "content": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "replyTo": { "type": "object" },
+        "reactions": { "type": "object" },
+        "isPinned": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["channelId", "userId", "content", "createdAt"]
+    },
+    "CommunityLivestream": {
+      "title": "Community Livestream",
+      "description": "Live stream session, workshop, or masterclass details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "hostName": { "type": "string" },
+        "hostAvatar": { "type": "string" },
+        "hostRole": { "type": "string" },
+        "streamUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["live", "upcoming", "ended"] },
+        "scheduledAt": { "type": "string" },
+        "viewersCount": { "type": "number" },
+        "tags": { "type": "array" },
+        "recordingUrl": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "status"]
+    },
+    "CommunityQuestion": {
+      "title": "Community Livestream Q&A Question",
+      "description": "Question submitted by a viewer during a livestream",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "streamId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "question": { "type": "string" },
+        "upvotes": { "type": "array" },
+        "upvotesCount": { "type": "number" },
+        "isAnswered": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["streamId", "userId", "question", "createdAt"]
+    },
+    "CommunityVaultResource": {
+      "title": "Community Vault Resource",
+      "description": "Premium packs, SFX, LUTs, and project files in creator vault",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "format": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "previewUrl": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "isPro": { "type": "boolean" },
+        "downloadsCount": { "type": "number" },
+        "likesCount": { "type": "number" },
+        "likes": { "type": "array" },
+        "tags": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "category", "downloadUrl"]
+    },
+    "CommunityChallenge": {
+      "title": "Community Challenge",
+      "description": "Weekly or monthly video editing contest details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "prompt": { "type": "string" },
+        "rawFootageUrl": { "type": "string" },
+        "prize": { "type": "string" },
+        "deadline": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "voting", "completed"] },
+        "coverImage": { "type": "string" },
+        "rules": { "type": "array" },
+        "submissionsCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "deadline", "status"]
+    },
+    "CommunityChallengeSubmission": {
+      "title": "Challenge Submission",
+      "description": "Video entry submitted to a community challenge",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "challengeId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "votes": { "type": "array" },
+        "votesCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["challengeId", "userId", "videoUrl", "title", "createdAt"]
     }
   },
   "firestore": {
@@ -567,6 +705,34 @@
     "user_posts/{postId}": {
       "schema": "UserPost",
       "description": "Instagram-like portfolio posts shared by students and creators"
+    },
+    "community_channels/{channelId}": {
+      "schema": "CommunityChannel",
+      "description": "Channels and lounges configuration for the community"
+    },
+    "community_messages/{messageId}": {
+      "schema": "CommunityMessage",
+      "description": "Chat messages across group text channels"
+    },
+    "community_livestreams/{streamId}": {
+      "schema": "CommunityLivestream",
+      "description": "Live stream broadcasts and upcoming masterclass events"
+    },
+    "community_stream_questions/{questionId}": {
+      "schema": "CommunityQuestion",
+      "description": "Viewer Q&A questions asked during live workshops"
+    },
+    "community_vault_resources/{resourceId}": {
+      "schema": "CommunityVaultResource",
+      "description": "Creator vault premium packs, sound effects, LUTs, and project files"
+    },
+    "community_challenges/{challengeId}": {
+      "schema": "CommunityChallenge",
+      "description": "Weekly and monthly video editing challenges and contests"
+    },
+    "community_challenge_submissions/{submissionId}": {
+      "schema": "CommunityChallengeSubmission",
+      "description": "Student submissions to community edit challenges"
     }
   }
 }

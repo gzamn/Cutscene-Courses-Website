@@ -691,7 +691,7 @@ export const ensureDefaultPlansSeeded = async () => {
 export const DEFAULT_STATISTICS = [
   {
     id: "students",
-    value: "590+",
+    value: "610+",
     labelEn: "Students",
     labelFr: "Étudiants",
     labelAr: "طالب",
@@ -738,8 +738,8 @@ export const ensureDefaultStatisticsSeeded = async () => {
       }
       console.log("Starter statistics database seeding completed successfully.");
     } else {
-      // Force update students count to 590+ to fulfill the user's explicit request
-      await fbSetDoc(fbDoc(db, "statistics", "students"), { ...DEFAULT_STATISTICS[0], value: "590+" }, { merge: true });
+      // Force update students count to 610+ to fulfill the user's explicit request
+      await fbSetDoc(fbDoc(db, "statistics", "students"), { ...DEFAULT_STATISTICS[0], value: "610+" }, { merge: true });
     }
   } catch (error) {
     console.warn("Could not seed starter statistics:", error);

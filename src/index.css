@@ -1,13 +1,10 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: neon;
-  src: url(https://s3-us-west-2.amazonaws.com/s.cdpn.io/707108/neon.ttf);
-}
-
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Inter Tight", "Inter", sans-serif;
+  --font-inter: "Inter", sans-serif;
+  --font-rounded: "Inter MT Rounded Bold", "Inter Tight", "Inter", sans-serif;
   
   /* Brand Colors */
   --color-purple-50: #f5f0ff;
@@ -52,10 +49,12 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    font-family: "Inter", "Inter MT Rounded Bold", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   
   body {
     @apply text-white antialiased;
+    font-family: "Inter", "Inter MT Rounded Bold", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #0D0B1E;
     background-attachment: fixed;
     position: relative;
@@ -190,9 +189,10 @@
   }
 }
 
-/* Neon & Flux style helpers with the original neon font & adapted brand colors */
+/* Neon & Flux style helpers with Inter and brand glow colors */
 .neon {
-  font-family: neon, sans-serif;
+  font-family: "Inter MT Rounded Bold", "Inter", sans-serif;
+  font-weight: 900;
   color: #fff;
   font-size: 8vw;
   line-height: 8vw;
@@ -201,12 +201,24 @@
 }
 
 .flux {
-  font-family: neon, sans-serif;
+  font-family: "Inter MT Rounded Bold", "Inter", sans-serif;
+  font-weight: 900;
   color: #93c5fd;
   font-size: 8vw;
   line-height: 8vw;
   text-shadow: 0 0 3vw rgba(168, 85, 247, 0.9);
   animation: flux 2.5s linear infinite;
+}
+
+/* Custom Inter Font Helper Classes */
+.font-inter-black {
+  font-family: "Inter", sans-serif;
+  font-weight: 900;
+}
+
+.font-inter-rounded-bold {
+  font-family: "Inter MT Rounded Bold", "Inter Tight", "Inter", sans-serif;
+  font-weight: 700;
 }
 
 @keyframes neon {

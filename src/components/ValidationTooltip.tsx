@@ -24,7 +24,7 @@ export default function ValidationTooltip({ message = 'Please fill out this fiel
       <div className="flex items-center gap-3 bg-white border border-zinc-200 text-zinc-900 rounded-lg px-4 py-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)] max-w-sm">
         {/* Orange Exclamation Icon exactly like the image */}
         <div className="w-6 h-6 rounded bg-[#E65100] flex items-center justify-center shrink-0 shadow-sm">
-          <span className="text-white text-sm font-black font-serif select-none">!</span>
+          <span className="text-white text-sm font-black select-none">!</span>
         </div>
 
         {/* Message */}
