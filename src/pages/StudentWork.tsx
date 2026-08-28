@@ -2,19 +2,16 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Filter, Image as ImageIcon, Video, Plus, Award, BookOpen, 
-  Sparkles, Check, Loader2, X, AlertCircle, Bookmark, ExternalLink 
+  Sparkles, Check, Loader2, X, AlertCircle, Bookmark, ExternalLink, Play, Film
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   db, 
   collection, 
-  addDoc, 
-  getDocs, 
-  serverTimestamp, 
-  handleFirestoreError, 
-  OperationType 
+  getDocs 
 } from '../firebase';
+import { CreateReelModal } from '../components/CreateReelModal';
 
 interface StudentWorkItem {
   id: string;
@@ -22,15 +19,15 @@ interface StudentWorkItem {
   student_name: string;
   student_avatar: string;
   course_id: string;
-  course_name?: string; // resolved locally or stored
+  course_name?: string;
   chapter_position: number;
   title: string;
   description: string;
   image_url: string;
   video_url?: string;
+  tag?: string;
   submitted_at: any;
   is_featured: boolean;
-  // Compatibility with old structure:
   studentName?: string;
   thumbnail?: string;
   courseId?: string;
@@ -44,8 +41,7 @@ interface CourseItem {
 }
 
 export default function StudentWork() {
-  const { user, userProfile } = useAuth();
-  const [{ language }] = useState({ language: 'en' }); // fallback just in case, otherwise use useLanguage() below
+  const { user } = useAuth();
   const { t } = useLanguage();
 
   const [works, setWorks] = useState<StudentWorkItem[]>([]);
@@ -53,19 +49,8 @@ export default function StudentWork() {
   const [loading, setLoading] = useState(true);
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
 
-  // Submit modal state
-  const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Form Fields
-  const [formTitle, setFormTitle] = useState('');
-  const [formDesc, setFormDesc] = useState('');
-  const [formImage, setFormImage] = useState('');
-  const [formVideo, setFormVideo] = useState('');
-  const [formCourse, setFormCourse] = useState('');
-  const [formChapter, setFormChapter] = useState('1');
+  // New streamlined Reel / Showcase submit modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Video Player Modal State
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
@@ -87,7 +72,6 @@ export default function StudentWork() {
       const worksList = worksSnap.docs
         .map(doc => {
           const data = doc.data();
-          // Fallback mapper for old fields
           return {
             id: doc.id,
             student_id: data.student_id || data.studentId || '',
@@ -96,10 +80,11 @@ export default function StudentWork() {
             course_id: data.course_id || data.courseId || '',
             course_name: data.course_name || data.courseTitle || '',
             chapter_position: data.chapter_position !== undefined ? Number(data.chapter_position) : 1,
-            title: data.title || (data.courseTitle ? `Assignment for ${data.courseTitle}` : 'Showcase Work'),
-            description: data.description || 'Excellent concept execution by our creative student community.',
+            title: data.title || (data.courseTitle ? `Assignment for ${data.courseTitle}` : 'Showcase Reel'),
+            description: data.description || 'Creative project rendered by our student community.',
             image_url: data.image_url || data.thumbnail || '',
             video_url: data.video_url || '',
+            tag: data.tag || '🎬 Reel',
             submitted_at: data.submitted_at || null,
             is_featured: !!data.is_featured,
             approved: data.approved !== undefined ? data.approved : (data.status === 'approved' ? true : false),
@@ -112,7 +97,7 @@ export default function StudentWork() {
       worksList.sort((a, b) => {
         if (a.is_featured && !b.is_featured) return -1;
         if (!a.is_featured && b.is_featured) return 1;
-        return 0; // maintain original or firebase order
+        return 0;
       });
 
       setWorks(worksList);
@@ -132,21 +117,31 @@ export default function StudentWork() {
     ? works
     : works.filter(w => w.course_id === selectedCourseFilter);
 
+  // Helper to check if URL is a direct video (BunnyCDN, MP4, WebM, MOV)
+  const isDirectVideoFile = (url: string) => {
+    if (!url) return false;
+    const clean = url.toLowerCase().split('?')[0];
+    return (
+      clean.endsWith('.mp4') ||
+      clean.endsWith('.mov') ||
+      clean.endsWith('.webm') ||
+      clean.endsWith('.mkv') ||
+      url.includes('b-cdn.net')
+    );
+  };
+
   // Helper convert standard YouTube watch URL to embed link
   const getEmbedVideoUrl = (url: string) => {
     if (!url) return '';
     try {
-      // Check for youtu.be links
       if (url.includes('youtu.be/')) {
         const id = url.split('youtu.be/')[1]?.split('?')[0];
         return `https://www.youtube.com/embed/${id}`;
       }
-      // Check for watch?v=
       if (url.includes('v=')) {
         const id = url.split('v=')[1]?.split('&')[0];
         return `https://www.youtube.com/embed/${id}`;
       }
-      // Check Google Drive
       if (url.includes('drive.google.com/file/d/')) {
         const parts = url.split('drive.google.com/file/d/');
         if (parts[1]) {
@@ -161,105 +156,12 @@ export default function StudentWork() {
           return `https://drive.google.com/file/d/${fileId}/preview`;
         }
       }
-      // Check for embed links already
       if (url.includes('embed/')) {
         return url;
       }
       return url;
     } catch {
       return url;
-    }
-  };
-
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitLoading(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    if (!user) {
-      setErrorMessage('You must be logged in to submit your artwork.');
-      setSubmitLoading(false);
-      return;
-    }
-
-    if (!formCourse) {
-      setErrorMessage('Please associate your output with an academy course.');
-      setSubmitLoading(false);
-      return;
-    }
-
-    // Identify course name for local caching
-    const associatedCourse = courses.find(c => c.id === formCourse);
-    const resolvedCourseTitle = associatedCourse ? associatedCourse.title : 'General Course';
-
-    // Auto-resolve thumbnail URL if not provided (always blank now since we removed the input field)
-    let autoImageUrl = '';
-    const trimmedVideo = formVideo.trim();
-    if (trimmedVideo) {
-      // Extract youtube ID
-      let youtubeId = '';
-      if (trimmedVideo.includes('youtu.be/')) {
-        youtubeId = trimmedVideo.split('youtu.be/')[1]?.split('?')[0];
-      } else if (trimmedVideo.includes('v=')) {
-        youtubeId = trimmedVideo.split('v=')[1]?.split('&')[0];
-      } else if (trimmedVideo.includes('embed/')) {
-        youtubeId = trimmedVideo.split('embed/')[1]?.split('?')[0];
-      }
-      if (youtubeId) {
-        autoImageUrl = `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;
-      }
-    }
-
-    if (!autoImageUrl) {
-      // Use premium default cinematic representation for the showcase item
-      autoImageUrl = 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=800';
-    }
-
-    // Build payload conforming precisely to required schema
-    const newWork = {
-      student_id: user.uid,
-      student_name: userProfile?.fullName || userProfile?.displayName || user.displayName || user.email || 'Verified Creator',
-      student_avatar: user.photoURL || userProfile?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      course_id: formCourse,
-      course_name: resolvedCourseTitle,
-      chapter_position: Number(formChapter),
-      title: formTitle,
-      description: formDesc,
-      image_url: autoImageUrl,
-      video_url: trimmedVideo ? getEmbedVideoUrl(trimmedVideo) : '',
-      submitted_at: serverTimestamp(),
-      is_featured: false,
-      approved: false,
-      status: 'pending'
-    };
-
-    try {
-      await addDoc(collection(db, 'student_works'), newWork);
-      setSuccessMessage('Project submitted successfully! Please wait for an administrator to approve your work before it gets published.');
-      
-      // Reset inputs
-      setFormTitle('');
-      setFormDesc('');
-      setFormImage('');
-      setFormVideo('');
-      setFormChapter('1');
-
-      // Refresh layout
-      await fetchData();
-
-      // Delay modal close
-      setTimeout(() => {
-        setShowSubmitModal(false);
-        setSuccessMessage(null);
-      }, 2500);
-
-    } catch (err: any) {
-      console.error('Error submitting student project:', err);
-      setErrorMessage(err.message || 'Verification failure. Please ensure your inputs are healthy.');
-      handleFirestoreError(err, OperationType.CREATE, 'student_works');
-    } finally {
-      setSubmitLoading(false);
     }
   };
 
@@ -279,26 +181,21 @@ export default function StudentWork() {
             {t('studentsWork.title')}
           </h1>
           <p className="text-gray-400 text-sm sm:text-base md:text-lg font-light leading-relaxed mb-8">
-            {t('studentsWork.subtitle')} Discover real design concepts, video editing assets, and full composite projects created by our creative student community.
+            {t('studentsWork.subtitle')} Watch high-energy reels, color grades, sound design, and creative student projects.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
             {user ? (
               <button
-                onClick={() => {
-                  if (courses.length > 0 && !formCourse) {
-                    setFormCourse(courses[0].id);
-                  }
-                  setShowSubmitModal(true);
-                }}
-                className="inline-flex items-center gap-2 px-6 py-3.5 bg-brand-radial hover:opacity-95 text-white font-bold rounded-2xl text-xs sm:text-sm uppercase tracking-wider transition-all shadow-lg shadow-purple-600/15 cursor-pointer"
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:opacity-95 text-white font-bold rounded-2xl text-xs sm:text-sm uppercase tracking-wider transition-all shadow-lg shadow-purple-600/25 cursor-pointer hover:scale-105 active:scale-95"
               >
-                <Plus className="w-4 h-4" />
-                Submit Your Project
+                <Film className="w-4 h-4" />
+                <span>Post Your Reel</span>
               </button>
             ) : (
               <p className="text-xs text-gray-500 bg-white/5 border border-white/5 px-4 py-2.5 rounded-xl">
-                🔒 Logged in students can submit their own creative student works directly.
+                🔒 Logged in creators can upload and showcase their video reels directly.
               </p>
             )}
           </div>
@@ -308,7 +205,7 @@ export default function StudentWork() {
         <div className="flex flex-col md:flex-row items-center justify-between border-b border-purple-950/40 pb-8 mb-12 gap-6">
           <div className="flex items-center gap-3">
             <Filter className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Filter By Course:</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Filter By Program:</span>
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
@@ -316,11 +213,11 @@ export default function StudentWork() {
               onClick={() => setSelectedCourseFilter('all')}
               className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl border transition-all cursor-pointer ${
                 selectedCourseFilter === 'all'
-                  ? 'bg-purple-650 border-purple-500 text-white'
+                  ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/25'
                   : 'bg-zinc-950 border-purple-950/40 text-gray-400 hover:text-white hover:border-purple-800'
               }`}
             >
-              All Programs
+              All Reels & Projects
             </button>
             {courses.map(course => (
               <button
@@ -328,7 +225,7 @@ export default function StudentWork() {
                 onClick={() => setSelectedCourseFilter(course.id)}
                 className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl border transition-all cursor-pointer ${
                   selectedCourseFilter === course.id
-                    ? 'bg-purple-650 border-purple-500 text-white'
+                    ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/25'
                     : 'bg-zinc-950 border-purple-950/40 text-gray-400 hover:text-white hover:border-purple-800'
                 }`}
               >
@@ -342,15 +239,25 @@ export default function StudentWork() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-3">
             <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-            <span className="text-sm font-light text-gray-500">Retrieving masterpieces representing student excellence...</span>
+            <span className="text-sm font-light text-gray-500">Retrieving student video showcases...</span>
           </div>
         ) : filteredWorks.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-purple-950/20 rounded-3xl max-w-md mx-auto">
-            <Award className="w-12 h-12 text-gray-650 mx-auto mb-4 opacity-50" />
-            <p className="text-gray-400 font-medium mb-1">No showcases in this filter</p>
-            <p className="text-[11px] text-gray-500 px-6 leading-relaxed">
-              No entries are currently listed under this selection. Try choosing another course or publish your own work.
-            </p>
+          <div className="text-center py-24 border border-dashed border-purple-950/30 rounded-3xl max-w-md mx-auto space-y-4">
+            <Award className="w-12 h-12 text-gray-600 mx-auto opacity-50" />
+            <div>
+              <p className="text-gray-300 font-bold mb-1">No reels found in this selection</p>
+              <p className="text-xs text-gray-500 px-6 leading-relaxed">
+                Be the first to upload your video edit and showcase your talent to the academy!
+              </p>
+            </div>
+            {user && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/20 cursor-pointer"
+              >
+                + Upload Reel Now
+              </button>
+            )}
           </div>
         ) : (
           /* GALLERY GRID */
@@ -361,22 +268,22 @@ export default function StudentWork() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className={`group relative flex flex-col bg-zinc-950 border rounded-3xl overflow-hidden transition-all shadow-xl hover:shadow-purple-900/5 ${
+                className={`group relative flex flex-col bg-zinc-950 border rounded-3xl overflow-hidden transition-all shadow-xl hover:shadow-purple-900/10 ${
                   work.is_featured 
-                    ? 'border-purple-600/40 shadow-purple-600/5' 
-                    : 'border-purple-950/20'
+                    ? 'border-purple-600/50 shadow-purple-600/10' 
+                    : 'border-purple-950/30 hover:border-purple-700/40'
                 }`}
               >
-                {/* Visual Thumbnail */}
+                {/* Visual Thumbnail / Reel Banner */}
                 <div className="aspect-[16/10] w-full bg-zinc-900 relative overflow-hidden group">
                   <img
-                    src={work.image_url || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=400'}
+                    src={work.image_url || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=600'}
                     alt={work.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
                   
-                  {/* Absolute overlays/Badges */}
+                  {/* Overlays/Badges */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-65" />
 
                   <div className="absolute top-4 left-4 flex flex-col gap-1.5 items-start">
@@ -387,18 +294,19 @@ export default function StudentWork() {
                       </span>
                     )}
                     <span className="px-2.5 py-1 bg-black/75 border border-white/5 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase tracking-wider text-purple-300">
-                      Ch. {work.chapter_position} Task
+                      {work.tag || '🎬 Reel'}
                     </span>
                   </div>
 
                   {/* Play Trigger */}
                   {work.video_url ? (
                     <button
+                      type="button"
                       onClick={() => setActiveVideoUrl(work.video_url || '')}
-                      className="absolute inset-0 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer group-hover:scale-110 duration-300"
+                      className="absolute inset-0 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-all cursor-pointer group-hover:scale-110 duration-300"
                     >
-                      <div className="w-14 h-14 bg-purple-650 hover:bg-purple-600 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm border border-purple-400/30">
-                        <Video className="w-6 h-6 fill-current ml-0.5" />
+                      <div className="w-14 h-14 bg-gradient-to-tr from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm border border-purple-400/40">
+                        <Play className="w-6 h-6 fill-current ml-0.5" />
                       </div>
                     </button>
                   ) : (
@@ -411,8 +319,8 @@ export default function StudentWork() {
                 {/* Content & Student */}
                 <div className="p-6 flex flex-col flex-grow justify-between">
                   <div>
-                    <div className="text-micro text-purple-400 font-bold uppercase tracking-widest mb-1 shadow-sm">
-                      {work.course_name || 'Creative Program'}
+                    <div className="text-[10px] text-purple-400 font-mono font-bold uppercase tracking-widest mb-1 shadow-sm">
+                      {work.course_name || 'Creator Showcase'}
                     </div>
                     <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors mb-2 line-clamp-1">
                       {work.title}
@@ -423,27 +331,28 @@ export default function StudentWork() {
                   </div>
 
                   {/* Student Signature footer */}
-                  <div className="flex items-center justify-between pt-4 border-t border-purple-950/25">
+                  <div className="flex items-center justify-between pt-4 border-t border-purple-950/30">
                     <div className="flex items-center gap-3">
                       <img
                         src={work.student_avatar}
                         alt={work.student_name}
-                        className="w-10 h-10 object-cover rounded-full border-2 border-purple-950 shadow-md"
+                        className="w-9 h-9 object-cover rounded-full border-2 border-purple-900 shadow-md"
                         referrerPolicy="no-referrer"
                       />
                       <div>
                         <div className="text-xs font-bold text-white leading-tight">{work.student_name}</div>
-                        <div className="text-[10px] text-gray-500 font-light">Student Academy</div>
+                        <div className="text-[10px] text-gray-500 font-light">Verified Creator</div>
                       </div>
                     </div>
 
                     {work.video_url && (
                       <button
+                        type="button"
                         onClick={() => setActiveVideoUrl(work.video_url || '')}
-                        className="p-2 hover:bg-purple-900/20 text-purple-400 rounded-xl transition-all inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer"
+                        className="p-2 hover:bg-purple-900/20 text-purple-400 hover:text-purple-300 rounded-xl transition-all inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer"
                       >
-                        Watch Video
-                        <ExternalLink className="w-3 h-3" />
+                        <span>Watch</span>
+                        <Play className="w-3 h-3 fill-current" />
                       </button>
                     )}
                   </div>
@@ -454,160 +363,20 @@ export default function StudentWork() {
           </div>
         )}
 
-        {/* SUBMISSION MODAL */}
-        <AnimatePresence>
-          {showSubmitModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-              <div 
-                className="fixed inset-0 bg-black/85 backdrop-blur-md cursor-pointer" 
-                onClick={() => setShowSubmitModal(false)}
-              />
-              
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                className="relative bg-zinc-950 border border-purple-900/20 rounded-[2.5rem] p-8 sm:p-10 w-full max-w-xl shadow-2xl overflow-hidden z-10"
-              >
-                {/* Decorative glow */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-650/10 rounded-full blur-2xl pointer-events-none" />
+        {/* STREAMLINED REEL CREATION MODAL */}
+        <CreateReelModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            fetchData();
+          }}
+          courses={courses}
+        />
 
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-400">
-                      <Bookmark className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-white">Publish Showcase</h2>
-                      <p className="text-gray-400 text-xs mt-0.5">Show your designs and edits to the community</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowSubmitModal(false)}
-                    className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <AnimatePresence>
-                  {successMessage && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mb-6 p-4 bg-green-950/30 border border-green-500/30 text-green-400 rounded-2xl flex items-start gap-3 text-xs"
-                    >
-                      <Check className="w-4 h-4 shrink-0 mt-0.5" />
-                      <div>{successMessage}</div>
-                    </motion.div>
-                  )}
-                  {errorMessage && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mb-6 p-4 bg-red-950/30 border border-red-500/30 text-red-400 rounded-2xl flex items-start gap-3 text-xs"
-                    >
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <div>{errorMessage}</div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <form onSubmit={handleFormSubmit} className="space-y-5 text-left">
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Associate Course</label>
-                      <select
-                        required
-                        value={formCourse}
-                        onChange={(e) => setFormCourse(e.target.value)}
-                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      >
-                        {courses.map(course => (
-                          <option key={course.id} value={course.id}>{course.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Chapter Position (1 - 10)</label>
-                      <input
-                        type="number"
-                        required
-                        min={1}
-                        max={20}
-                        value={formChapter}
-                        onChange={(e) => setFormChapter(e.target.value)}
-                        className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Project Title</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g., Cyberpunk Film Frame Color Grade"
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Short Description</label>
-                    <textarea
-                      required
-                      rows={3}
-                      placeholder="Describe what techniques you applied, assets used, color palettes, or lessons learned..."
-                      value={formDesc}
-                      onChange={(e) => setFormDesc(e.target.value)}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Watch Video Embed / YouTube URL (Optional)</label>
-                    <input
-                      type="url"
-                      placeholder="e.g. https://www.youtube.com/watch?v=VIDEO_ID"
-                      value={formVideo}
-                      onChange={(e) => setFormVideo(e.target.value)}
-                      className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                    <span className="block text-[9px] text-gray-500 mt-1">If this is a video edit, provide your YouTube link. We'll automatically build an interactive player overlay.</span>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={submitLoading}
-                    className="w-full py-4 mt-4 bg-brand-radial hover:opacity-90 disabled:opacity-50 text-white font-bold rounded-xl text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/10"
-                  >
-                    {submitLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Validating & writing...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4" />
-                        Publish on Live Showcase
-                      </>
-                    )}
-                  </button>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* LIGHTBOX / EMBED VIDEO MULTIMEDIA MODAL */}
+        {/* LIGHTBOX / DIRECT BUNNY VIDEO & EMBED PLAYER */}
         <AnimatePresence>
           {activeVideoUrl && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
               <div 
                 className="fixed inset-0 bg-black/95 backdrop-blur-md cursor-pointer" 
                 onClick={() => setActiveVideoUrl(null)}
@@ -617,22 +386,33 @@ export default function StudentWork() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative bg-zinc-950 border border-purple-900/30 rounded-3xl w-full max-w-4xl aspect-video shadow-2xl overflow-hidden z-10"
+                className="relative bg-zinc-950 border border-purple-900/40 rounded-3xl w-full max-w-4xl aspect-video shadow-2xl overflow-hidden z-10"
               >
                 <button
+                  type="button"
                   onClick={() => setActiveVideoUrl(null)}
-                  className="absolute top-4 right-4 z-20 p-2 bg-black/60 rounded-full hover:bg-black/95 text-gray-400 hover:text-white transition-colors cursor-pointer border border-white/5"
+                  className="absolute top-4 right-4 z-20 p-2.5 bg-black/70 rounded-full hover:bg-black/95 text-gray-300 hover:text-white transition-colors cursor-pointer border border-white/10"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
-                <iframe
-                  src={getEmbedVideoUrl(activeVideoUrl)}
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  title="Academy Video Showcase Player"
-                />
+                {isDirectVideoFile(activeVideoUrl) ? (
+                  <video
+                    src={activeVideoUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-contain bg-black"
+                  />
+                ) : (
+                  <iframe
+                    src={getEmbedVideoUrl(activeVideoUrl)}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title="Academy Video Showcase Player"
+                  />
+                )}
               </motion.div>
             </div>
           )}

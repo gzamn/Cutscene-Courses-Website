@@ -54,6 +54,7 @@ import {
   Disc
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { DirectBunnyUploader } from '../components/DirectBunnyUploader';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
@@ -2295,43 +2296,33 @@ export default function Community() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-mono font-bold uppercase text-purple-400 mb-1">
-                    Video Stream Link (YouTube / Vimeo / MP4)
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    value={challengeForm.videoUrl}
-                    onChange={(e) => setChallengeForm({ ...challengeForm, videoUrl: e.target.value })}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+                {/* Direct Drag & Drop or Click to Upload with Bunny CDN */}
+                <DirectBunnyUploader
+                  label="Upload Challenge Video Reel"
+                  hint="Drag & drop your .mp4, .mov, or .webm video file directly to Bunny Edge CDN"
+                  mediaUrl={challengeForm.videoUrl}
+                  thumbnailUrl={challengeForm.thumbnail}
+                  onMediaChange={(url, thumb) => {
+                    setChallengeForm({
+                      ...challengeForm,
+                      videoUrl: url,
+                      thumbnail: thumb || challengeForm.thumbnail
+                    });
+                  }}
+                  accept="video"
+                  maxSizeMB={150}
+                />
 
                 <div>
                   <label className="block text-[10px] font-mono font-bold uppercase text-purple-400 mb-1">
-                    Custom Thumbnail Image URL (Optional)
-                  </label>
-                  <input
-                    type="url"
-                    value={challengeForm.thumbnail}
-                    onChange={(e) => setChallengeForm({ ...challengeForm, thumbnail: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full bg-black border border-purple-900/30 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-mono font-bold uppercase text-purple-400 mb-1">
-                    Editor Notes / Techniques Used
+                    Editor Notes / Techniques Used (Optional)
                   </label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={challengeForm.description}
                     onChange={(e) => setChallengeForm({ ...challengeForm, description: e.target.value })}
                     placeholder="Describe your sound design, grading nodes, and plugins..."
-                    className="w-full bg-black border border-purple-900/30 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-black border border-purple-900/30 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500 resize-none"
                   />
                 </div>
 
@@ -2339,14 +2330,14 @@ export default function Community() {
                   <button
                     type="button"
                     onClick={() => setShowSubmitChallengeModal(false)}
-                    className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-gray-300 text-xs font-bold rounded-xl"
+                    className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-gray-300 text-xs font-bold rounded-xl cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={submittingChallenge}
-                    className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-purple-600 hover:from-amber-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-amber-600/30 cursor-pointer flex items-center gap-2"
+                    disabled={submittingChallenge || !challengeForm.videoUrl}
+                    className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-purple-600 hover:from-amber-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-amber-600/30 cursor-pointer flex items-center gap-2 disabled:opacity-50"
                   >
                     {submittingChallenge ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Submit Video</span>}
                   </button>

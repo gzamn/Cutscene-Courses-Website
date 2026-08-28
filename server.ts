@@ -285,7 +285,7 @@ async function startServer() {
   });
 
   // Proxy endpoint carrying out the actual secure upload stream
-  app.put("/api/bunny-upload", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
+  app.put("/api/bunny-upload", express.raw({ type: "*/*", limit: "250mb" }), async (req, res) => {
     try {
       const { filename, expires, signature } = req.query;
 

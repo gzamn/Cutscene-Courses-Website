@@ -20,7 +20,7 @@ interface WatchItem {
 }
 
 export function ContinueWatchingWidget() {
-  const { user } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const { language } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -28,15 +28,25 @@ export function ContinueWatchingWidget() {
   const [isVisible, setIsVisible] = useState(false);
   const [watchItem, setWatchItem] = useState<WatchItem | null>(null);
 
-  // Check if current route should suppress the widget (e.g. video player, quiz, exercise)
+  const isAdmin = userProfile?.role === 'admin' || (user?.email && user.email.toLowerCase() === 'aminerouabhia14@gmail.com');
+
+  // Check if current route should suppress the widget (e.g. video player, quiz, exercise, admin dashboard)
   const isSuppressedRoute = location.pathname.includes('/video/') || 
                             location.pathname.includes('/quiz/') || 
-                            location.pathname.includes('/exercise/');
+                            location.pathname.includes('/exercise/') ||
+                            location.pathname.startsWith('/admin') ||
+                            location.pathname === '/login';
 
   useEffect(() => {
-    // 1. Check if user already dismissed widget during this browser session
+    // 1. Never show for guest users (no account), admins, suppressed routes, or during auth resolution
+    if (authLoading || !user || isAdmin || isSuppressedRoute) {
+      setIsVisible(false);
+      return;
+    }
+
+    // 2. Check if user already dismissed widget during this browser session
     const isDismissed = sessionStorage.getItem('continue_watching_dismissed') === 'true';
-    if (isDismissed || isSuppressedRoute) {
+    if (isDismissed) {
       setIsVisible(false);
       return;
     }
@@ -47,7 +57,7 @@ export function ContinueWatchingWidget() {
       try {
         let candidateItem: WatchItem | null = null;
 
-        // A. Try loading recent item from localStorage
+        // A. Try loading recent item from localStorage for this user
         const localSaved = localStorage.getItem('continue_watching');
         if (localSaved) {
           try {
@@ -72,7 +82,7 @@ export function ContinueWatchingWidget() {
           }
         }
 
-        // B. If user logged in, check Firestore progress for an even newer or missing item
+        // B. Check Firestore progress for the authenticated user
         if (user && user.uid) {
           try {
             const progressRef = collection(db, 'progress');
@@ -115,7 +125,7 @@ export function ContinueWatchingWidget() {
           }
         }
 
-        // C. Fallback for new visitors or users with no progress history yet
+        // C. Fallback only if candidateItem exists or default for authenticated students
         if (!candidateItem) {
           const defaultCourse = DEFAULT_COURSES[0];
           candidateItem = {
@@ -148,7 +158,7 @@ export function ContinueWatchingWidget() {
     return () => {
       isMounted = false;
     };
-  }, [user, location.pathname, isSuppressedRoute, language]);
+  }, [user, userProfile, isAdmin, authLoading, location.pathname, isSuppressedRoute, language]);
 
   const handleDismiss = () => {
     sessionStorage.setItem('continue_watching_dismissed', 'true');
@@ -164,7 +174,8 @@ export function ContinueWatchingWidget() {
     }
   };
 
-  if (isSuppressedRoute || !watchItem) {
+  // Do not render anything for guest users, admins, or on suppressed routes
+  if (authLoading || !user || isAdmin || isSuppressedRoute || !watchItem) {
     return null;
   }
 

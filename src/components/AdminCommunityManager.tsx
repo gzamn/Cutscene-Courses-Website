@@ -4,7 +4,8 @@ import {
   MessageSquare, Radio, Sparkles, Trophy, Trash2, Edit2, Plus, 
   Check, X, Search, Shield, Flame, Video, Volume2, FolderDown, 
   HelpCircle, ThumbsUp, Heart, CheckCircle2, Lock, Eye, Clock,
-  Tag, Download, Upload, AlertCircle, RefreshCw, Hash, Play, Disc, ArrowUpRight
+  Tag, Download, Upload, AlertCircle, RefreshCw, Hash, Play, Disc, ArrowUpRight,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { 
   db, 
@@ -1124,40 +1125,70 @@ export const AdminCommunityManager: React.FC<AdminCommunityManagerProps> = ({
         </div>
       </div>
 
-      {/* SUB-TABS NAVIGATION */}
-      <div className="flex items-center gap-2 p-1.5 bg-black/60 border border-purple-900/20 rounded-2xl overflow-x-auto scrollbar-none">
-        {[
-          { id: 'channels', label: 'Chat Channels', icon: MessageSquare, count: channels.length },
-          { id: 'livestreams', label: 'Live Masterclasses', icon: Radio, count: livestreams.length },
-          { id: 'vault', label: 'Creator Vault (Packs/LUTs/SFX)', icon: FolderDown, count: vaultResources.length },
-          { id: 'challenges', label: 'Edit Contests & Submissions', icon: Trophy, count: challenges.length },
-          { id: 'qna', label: 'Live Q&A Queue', icon: HelpCircle, count: qnaQuestions.length },
-          { id: 'moderation', label: 'Messages Moderation', icon: Shield, count: recentMessages.length }
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSubTab(tab.id as SubTab)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                isActive 
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30'
-                  : 'text-gray-400 hover:text-white hover:bg-zinc-900/60'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                  isActive ? 'bg-black/30 text-white' : 'bg-purple-950/60 text-purple-300'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* SUB-TABS NAVIGATION WITH NAVIGATION ARROWS */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            const tabs: SubTab[] = ['channels', 'livestreams', 'vault', 'challenges', 'qna', 'moderation'];
+            const idx = tabs.indexOf(activeSubTab);
+            const prev = (idx - 1 + tabs.length) % tabs.length;
+            setActiveSubTab(tabs[prev]);
+          }}
+          className="p-2.5 rounded-xl bg-zinc-900/90 hover:bg-purple-900/40 border border-purple-900/30 text-gray-300 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+          title="Previous Section"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        <div className="flex-1 flex items-center gap-2 p-1.5 bg-black/60 border border-purple-900/20 rounded-2xl overflow-x-auto scrollbar-none scroll-smooth">
+          {[
+            { id: 'channels', label: 'Chat Channels', icon: MessageSquare, count: channels.length },
+            { id: 'livestreams', label: 'Live Masterclasses', icon: Radio, count: livestreams.length },
+            { id: 'vault', label: 'Creator Vault (Packs/LUTs/SFX)', icon: FolderDown, count: vaultResources.length },
+            { id: 'challenges', label: 'Edit Contests & Submissions', icon: Trophy, count: challenges.length },
+            { id: 'qna', label: 'Live Q&A Queue', icon: HelpCircle, count: qnaQuestions.length },
+            { id: 'moderation', label: 'Messages Moderation', icon: Shield, count: recentMessages.length }
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id as SubTab)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  isActive 
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30'
+                    : 'text-gray-400 hover:text-white hover:bg-zinc-900/60'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    isActive ? 'bg-black/30 text-white' : 'bg-purple-950/60 text-purple-300'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            const tabs: SubTab[] = ['channels', 'livestreams', 'vault', 'challenges', 'qna', 'moderation'];
+            const idx = tabs.indexOf(activeSubTab);
+            const next = (idx + 1) % tabs.length;
+            setActiveSubTab(tabs[next]);
+          }}
+          className="p-2.5 rounded-xl bg-zinc-900/90 hover:bg-purple-900/40 border border-purple-900/30 text-gray-300 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+          title="Next Section"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* ========================================================================= */}
